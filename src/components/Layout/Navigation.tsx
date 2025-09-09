@@ -9,7 +9,8 @@ import {
   Calendar,
   Settings,
   Menu,
-  X
+  X,
+  Wrench
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -18,6 +19,7 @@ const navigationItems = [
   { name: "Dashboard", href: "/", icon: Home },
   { name: "Jobs", href: "/jobs", icon: Briefcase },
   { name: "Customers", href: "/customers", icon: Users },
+  { name: "Services", href: "/services", icon: Wrench },
   { name: "Quotes", href: "/quotes", icon: FileText },
   { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Calendar", href: "/calendar", icon: Calendar },
