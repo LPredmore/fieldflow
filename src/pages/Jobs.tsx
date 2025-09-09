@@ -13,48 +13,19 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-
-const jobs = [
-  {
-    id: "JOB-2024-001",
-    customer: "Sarah Johnson",
-    service: "Plumbing Repair", 
-    status: "In Progress",
-    priority: "High",
-    date: "2024-01-15",
-    contractor: "Mike Wilson",
-    value: "$350.00"
-  },
-  {
-    id: "JOB-2024-002",
-    customer: "David Chen", 
-    service: "HVAC Maintenance",
-    status: "Scheduled",
-    priority: "Medium",
-    date: "2024-01-16",
-    contractor: "Lisa Martinez",
-    value: "$280.00"
-  },
-  {
-    id: "JOB-2024-003",
-    customer: "Emma Rodriguez",
-    service: "Electrical Installation",
-    status: "Completed", 
-    priority: "Low",
-    date: "2024-01-14",
-    contractor: "Tom Anderson", 
-    value: "$520.00"
-  }
-];
+import { useJobs } from "@/hooks/useJobs";
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
     case 'completed':
       return 'bg-success text-success-foreground';
     case 'in progress':
+    case 'in_progress':
       return 'bg-warning text-warning-foreground';
     case 'scheduled':
       return 'bg-primary text-primary-foreground';
+    case 'cancelled':
+      return 'bg-destructive text-destructive-foreground';
     default:
       return 'bg-muted text-muted-foreground';
   }
@@ -62,6 +33,14 @@ const getStatusColor = (status: string) => {
 
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
+  const { jobs, loading } = useJobs();
+
+  // Filter jobs based on search term
+  const filteredJobs = jobs.filter(job => 
+    job.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+    job.service_type.toLowerCase().includes(searchTerm.toLowerCase())
+  );
 
   return (
     <div className="min-h-screen bg-background">
@@ -122,34 +101,58 @@ export default function Jobs() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {jobs.map((job) => (
-                    <TableRow key={job.id}>
-                      <TableCell className="font-medium">{job.id}</TableCell>
-                      <TableCell>{job.customer}</TableCell>
-                      <TableCell>{job.service}</TableCell>
-                      <TableCell>
-                        <Badge className={`${getStatusColor(job.status)}`}>
-                          {job.status}
-                        </Badge>
-                      </TableCell>
-                      <TableCell>{job.date}</TableCell>
-                      <TableCell>{job.contractor}</TableCell>
-                      <TableCell className="font-medium">{job.value}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-2">
-                          <Button variant="ghost" size="sm">
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm">
-                            <Edit className="h-4 w-4" />
-                          </Button>
-                          <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
+                  {loading ? (
+                    // Loading skeleton
+                    Array.from({ length: 5 }).map((_, i) => (
+                      <TableRow key={i}>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                      </TableRow>
+                    ))
+                  ) : filteredJobs.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                        {searchTerm ? `No jobs found matching "${searchTerm}"` : "No jobs found"}
                       </TableCell>
                     </TableRow>
-                  ))}
+                  ) : (
+                    filteredJobs.map((job) => (
+                      <TableRow key={job.id}>
+                        <TableCell className="font-medium">{job.id.slice(0, 8)}</TableCell>
+                        <TableCell>{job.customer_name}</TableCell>
+                        <TableCell>{job.title}</TableCell>
+                        <TableCell>
+                          <Badge className={`${getStatusColor(job.status.replace('_', ' '))}`}>
+                            {job.status.replace('_', ' ')}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>{new Date(job.scheduled_date).toLocaleDateString()}</TableCell>
+                        <TableCell>{job.assigned_to_user_id ? 'Assigned' : 'Unassigned'}</TableCell>
+                        <TableCell className="font-medium">
+                          {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-2">
+                            <Button variant="ghost" size="sm">
+                              <Eye className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm">
+                              <Edit className="h-4 w-4" />
+                            </Button>
+                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
                 </TableBody>
               </Table>
             </CardContent>
