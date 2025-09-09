@@ -3,7 +3,7 @@ import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { addDays, format } from "date-fns";
-import { CalendarIcon, Plus, Trash2 } from "lucide-react";
+import { CalendarIcon, Plus, Trash2, Check, ChevronsUpDown } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -29,6 +29,14 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from "@/components/ui/command";
 import { Calendar } from "@/components/ui/calendar";
 import {
   Popover,
@@ -94,6 +102,7 @@ export function QuoteForm({
 }: QuoteFormProps) {
   const { customers } = useCustomers();
   const { services } = useServices();
+  const [openComboboxes, setOpenComboboxes] = useState<Record<number, boolean>>({});
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -168,17 +177,26 @@ export function QuoteForm({
 
   // Handle service selection for line items
   const handleServiceSelect = (index: number, serviceId: string) => {
-    const service = services.find(s => s.id === serviceId);
-    if (service) {
-      form.setValue(`line_items.${index}.description`, service.name);
-      form.setValue(`line_items.${index}.unit_price`, Number(service.price_per_unit));
-      form.setValue(`line_items.${index}.taxable`, service.taxable);
-      
-      // Recalculate total
-      const quantity = form.getValues(`line_items.${index}.quantity`);
-      const total = calculateLineItemTotal(quantity, Number(service.price_per_unit));
-      form.setValue(`line_items.${index}.total`, total);
+    if (serviceId === "custom") {
+      // Clear the description for custom line items
+      form.setValue(`line_items.${index}.description`, "");
+      form.setValue(`line_items.${index}.unit_price`, 0);
+      form.setValue(`line_items.${index}.taxable`, true);
+      form.setValue(`line_items.${index}.total`, 0);
+    } else {
+      const service = services.find(s => s.id === serviceId);
+      if (service) {
+        form.setValue(`line_items.${index}.description`, service.name);
+        form.setValue(`line_items.${index}.unit_price`, Number(service.price_per_unit));
+        form.setValue(`line_items.${index}.taxable`, service.taxable);
+        
+        // Recalculate total
+        const quantity = form.getValues(`line_items.${index}.quantity`);
+        const total = calculateLineItemTotal(quantity, Number(service.price_per_unit));
+        form.setValue(`line_items.${index}.total`, total);
+      }
     }
+    setOpenComboboxes(prev => ({ ...prev, [index]: false }));
   };
 
   const handleSubmit = (data: FormData) => {
@@ -374,145 +392,173 @@ export function QuoteForm({
             </div>
 
             {/* Line Items */}
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center justify-between">
-                  Line Items
-                  <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    Add Item
-                  </Button>
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Line Items</h3>
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
+              </div>
+              
+              <div className="space-y-4">
                 {fields.map((field, index) => (
-                  <div key={field.id} className="grid grid-cols-12 gap-2 items-end">
-                    <div className="col-span-5">
-                      <FormLabel>Description</FormLabel>
-                      <div className="flex gap-2">
-                        <Select onValueChange={(value) => handleServiceSelect(index, value)}>
-                          <SelectTrigger className="w-[120px]">
-                            <SelectValue placeholder="Service" />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {services.map((service) => (
-                              <SelectItem key={service.id} value={service.id}>
-                                {service.name}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
+                  <div key={field.id} className="border rounded-lg p-4 space-y-4">
+                    {/* Service Selection */}
+                    <div>
+                      <FormLabel className="text-sm font-medium mb-2 block">
+                        Select a service or enter custom details below
+                      </FormLabel>
+                      <Popover open={openComboboxes[index]} onOpenChange={(open) => 
+                        setOpenComboboxes(prev => ({ ...prev, [index]: open }))
+                      }>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant="outline"
+                            role="combobox"
+                            aria-expanded={openComboboxes[index]}
+                            className="w-full justify-between"
+                          >
+                            Select a service or enter custom details below
+                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className="w-full p-0">
+                          <Command>
+                            <CommandInput placeholder="Search services..." />
+                            <CommandList>
+                              <CommandEmpty>No service found.</CommandEmpty>
+                              <CommandGroup>
+                                <CommandItem
+                                  onSelect={() => handleServiceSelect(index, "custom")}
+                                  className="font-medium"
+                                >
+                                  <Check className="mr-2 h-4 w-4 opacity-0" />
+                                  Custom Line Item
+                                </CommandItem>
+                                {services.map((service) => (
+                                  <CommandItem
+                                    key={service.id}
+                                    onSelect={() => handleServiceSelect(index, service.id)}
+                                  >
+                                    <Check className="mr-2 h-4 w-4 opacity-0" />
+                                    {service.name}
+                                  </CommandItem>
+                                ))}
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
+
+                    {/* Item Details */}
+                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                      <div>
+                        <FormLabel className="text-sm">Item description...</FormLabel>
                         <Controller
                           name={`line_items.${index}.description`}
                           control={form.control}
                           render={({ field }) => (
-                            <Input
-                              placeholder="Description"
+                            <Textarea
+                              placeholder="Item description..."
                               {...field}
-                              className="flex-1"
+                              rows={2}
+                              className="resize-none"
                             />
                           )}
                         />
                       </div>
-                    </div>
-                    
-                    <div className="col-span-2">
-                      <FormLabel>Quantity</FormLabel>
-                      <Controller
-                        name={`line_items.${index}.quantity`}
-                        control={form.control}
-                        render={({ field }) => (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            {...field}
-                            onChange={(e) => {
-                              const quantity = parseFloat(e.target.value) || 0;
-                              field.onChange(quantity);
-                              const unitPrice = form.getValues(`line_items.${index}.unit_price`);
-                              const total = calculateLineItemTotal(quantity, unitPrice);
-                              form.setValue(`line_items.${index}.total`, total);
-                            }}
-                          />
-                        )}
-                      />
-                    </div>
+                      
+                      <div>
+                        <FormLabel className="text-sm">Quantity</FormLabel>
+                        <Controller
+                          name={`line_items.${index}.quantity`}
+                          control={form.control}
+                          render={({ field }) => (
+                            <Input
+                              type="number"
+                              step="0.01"
+                              {...field}
+                              onChange={(e) => {
+                                const quantity = parseFloat(e.target.value) || 0;
+                                field.onChange(quantity);
+                                const unitPrice = form.getValues(`line_items.${index}.unit_price`);
+                                const total = calculateLineItemTotal(quantity, unitPrice);
+                                form.setValue(`line_items.${index}.total`, total);
+                              }}
+                            />
+                          )}
+                        />
+                      </div>
 
-                    <div className="col-span-2">
-                      <FormLabel>Unit Price</FormLabel>
-                      <Controller
-                        name={`line_items.${index}.unit_price`}
-                        control={form.control}
-                        render={({ field }) => (
-                          <Input
-                            type="number"
-                            step="0.01"
-                            {...field}
-                            onChange={(e) => {
-                              const unitPrice = parseFloat(e.target.value) || 0;
-                              field.onChange(unitPrice);
-                              const quantity = form.getValues(`line_items.${index}.quantity`);
-                              const total = calculateLineItemTotal(quantity, unitPrice);
-                              form.setValue(`line_items.${index}.total`, total);
-                            }}
+                      <div>
+                        <FormLabel className="text-sm">Unit Price</FormLabel>
+                        <div className="relative">
+                          <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
+                          <Controller
+                            name={`line_items.${index}.unit_price`}
+                            control={form.control}
+                            render={({ field }) => (
+                              <Input
+                                type="number"
+                                step="0.01"
+                                {...field}
+                                className="pl-7"
+                                onChange={(e) => {
+                                  const unitPrice = parseFloat(e.target.value) || 0;
+                                  field.onChange(unitPrice);
+                                  const quantity = form.getValues(`line_items.${index}.quantity`);
+                                  const total = calculateLineItemTotal(quantity, unitPrice);
+                                  form.setValue(`line_items.${index}.total`, total);
+                                }}
+                              />
+                            )}
                           />
-                        )}
-                      />
-                    </div>
+                        </div>
+                      </div>
 
-                    <div className="col-span-2">
-                      <FormLabel>Total</FormLabel>
-                      <Controller
-                        name={`line_items.${index}.total`}
-                        control={form.control}
-                        render={({ field }) => (
-                          <Input
-                            {...field}
-                            value={calculateLineItemTotal(
+                      <div className="flex items-end gap-2">
+                        <div className="flex-1">
+                          <FormLabel className="text-sm">Total</FormLabel>
+                          <div className="text-lg font-semibold">
+                            ${calculateLineItemTotal(
                               form.getValues(`line_items.${index}.quantity`) || 0,
                               form.getValues(`line_items.${index}.unit_price`) || 0
                             ).toFixed(2)}
-                            disabled
-                          />
-                        )}
-                      />
-                    </div>
-
-                    <div className="col-span-1">
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => removeLineItem(index)}
-                        disabled={fields.length === 1}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                          </div>
+                        </div>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          size="sm"
+                          onClick={() => removeLineItem(index)}
+                          disabled={fields.length === 1}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   </div>
                 ))}
-              </CardContent>
-            </Card>
+              </div>
+            </div>
 
             {/* Totals */}
-            <Card>
-              <CardContent className="pt-6">
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span>Subtotal:</span>
-                    <span>${subtotal.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span>Tax ({watchedTaxRate}%):</span>
-                    <span>${taxAmount.toFixed(2)}</span>
-                  </div>
-                  <div className="flex justify-between font-bold text-lg border-t pt-2">
-                    <span>Total:</span>
-                    <span>${totalAmount.toFixed(2)}</span>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div className="bg-muted/30 rounded-lg p-4 space-y-2">
+              <div className="flex justify-between text-sm">
+                <span>Subtotal:</span>
+                <span>${subtotal.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between text-sm">
+                <span>Tax ({watchedTaxRate}%):</span>
+                <span>${taxAmount.toFixed(2)}</span>
+              </div>
+              <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
+                <span>Total:</span>
+                <span>${totalAmount.toFixed(2)}</span>
+              </div>
+            </div>
 
             {/* Notes and Terms */}
             <FormField
