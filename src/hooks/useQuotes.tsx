@@ -88,6 +88,12 @@ export const useQuotes = () => {
     enabled: !!tenantId,
   });
 
+  // Helper function to check if quote is expired
+  const isExpired = (quote: Quote): boolean => {
+    if (!quote.valid_until) return false;
+    return new Date(quote.valid_until) < new Date() && quote.status === 'sent';
+  };
+
   // Calculate statistics
   const stats: QuoteStats = {
     total: quotes.length,
@@ -98,12 +104,6 @@ export const useQuotes = () => {
     expired: quotes.filter(q => isExpired(q)).length,
     total_value: quotes.reduce((sum, quote) => sum + Number(quote.total_amount), 0),
     acceptance_rate: quotes.length > 0 ? (quotes.filter(q => q.status === 'accepted').length / quotes.length) * 100 : 0,
-  };
-
-  // Helper function to check if quote is expired
-  const isExpired = (quote: Quote): boolean => {
-    if (!quote.valid_until) return false;
-    return new Date(quote.valid_until) < new Date() && quote.status === 'sent';
   };
 
   // Generate unique quote number
