@@ -14,16 +14,569 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      customers: {
+        Row: {
+          address: Json | null
+          created_at: string
+          created_by_user_id: string
+          customer_type: Database["public"]["Enums"]["customer_type"]
+          email: string | null
+          id: string
+          name: string
+          notes: string | null
+          phone: string
+          tenant_id: string
+          total_jobs_count: number | null
+          total_revenue_billed: number | null
+          updated_at: string | null
+        }
+        Insert: {
+          address?: Json | null
+          created_at?: string
+          created_by_user_id: string
+          customer_type?: Database["public"]["Enums"]["customer_type"]
+          email?: string | null
+          id?: string
+          name: string
+          notes?: string | null
+          phone: string
+          tenant_id: string
+          total_jobs_count?: number | null
+          total_revenue_billed?: number | null
+          updated_at?: string | null
+        }
+        Update: {
+          address?: Json | null
+          created_at?: string
+          created_by_user_id?: string
+          customer_type?: Database["public"]["Enums"]["customer_type"]
+          email?: string | null
+          id?: string
+          name?: string
+          notes?: string | null
+          phone?: string
+          tenant_id?: string
+          total_jobs_count?: number | null
+          total_revenue_billed?: number | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "customers_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customers_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          due_date: string
+          id: string
+          invoice_number: string
+          issue_date: string
+          job_id: string | null
+          line_items: Json
+          notes: string | null
+          paid_date: string | null
+          payment_instructions: string | null
+          payment_terms: string
+          paypal_me_link: string | null
+          sent_date: string | null
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          tenant_id: string
+          total_amount: number
+          updated_at: string | null
+          venmo_handle: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          due_date: string
+          id?: string
+          invoice_number: string
+          issue_date: string
+          job_id?: string | null
+          line_items: Json
+          notes?: string | null
+          paid_date?: string | null
+          payment_instructions?: string | null
+          payment_terms?: string
+          paypal_me_link?: string | null
+          sent_date?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate?: number
+          tenant_id: string
+          total_amount: number
+          updated_at?: string | null
+          venmo_handle?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          customer_id?: string
+          customer_name?: string
+          due_date?: string
+          id?: string
+          invoice_number?: string
+          issue_date?: string
+          job_id?: string | null
+          line_items?: Json
+          notes?: string | null
+          paid_date?: string | null
+          payment_instructions?: string | null
+          payment_terms?: string
+          paypal_me_link?: string | null
+          sent_date?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          tenant_id?: string
+          total_amount?: number
+          updated_at?: string | null
+          venmo_handle?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          actual_cost: number | null
+          assigned_to_user_id: string | null
+          completion_notes: string | null
+          created_at: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          description: string | null
+          estimated_cost: number | null
+          estimated_duration: number | null
+          id: string
+          materials_needed: Json | null
+          priority: Database["public"]["Enums"]["job_priority"]
+          scheduled_date: string
+          scheduled_time: string | null
+          service_type: Database["public"]["Enums"]["job_service_type"]
+          status: Database["public"]["Enums"]["job_status"]
+          tenant_id: string
+          title: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_cost?: number | null
+          assigned_to_user_id?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          description?: string | null
+          estimated_cost?: number | null
+          estimated_duration?: number | null
+          id?: string
+          materials_needed?: Json | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          scheduled_date: string
+          scheduled_time?: string | null
+          service_type?: Database["public"]["Enums"]["job_service_type"]
+          status?: Database["public"]["Enums"]["job_status"]
+          tenant_id: string
+          title: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_cost?: number | null
+          assigned_to_user_id?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          customer_id?: string
+          customer_name?: string
+          description?: string | null
+          estimated_cost?: number | null
+          estimated_duration?: number | null
+          id?: string
+          materials_needed?: Json | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          scheduled_date?: string
+          scheduled_time?: string | null
+          service_type?: Database["public"]["Enums"]["job_service_type"]
+          status?: Database["public"]["Enums"]["job_status"]
+          tenant_id?: string
+          title?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_assigned_to_user_id_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          avatar_url: string | null
+          created_at: string
+          email: string | null
+          full_name: string | null
+          id: string
+          parent_admin_id: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          parent_admin_id?: string | null
+          role: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          created_at?: string
+          email?: string | null
+          full_name?: string | null
+          id?: string
+          parent_admin_id?: string | null
+          role?: Database["public"]["Enums"]["user_role"]
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "profiles_parent_admin_id_fkey"
+            columns: ["parent_admin_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          created_at: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          id: string
+          line_items: Json
+          notes: string | null
+          quote_number: string
+          sent_date: string | null
+          status: Database["public"]["Enums"]["quote_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          tenant_id: string
+          terms: string
+          title: string
+          total_amount: number
+          updated_at: string | null
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          id?: string
+          line_items: Json
+          notes?: string | null
+          quote_number: string
+          sent_date?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate?: number
+          tenant_id: string
+          terms?: string
+          title: string
+          total_amount: number
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by_user_id?: string
+          customer_id?: string
+          customer_name?: string
+          id?: string
+          line_items?: Json
+          notes?: string | null
+          quote_number?: string
+          sent_date?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal?: number
+          tax_amount?: number
+          tax_rate?: number
+          tenant_id?: string
+          terms?: string
+          title?: string
+          total_amount?: number
+          updated_at?: string | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      services: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by_user_id: string
+          description: string | null
+          id: string
+          name: string
+          price_per_unit: number
+          tenant_id: string
+          unit_type: string
+          updated_at: string | null
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by_user_id: string
+          description?: string | null
+          id?: string
+          name: string
+          price_per_unit: number
+          tenant_id: string
+          unit_type?: string
+          updated_at?: string | null
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          description?: string | null
+          id?: string
+          name?: string
+          price_per_unit?: number
+          tenant_id?: string
+          unit_type?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "services_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "services_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      settings: {
+        Row: {
+          brand_color: string | null
+          business_address: Json | null
+          business_email: string | null
+          business_hours: Json | null
+          business_name: string | null
+          business_phone: string | null
+          business_website: string | null
+          created_at: string
+          created_by_user_id: string
+          id: string
+          invoice_settings: Json | null
+          logo_url: string | null
+          notification_settings: Json | null
+          payment_settings: Json | null
+          service_settings: Json | null
+          system_settings: Json | null
+          tax_settings: Json | null
+          tenant_id: string
+          updated_at: string | null
+          user_preferences: Json | null
+        }
+        Insert: {
+          brand_color?: string | null
+          business_address?: Json | null
+          business_email?: string | null
+          business_hours?: Json | null
+          business_name?: string | null
+          business_phone?: string | null
+          business_website?: string | null
+          created_at?: string
+          created_by_user_id: string
+          id?: string
+          invoice_settings?: Json | null
+          logo_url?: string | null
+          notification_settings?: Json | null
+          payment_settings?: Json | null
+          service_settings?: Json | null
+          system_settings?: Json | null
+          tax_settings?: Json | null
+          tenant_id: string
+          updated_at?: string | null
+          user_preferences?: Json | null
+        }
+        Update: {
+          brand_color?: string | null
+          business_address?: Json | null
+          business_email?: string | null
+          business_hours?: Json | null
+          business_name?: string | null
+          business_phone?: string | null
+          business_website?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          id?: string
+          invoice_settings?: Json | null
+          logo_url?: string | null
+          notification_settings?: Json | null
+          payment_settings?: Json | null
+          service_settings?: Json | null
+          system_settings?: Json | null
+          tax_settings?: Json | null
+          tenant_id?: string
+          updated_at?: string | null
+          user_preferences?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "settings_created_by_user_id_fkey"
+            columns: ["created_by_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "settings_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      get_user_tenant_id: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
     }
     Enums: {
-      [_ in never]: never
+      customer_type: "residential" | "commercial"
+      invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
+      job_priority: "low" | "medium" | "high" | "urgent"
+      job_service_type:
+        | "plumbing"
+        | "electrical"
+        | "hvac"
+        | "cleaning"
+        | "landscaping"
+        | "general_maintenance"
+        | "other"
+      job_status: "scheduled" | "in_progress" | "completed" | "cancelled"
+      quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
+      user_role: "business_admin" | "contractor"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -150,6 +703,22 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      customer_type: ["residential", "commercial"],
+      invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
+      job_priority: ["low", "medium", "high", "urgent"],
+      job_service_type: [
+        "plumbing",
+        "electrical",
+        "hvac",
+        "cleaning",
+        "landscaping",
+        "general_maintenance",
+        "other",
+      ],
+      job_status: ["scheduled", "in_progress", "completed", "cancelled"],
+      quote_status: ["draft", "sent", "accepted", "declined", "expired"],
+      user_role: ["business_admin", "contractor"],
+    },
   },
 } as const
