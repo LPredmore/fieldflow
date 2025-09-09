@@ -8,6 +8,8 @@ interface AuthContextType {
   session: Session | null;
   loading: boolean;
   tenantId: string | null;
+  userRole: 'business_admin' | 'contractor' | null;
+  isAdmin: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string, phone: string, companyName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -20,6 +22,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
+  const [userRole, setUserRole] = useState<'business_admin' | 'contractor' | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -29,23 +32,33 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setSession(session);
         setUser(session?.user ?? null);
         
-        // Fetch tenant ID when user logs in
+        // Fetch tenant ID and user role when user logs in
         if (session?.user) {
           setTimeout(async () => {
             try {
-              const { data, error } = await supabase.rpc('get_user_tenant_id');
+              const [tenantResult, profileResult] = await Promise.all([
+                supabase.rpc('get_user_tenant_id'),
+                supabase.from('profiles').select('role').eq('id', session.user.id).single()
+              ]);
               
-              if (!error && data) {
-                setTenantId(data);
+              if (!tenantResult.error && tenantResult.data) {
+                setTenantId(tenantResult.data);
               } else {
-                console.error('Error fetching tenant ID:', error);
+                console.error('Error fetching tenant ID:', tenantResult.error);
+              }
+
+              if (!profileResult.error && profileResult.data) {
+                setUserRole(profileResult.data.role);
+              } else {
+                console.error('Error fetching user role:', profileResult.error);
               }
             } catch (error) {
-              console.error('Error fetching tenant ID:', error);
+              console.error('Error fetching user data:', error);
             }
           }, 0);
         } else {
           setTenantId(null);
+          setUserRole(null);
         }
         
         setLoading(false);
@@ -57,18 +70,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setSession(session);
       setUser(session?.user ?? null);
       
-      // Fetch tenant ID for existing session
+      // Fetch tenant ID and user role for existing session
       if (session?.user) {
         try {
-          const { data, error } = await supabase.rpc('get_user_tenant_id');
+          const [tenantResult, profileResult] = await Promise.all([
+            supabase.rpc('get_user_tenant_id'),
+            supabase.from('profiles').select('role').eq('id', session.user.id).single()
+          ]);
           
-          if (!error && data) {
-            setTenantId(data);
+          if (!tenantResult.error && tenantResult.data) {
+            setTenantId(tenantResult.data);
           } else {
-            console.error('Error fetching tenant ID for existing session:', error);
+            console.error('Error fetching tenant ID for existing session:', tenantResult.error);
+          }
+
+          if (!profileResult.error && profileResult.data) {
+            setUserRole(profileResult.data.role);
+          } else {
+            console.error('Error fetching user role for existing session:', profileResult.error);
           }
         } catch (error) {
-          console.error('Error fetching tenant ID for existing session:', error);
+          console.error('Error fetching user data for existing session:', error);
         }
       }
       
@@ -169,6 +191,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     session,
     loading,
     tenantId,
+    userRole,
+    isAdmin: userRole === 'business_admin',
     signIn,
     signUp,
     signOut,

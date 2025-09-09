@@ -68,6 +68,7 @@ const settingsCategories = [
 
 export default function Settings() {
   const [activeCategory, setActiveCategory] = useState('business');
+  const { userRole } = useAuth();
   const { user } = useAuth();
 
   const renderContent = () => {

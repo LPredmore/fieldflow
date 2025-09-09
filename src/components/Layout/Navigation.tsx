@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { getRoleDisplayName, canAccessSettings } from "@/utils/roleUtils";
 
 const navigationItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -31,7 +32,7 @@ const navigationItems = [
 export default function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
-  const { signOut, user } = useAuth();
+  const { signOut, user, userRole } = useAuth();
 
   const handleSignOut = async () => {
     await signOut();
@@ -68,6 +69,11 @@ export default function Navigation() {
               const Icon = item.icon;
               const isActive = location.pathname === item.href;
               
+              // Hide Settings for non-admin users
+              if (item.name === 'Settings' && !canAccessSettings(userRole)) {
+                return null;
+              }
+              
               return (
                 <Link
                   key={item.name}
@@ -99,7 +105,9 @@ export default function Navigation() {
                 <p className="text-sm font-medium text-foreground truncate">
                   {user?.email}
                 </p>
-                <p className="text-xs text-muted-foreground">Business Admin</p>
+                <p className="text-xs text-muted-foreground">
+                  {userRole ? getRoleDisplayName(userRole) : 'Loading...'}
+                </p>
               </div>
             </div>
             <Button
