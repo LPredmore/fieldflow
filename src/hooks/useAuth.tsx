@@ -33,20 +33,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (session?.user) {
           setTimeout(async () => {
             try {
-              const { data, error } = await supabase
-                .from('profiles')
-                .select('id, role, parent_admin_id')
-                .eq('id', session.user.id)
-                .maybeSingle();
+              const { data, error } = await supabase.rpc('get_user_tenant_id');
               
               if (!error && data) {
-                // If business admin, their tenant ID is their own ID
-                // If contractor, their tenant ID is their parent admin's ID
-                const userTenantId = data.role === 'business_admin' ? data.id : data.parent_admin_id;
-                setTenantId(userTenantId);
+                setTenantId(data);
+              } else {
+                console.error('Error fetching tenant ID:', error);
               }
             } catch (error) {
-              console.error('Error fetching user profile:', error);
+              console.error('Error fetching tenant ID:', error);
             }
           }, 0);
         } else {
@@ -58,9 +53,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     );
 
     // Check for existing session
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setUser(session?.user ?? null);
+      
+      // Fetch tenant ID for existing session
+      if (session?.user) {
+        try {
+          const { data, error } = await supabase.rpc('get_user_tenant_id');
+          
+          if (!error && data) {
+            setTenantId(data);
+          } else {
+            console.error('Error fetching tenant ID for existing session:', error);
+          }
+        } catch (error) {
+          console.error('Error fetching tenant ID for existing session:', error);
+        }
+      }
+      
       setLoading(false);
     });
 
