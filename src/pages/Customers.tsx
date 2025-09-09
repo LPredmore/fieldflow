@@ -1,6 +1,7 @@
 import { useState, useMemo } from "react";
 import { Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
+import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -82,9 +83,12 @@ export default function Customers() {
         <div className="p-6 lg:p-8">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Customers</h1>
-              <p className="text-muted-foreground">Manage your customer relationships and contact information</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground mb-2">Customers</h1>
+                <p className="text-muted-foreground">Manage your customer relationships and contact information</p>
+              </div>
+              <RoleIndicator />
             </div>
             <Button 
               onClick={() => setIsFormOpen(true)}

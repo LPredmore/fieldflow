@@ -10,6 +10,7 @@ import {
 } from "@/components/ui/select";
 import { Search, Plus } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
+import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { QuoteStatsCards } from "@/components/Quotes/QuoteStatsCards";
 import { QuoteCard } from "@/components/Quotes/QuoteCard";
 import { QuoteForm } from "@/components/Quotes/QuoteForm";
@@ -116,11 +117,14 @@ export default function Quotes() {
       <main className="container mx-auto px-4 py-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-          <div>
-            <h1 className="text-3xl font-bold tracking-tight">Quotes</h1>
-            <p className="text-muted-foreground">
-              Create and manage service quotes for your customers
-            </p>
+          <div className="flex items-center gap-4">
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Quotes</h1>
+              <p className="text-muted-foreground">
+                Create and manage service quotes for your customers
+              </p>
+            </div>
+            <RoleIndicator />
           </div>
           <Button onClick={handleCreateQuote}>
             <Plus className="mr-2 h-4 w-4" />

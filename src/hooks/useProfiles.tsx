@@ -90,19 +90,85 @@ export function useProfiles() {
   };
 
   const inviteUser = async (email: string) => {
-    try {
-      // Here we would send an invitation email
-      // For now, we'll just show a success message
+    if (!user || !tenantId) {
       toast({
-        title: "Invitation sent",
-        description: `An invitation has been sent to ${email}`,
+        variant: "destructive",
+        title: "Error",
+        description: "Authentication required to invite users.",
       });
-      return { error: null };
+      return { error: "Not authenticated" };
+    }
+
+    try {
+      // First, check if user already exists
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id, email')
+        .eq('email', email)
+        .single();
+
+      if (existingProfile) {
+        toast({
+          variant: "destructive",
+          title: "User already exists",
+          description: "This email is already registered in the system.",
+        });
+        return { error: "User already exists" };
+      }
+
+      // Create a temporary password for the contractor
+      const tempPassword = Math.random().toString(36).slice(-8) + 'A1!';
+      
+      // Sign up the contractor
+      const { data: authData, error: signUpError } = await supabase.auth.signUp({
+        email,
+        password: tempPassword,
+        options: {
+          data: {
+            role: 'contractor',
+            parent_admin_id: tenantId,
+          }
+        }
+      });
+
+      if (signUpError) {
+        toast({
+          variant: "destructive",
+          title: "Error creating user",
+          description: signUpError.message,
+        });
+        return { error: signUpError };
+      }
+
+      // Update the profile to set parent_admin_id and role
+      if (authData.user) {
+        const { error: updateError } = await supabase
+          .from('profiles')
+          .update({
+            role: 'contractor',
+            parent_admin_id: tenantId,
+          })
+          .eq('id', authData.user.id);
+
+        if (updateError) {
+          console.error('Error updating profile:', updateError);
+        }
+      }
+
+      // Refresh profiles to show the new user
+      await fetchProfiles();
+
+      toast({
+        title: "Contractor invited successfully",
+        description: `${email} has been added as a contractor. They can sign in with the temporary password: ${tempPassword}`,
+      });
+      
+      return { error: null, tempPassword };
     } catch (error: any) {
       toast({
         variant: "destructive",
-        title: "Error sending invitation",
-        description: "Failed to send invitation. Please try again.",
+        title: "Error inviting user",
+        description: "Failed to invite user. Please try again.",
       });
       return { error };
     }

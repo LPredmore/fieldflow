@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Plus, Search, Filter, Eye, Edit, Trash2 } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
+import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -50,9 +51,12 @@ export default function Jobs() {
         <div className="p-6 lg:p-8">
           {/* Header */}
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-8">
-            <div>
-              <h1 className="text-3xl font-bold text-foreground mb-2">Jobs</h1>
-              <p className="text-muted-foreground">Manage and track your field service jobs</p>
+            <div className="flex items-center gap-4">
+              <div>
+                <h1 className="text-3xl font-bold text-foreground mb-2">Jobs</h1>
+                <p className="text-muted-foreground">Manage and track your field service jobs</p>
+              </div>
+              <RoleIndicator />
             </div>
             <Button className="mt-4 sm:mt-0 shadow-material-sm hover:shadow-material-md transition-shadow duration-fast">
               <Plus className="h-4 w-4 mr-2" />
