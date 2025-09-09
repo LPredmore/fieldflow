@@ -219,7 +219,15 @@ export function QuoteForm({
     return sum + total;
   }, 0);
 
-  const taxAmount = subtotal * (watchedTaxRate / 100);
+  const taxableAmount = watchedLineItems.reduce((sum, item) => {
+    if (item.taxable !== false) {
+      const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
+      return sum + total;
+    }
+    return sum;
+  }, 0);
+
+  const taxAmount = taxableAmount * (watchedTaxRate / 100);
   const totalAmount = subtotal + taxAmount;
 
   return (
