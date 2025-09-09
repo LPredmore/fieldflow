@@ -15,6 +15,8 @@ import * as z from "zod";
 import Navigation from "@/components/Layout/Navigation";
 import { toast } from "sonner";
 import { useServices } from "@/hooks/useServices";
+import { useSettings } from "@/hooks/useSettings";
+import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   name: z.string().min(1, "Service name is required"),
@@ -27,6 +29,7 @@ const formSchema = z.object({
 export default function Services() {
   // Use the services hook for database operations
   const { services, loading, createService, updateService, deleteService } = useServices();
+  const { settings } = useSettings();
   
   // State management for UI interactions
   const [searchTerm, setSearchTerm] = useState("");
@@ -127,17 +130,62 @@ export default function Services() {
     }
   };
 
-  // AI Price Suggestion functionality using mock data
+  // AI Price Suggestion functionality using real AI integration
   const handlePriceSuggestion = async () => {
-    // Mock AI price suggestion - simulates API call
-    const mockSuggestions = [
-      { price: 45.00, confidence: "High confidence based on market rates" },
-      { price: 55.00, confidence: "Medium confidence with premium positioning" },
-      { price: 65.00, confidence: "Lower confidence for luxury market" }
-    ];
-    
-    setSuggestedPrices(mockSuggestions);
-    setIsPriceSuggestionOpen(true);
+    // Check if business address is configured
+    if (!settings?.business_address || !settings.business_address.city || !settings.business_address.state) {
+      toast.error("Business address is required for AI price suggestions. Please configure your business address in Settings first.");
+      return;
+    }
+
+    // Get current form values for context
+    const serviceName = form.getValues("name");
+    const serviceDescription = form.getValues("description");
+    const unitType = form.getValues("unit_type");
+
+    if (!serviceName || !unitType) {
+      toast.error("Please enter service name and unit type before getting AI suggestions.");
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const { data, error } = await supabase.functions.invoke('ai-price-suggestion', {
+        body: {
+          serviceName,
+          serviceDescription,
+          unitType,
+          businessAddress: settings.business_address,
+          additionalContext: "" // Could add a field for this in the modal
+        }
+      });
+
+      if (error) {
+        console.error('AI suggestion error:', error);
+        if (error.message?.includes('requiresAddress')) {
+          toast.error("Business address is required for AI price suggestions. Please configure your business address in Settings first.");
+        } else {
+          toast.error("Failed to get AI price suggestions. Please try again.");
+        }
+        return;
+      }
+
+      // Transform AI response to match our expected format
+      const transformedSuggestions = data.suggestions?.map((suggestion: any) => ({
+        price: suggestion.price,
+        confidence: suggestion.description
+      })) || [];
+
+      setSuggestedPrices(transformedSuggestions);
+      setIsPriceSuggestionOpen(true);
+
+    } catch (error: any) {
+      console.error('AI suggestion error:', error);
+      toast.error("Failed to get AI price suggestions. Please try again.");
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   const applyPrice = (price: number) => {
