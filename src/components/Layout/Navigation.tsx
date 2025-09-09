@@ -10,10 +10,12 @@ import {
   Settings,
   Menu,
   X,
-  Wrench
+  Wrench,
+  LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/hooks/useAuth";
 
 const navigationItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -29,6 +31,11 @@ const navigationItems = [
 export default function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
+  const { signOut, user } = useAuth();
+
+  const handleSignOut = async () => {
+    await signOut();
+  };
 
   return (
     <>
@@ -82,15 +89,28 @@ export default function Navigation() {
 
           {/* User Section */}
           <div className="border-t border-border p-4">
-            <div className="flex items-center gap-3">
+            <div className="flex items-center gap-3 mb-3">
               <div className="h-8 w-8 rounded-full bg-primary flex items-center justify-center">
-                <span className="text-sm font-medium text-primary-foreground">BA</span>
+                <span className="text-sm font-medium text-primary-foreground">
+                  {user?.email?.charAt(0).toUpperCase()}
+                </span>
               </div>
               <div className="flex-1 min-w-0">
-                <p className="text-sm font-medium text-foreground">Business Admin</p>
-                <p className="text-xs text-muted-foreground truncate">admin@fieldflow.com</p>
+                <p className="text-sm font-medium text-foreground truncate">
+                  {user?.email}
+                </p>
+                <p className="text-xs text-muted-foreground">Business Admin</p>
               </div>
             </div>
+            <Button
+              variant="outline"
+              size="sm"
+              className="w-full justify-start"
+              onClick={handleSignOut}
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              Sign Out
+            </Button>
           </div>
         </div>
       </nav>

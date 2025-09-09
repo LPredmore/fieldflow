@@ -1,529 +1,550 @@
-import { useState } from "react";
-import { Plus, Search, MoreVertical, Edit, Trash2, Sparkles } from "lucide-react";
+import { useState, useRef } from "react";
+import { Search, Plus, MoreHorizontal, Edit, Trash2, Zap, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { toast } from "@/hooks/use-toast";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
+import * as z from "zod";
 import Navigation from "@/components/Layout/Navigation";
+import { toast } from "sonner";
+import { useServices } from "@/hooks/useServices";
 
-interface Service {
-  id: string;
-  name: string;
-  description: string;
-  category: string;
-  pricePerUnit: number;
-  unitType: string;
-}
-
-const mockServices: Service[] = [
-  {
-    id: "1",
-    name: "Standard Lawn Mowing",
-    description: "Regular lawn mowing service including grass cutting, edging, and cleanup",
-    category: "Lawn Care",
-    pricePerUnit: 45.00,
-    unitType: "per visit"
-  },
-  {
-    id: "2",
-    name: "Hedge Trimming",
-    description: "Professional hedge and shrub trimming service",
-    category: "Landscaping",
-    pricePerUnit: 65.00,
-    unitType: "per hour"
-  },
-  {
-    id: "3",
-    name: "Garden Cleanup",
-    description: "Comprehensive garden cleanup including weeding and debris removal",
-    category: "Maintenance",
-    pricePerUnit: 75.00,
-    unitType: "per hour"
-  }
-];
+const formSchema = z.object({
+  name: z.string().min(1, "Service name is required"),
+  description: z.string().optional(),
+  category: z.string().optional(),
+  price_per_unit: z.string().min(1, "Price is required"),
+  unit_type: z.string().min(1, "Unit type is required"),
+});
 
 export default function Services() {
-  const [services, setServices] = useState<Service[]>(mockServices);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [isServiceFormOpen, setIsServiceFormOpen] = useState(false);
-  const [isPriceSuggestionOpen, setIsPriceSuggestionOpen] = useState(false);
-  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [editingService, setEditingService] = useState<Service | null>(null);
-  const [serviceToDelete, setServiceToDelete] = useState<Service | null>(null);
-  const [isLoadingSuggestion, setIsLoadingSuggestion] = useState(false);
+  // Use the services hook for database operations
+  const { services, loading, createService, updateService, deleteService } = useServices();
   
-  const [formData, setFormData] = useState({
-    name: "",
-    description: "",
-    category: "",
-    pricePerUnit: "",
-    unitType: ""
-  });
+  // State management for UI interactions
+  const [searchTerm, setSearchTerm] = useState("");
+  const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [isPriceSuggestionOpen, setIsPriceSuggestionOpen] = useState(false);
+  const [editingService, setEditingService] = useState<any>(null);
+  const [deletingService, setDeletingService] = useState<any>(null);
+  const [suggestedPrices, setSuggestedPrices] = useState<{ price: number; confidence: string }[]>([]);
+  const [submitting, setSubmitting] = useState(false);
+  
+  const triggerRef = useRef<HTMLButtonElement>(null);
 
-  const [priceSuggestionContext, setPriceSuggestionContext] = useState("");
-  const [suggestedPrices, setSuggestedPrices] = useState<{
-    low: number;
-    average: number;
-    high: number;
-    reasoning: string;
-  } | null>(null);
-
+  // Filter services based on search term for improved user experience
   const filteredServices = services.filter(service =>
     service.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    service.category.toLowerCase().includes(searchTerm.toLowerCase())
+    (service.description && service.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+    (service.category && service.category.toLowerCase().includes(searchTerm.toLowerCase()))
   );
 
-  const handleCreateService = () => {
-    setEditingService(null);
-    setFormData({
+  // Form setup with validation schema
+  const form = useForm<z.infer<typeof formSchema>>({
+    resolver: zodResolver(formSchema),
+    defaultValues: {
       name: "",
       description: "",
       category: "",
-      pricePerUnit: "",
-      unitType: ""
+      price_per_unit: "",
+      unit_type: "",
+    },
+  });
+
+  // Service management functions for creating, editing, and deleting services
+  const handleCreateService = () => {
+    form.reset({
+      name: "",
+      description: "",
+      category: "",
+      price_per_unit: "",
+      unit_type: "",
     });
-    setIsServiceFormOpen(true);
+    setEditingService(null);
+    setIsCreateModalOpen(true);
   };
 
-  const handleEditService = (service: Service) => {
+  const handleEditService = (service: any) => {
     setEditingService(service);
-    setFormData({
+    form.reset({
       name: service.name,
-      description: service.description,
-      category: service.category,
-      pricePerUnit: service.pricePerUnit.toString(),
-      unitType: service.unitType
+      description: service.description || "",
+      category: service.category || "",
+      price_per_unit: service.price_per_unit.toString(),
+      unit_type: service.unit_type,
     });
-    setIsServiceFormOpen(true);
+    setIsEditModalOpen(true);
   };
 
-  const handleDeleteService = (service: Service) => {
-    setServiceToDelete(service);
+  const handleDeleteService = (service: any) => {
+    setDeletingService(service);
     setIsDeleteDialogOpen(true);
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleFormSubmit = async (values: z.infer<typeof formSchema>) => {
+    setSubmitting(true);
     
-    if (!formData.name || !formData.pricePerUnit || !formData.unitType) {
-      toast({
-        title: "Validation Error",
-        description: "Please fill in all required fields.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    const serviceData = {
-      ...formData,
-      pricePerUnit: parseFloat(formData.pricePerUnit)
-    };
-
-    if (editingService) {
-      setServices(prev => prev.map(service => 
-        service.id === editingService.id 
-          ? { ...service, ...serviceData }
-          : service
-      ));
-      toast({
-        title: "Service Updated",
-        description: "Your service has been updated successfully."
-      });
-    } else {
-      const newService: Service = {
-        id: Date.now().toString(),
-        ...serviceData
+    try {
+      const serviceData = {
+        name: values.name,
+        description: values.description || null,
+        category: values.category || null,
+        price_per_unit: parseFloat(values.price_per_unit),
+        unit_type: values.unit_type,
       };
-      setServices(prev => [...prev, newService]);
-      toast({
-        title: "Service Created",
-        description: "Your new service has been created successfully."
-      });
-    }
 
-    setIsServiceFormOpen(false);
+      if (editingService) {
+        // Update existing service
+        await updateService(editingService.id, serviceData);
+        setIsEditModalOpen(false);
+      } else {
+        // Create new service
+        await createService(serviceData);
+        setIsCreateModalOpen(false);
+      }
+      
+      form.reset();
+      setEditingService(null);
+    } finally {
+      setSubmitting(false);
+    }
   };
 
-  const confirmDelete = () => {
-    if (serviceToDelete) {
-      setServices(prev => prev.filter(service => service.id !== serviceToDelete.id));
-      toast({
-        title: "Service Deleted",
-        description: "The service has been removed from your catalog."
-      });
+  const confirmDelete = async () => {
+    if (deletingService) {
+      await deleteService(deletingService.id);
       setIsDeleteDialogOpen(false);
-      setServiceToDelete(null);
+      setDeletingService(null);
     }
   };
 
+  // AI Price Suggestion functionality using mock data
   const handlePriceSuggestion = async () => {
-    setIsLoadingSuggestion(true);
+    // Mock AI price suggestion - simulates API call
+    const mockSuggestions = [
+      { price: 45.00, confidence: "High confidence based on market rates" },
+      { price: 55.00, confidence: "Medium confidence with premium positioning" },
+      { price: 65.00, confidence: "Lower confidence for luxury market" }
+    ];
     
-    // Mock AI suggestion - in real implementation, this would call an AI service
-    setTimeout(() => {
-      setSuggestedPrices({
-        low: 35.00,
-        average: 50.00,
-        high: 75.00,
-        reasoning: `Based on market analysis for "${formData.name}" services in your area, considering factors like labor costs, equipment usage, and competitive pricing.`
-      });
-      setIsLoadingSuggestion(false);
-    }, 2000);
+    setSuggestedPrices(mockSuggestions);
+    setIsPriceSuggestionOpen(true);
   };
 
   const applyPrice = (price: number) => {
-    setFormData(prev => ({ ...prev, pricePerUnit: price.toString() }));
+    form.setValue("price_per_unit", price.toString());
     setIsPriceSuggestionOpen(false);
-    setSuggestedPrices(null);
   };
 
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <main className="ml-64 p-8">
+          <div className="flex items-center justify-center h-64">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading services...</p>
+            </div>
+          </div>
+        </main>
+      </div>
+    );
+  }
+
   return (
-    <div className="min-h-screen bg-surface">
+    <div className="min-h-screen bg-background">
       <Navigation />
-      
-      <div className="ml-0 lg:ml-64 min-h-screen">
-        <div className="container mx-auto p-6 pt-20 lg:pt-6">
-          {/* Header */}
-          <div className="mb-8">
-            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-              <div>
-                <h1 className="text-3xl font-bold text-foreground">Services</h1>
-                <p className="text-muted-foreground mt-1">
-                  Manage your service catalog and pricing
-                </p>
-              </div>
-              <Button onClick={handleCreateService} className="shadow-material-sm">
-                <Plus className="h-4 w-4 mr-2" />
+      <main className="ml-64 p-8">
+        {/* Header section with title and create button */}
+        <div className="flex justify-between items-center mb-8">
+          <div>
+            <h1 className="text-3xl font-bold text-foreground mb-2">Services</h1>
+            <p className="text-muted-foreground">Manage your service offerings and pricing</p>
+          </div>
+          <Dialog open={isCreateModalOpen} onOpenChange={setIsCreateModalOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={handleCreateService} size="lg" className="shadow-material-md">
+                <Plus className="mr-2 h-5 w-5" />
                 New Service
               </Button>
-            </div>
-          </div>
-
-          {/* Search Bar */}
-          <div className="mb-6">
-            <div className="relative max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
-              <Input
-                placeholder="Search services..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-          </div>
-
-          {/* Services Grid */}
-          {filteredServices.length === 0 && searchTerm ? (
-            <Card className="shadow-material-md">
-              <CardContent className="py-12 text-center">
-                <p className="text-muted-foreground">No services found matching "{searchTerm}"</p>
-                <p className="text-sm text-muted-foreground mt-1">Try adjusting your search term</p>
-              </CardContent>
-            </Card>
-          ) : filteredServices.length === 0 ? (
-            <Card className="shadow-material-md">
-              <CardContent className="py-12 text-center">
-                <h3 className="text-lg font-semibold text-foreground mb-2">No services defined yet</h3>
-                <p className="text-muted-foreground mb-4">
-                  Start building your service catalog to streamline quote and invoice creation
-                </p>
-                <Button onClick={handleCreateService}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Create Service
-                </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredServices.map((service) => (
-                <Card key={service.id} className="shadow-material-md hover:shadow-material-lg transition-shadow duration-fast">
-                  <CardHeader className="pb-3">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 min-w-0">
-                        <CardTitle className="text-lg truncate">{service.name}</CardTitle>
-                        {service.category && (
-                          <Badge variant="secondary" className="mt-2">
-                            {service.category}
-                          </Badge>
-                        )}
-                      </div>
-                      <DropdownMenu>
-                        <DropdownMenuTrigger asChild>
-                          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-                            <MoreVertical className="h-4 w-4" />
-                          </Button>
-                        </DropdownMenuTrigger>
-                        <DropdownMenuContent align="end">
-                          <DropdownMenuItem onClick={() => handleEditService(service)}>
-                            <Edit className="h-4 w-4 mr-2" />
-                            Edit
-                          </DropdownMenuItem>
-                          <DropdownMenuItem 
-                            onClick={() => handleDeleteService(service)}
-                            className="text-destructive"
-                          >
-                            <Trash2 className="h-4 w-4 mr-2" />
-                            Delete
-                          </DropdownMenuItem>
-                        </DropdownMenuContent>
-                      </DropdownMenu>
-                    </div>
-                  </CardHeader>
-                  <CardContent>
-                    <p className="text-sm text-muted-foreground mb-4 line-clamp-3">
-                      {service.description}
-                    </p>
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <p className="text-2xl font-bold text-primary">
-                          ${service.pricePerUnit.toFixed(2)}
-                        </p>
-                        <p className="text-sm text-muted-foreground">
-                          {service.unitType}
-                        </p>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              ))}
-            </div>
-          )}
-        </div>
-      </div>
-
-      {/* Service Form Modal */}
-      <Dialog open={isServiceFormOpen} onOpenChange={setIsServiceFormOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>
-              {editingService ? "Edit Service" : "Create New Service"}
-            </DialogTitle>
-            <DialogDescription>
-              {editingService 
-                ? "Update the details of your service" 
-                : "Add a new service to your catalog"
-              }
-            </DialogDescription>
-          </DialogHeader>
-          <form onSubmit={handleFormSubmit} className="space-y-4">
-            <div>
-              <Label htmlFor="name">Service Name *</Label>
-              <Input
-                id="name"
-                value={formData.name}
-                onChange={(e) => setFormData(prev => ({ ...prev, name: e.target.value }))}
-                placeholder="e.g., Standard Lawn Mowing"
-                required
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="description">Description</Label>
-              <Textarea
-                id="description"
-                value={formData.description}
-                onChange={(e) => setFormData(prev => ({ ...prev, description: e.target.value }))}
-                placeholder="Describe what this service includes..."
-                rows={3}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="category">Category</Label>
-              <Input
-                id="category"
-                value={formData.category}
-                onChange={(e) => setFormData(prev => ({ ...prev, category: e.target.value }))}
-                placeholder="e.g., Lawn Care, Landscaping"
-              />
-            </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="price">Price per Unit *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="price"
-                    type="number"
-                    step="0.01"
-                    min="0"
-                    value={formData.pricePerUnit}
-                    onChange={(e) => setFormData(prev => ({ ...prev, pricePerUnit: e.target.value }))}
-                    placeholder="0.00"
-                    required
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-[500px]">
+              <DialogHeader>
+                <DialogTitle>Create New Service</DialogTitle>
+              </DialogHeader>
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Service Name</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Plumbing Repair" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
                   />
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    onClick={() => setIsPriceSuggestionOpen(true)}
-                    className="px-3"
-                  >
-                    <Sparkles className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-              
-              <div>
-                <Label htmlFor="unitType">Unit Type *</Label>
+                  
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea 
+                            placeholder="Brief description of the service..."
+                            className="min-h-[80px]"
+                            {...field}
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <FormField
+                    control={form.control}
+                    name="category"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Category</FormLabel>
+                        <FormControl>
+                          <Input placeholder="e.g., Plumbing, Electrical, HVAC" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  
+                  <div className="grid grid-cols-2 gap-4">
+                    <FormField
+                      control={form.control}
+                      name="price_per_unit"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Price per Unit</FormLabel>
+                          <FormControl>
+                            <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                    
+                    <FormField
+                      control={form.control}
+                      name="unit_type"
+                      render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Unit Type</FormLabel>
+                          <FormControl>
+                            <Input placeholder="hour, item, sq ft" {...field} />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )}
+                    />
+                  </div>
+
+                  <div className="flex gap-2 pt-4">
+                    <Button 
+                      type="button"
+                      variant="outline"
+                      onClick={() => setIsPriceSuggestionOpen(true)}
+                      className="flex-1"
+                      disabled={submitting}
+                    >
+                      <Zap className="mr-2 h-4 w-4" />
+                      AI Price Suggestion
+                    </Button>
+                    
+                    <Button type="submit" className="flex-1" disabled={submitting}>
+                      {submitting ? (
+                        <>
+                          <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                          Creating...
+                        </>
+                      ) : (
+                        'Create Service'
+                      )}
+                    </Button>
+                  </div>
+                </form>
+              </Form>
+            </DialogContent>
+          </Dialog>
+        </div>
+
+        {/* Search and filter section */}
+        <Card className="mb-6 shadow-material-md">
+          <CardContent className="p-6">
+            <div className="flex gap-4">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground h-4 w-4" />
                 <Input
-                  id="unitType"
-                  value={formData.unitType}
-                  onChange={(e) => setFormData(prev => ({ ...prev, unitType: e.target.value }))}
-                  placeholder="e.g., per hour, per visit"
-                  required
+                  placeholder="Search services..."
+                  className="pl-10"
+                  value={searchTerm}
+                  onChange={(e) => setSearchTerm(e.target.value)}
                 />
               </div>
-            </div>
-            
-            <div className="flex justify-end gap-3 pt-4">
-              <Button type="button" variant="outline" onClick={() => setIsServiceFormOpen(false)}>
-                Cancel
-              </Button>
-              <Button type="submit">
-                {editingService ? "Update Service" : "Create Service"}
+              <Button variant="outline">
+                Filter
               </Button>
             </div>
-          </form>
-        </DialogContent>
-      </Dialog>
+          </CardContent>
+        </Card>
 
-      {/* Price Suggestion Modal */}
-      <Dialog open={isPriceSuggestionOpen} onOpenChange={setIsPriceSuggestionOpen}>
-        <DialogContent className="sm:max-w-[500px]">
-          <DialogHeader>
-            <DialogTitle>AI Price Suggestion</DialogTitle>
-            <DialogDescription>
-              Get AI-powered pricing recommendations for "{formData.name}"
-            </DialogDescription>
-          </DialogHeader>
-          
-          <div className="space-y-4">
-            <div>
-              <Label htmlFor="context">Additional Context (Optional)</Label>
-              <Textarea
-                id="context"
-                value={priceSuggestionContext}
-                onChange={(e) => setPriceSuggestionContext(e.target.value)}
-                placeholder="e.g., high-end residential clients, includes specific materials..."
-                rows={3}
-              />
-            </div>
-            
-            {!suggestedPrices && (
-              <Button 
-                onClick={handlePriceSuggestion} 
-                disabled={isLoadingSuggestion}
-                className="w-full"
-              >
-                {isLoadingSuggestion ? "Getting Suggestion..." : "Get Suggestion"}
-              </Button>
-            )}
-            
-            {suggestedPrices && (
-              <div className="space-y-4">
-                <div className="p-4 bg-muted rounded-lg">
-                  <h4 className="font-medium mb-2">AI Reasoning</h4>
-                  <p className="text-sm text-muted-foreground">
-                    {suggestedPrices.reasoning}
-                  </p>
+        {/* Services grid display */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {filteredServices.map((service) => (
+            <Card key={service.id} className="group hover:shadow-material-lg transition-shadow duration-normal">
+              <CardHeader>
+                <div className="flex justify-between items-start">
+                  <div className="flex-1">
+                    <CardTitle className="text-lg font-semibold text-foreground mb-2">
+                      {service.name}
+                    </CardTitle>
+                    {service.category && (
+                      <Badge variant="secondary" className="mb-3">
+                        {service.category}
+                      </Badge>
+                    )}
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="ghost" size="sm" className="opacity-0 group-hover:opacity-100 transition-opacity">
+                        <MoreHorizontal className="h-4 w-4" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={() => handleEditService(service)}>
+                        <Edit className="mr-2 h-4 w-4" />
+                        Edit Service
+                      </DropdownMenuItem>
+                      <DropdownMenuItem 
+                        onClick={() => handleDeleteService(service)}
+                        className="text-destructive"
+                      >
+                        <Trash2 className="mr-2 h-4 w-4" />
+                        Delete Service
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
                 </div>
+              </CardHeader>
+              <CardContent>
+                <p className="text-sm text-muted-foreground mb-4 line-clamp-2">
+                  {service.description}
+                </p>
+                <div className="flex justify-between items-center">
+                  <div className="text-right">
+                    <p className="text-2xl font-bold text-primary">${service.price_per_unit}</p>
+                    <p className="text-sm text-muted-foreground">per {service.unit_type}</p>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+
+        {/* Empty state when no services match the search */}
+        {filteredServices.length === 0 && !loading && (
+          <Card className="text-center py-12">
+            <CardContent>
+              <p className="text-muted-foreground mb-4">
+                {searchTerm ? "No services found matching your search." : "No services available."}
+              </p>
+              {!searchTerm && (
+                <Button onClick={handleCreateService}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Create Your First Service
+                </Button>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
+        {/* Edit Service Modal */}
+        <Dialog open={isEditModalOpen} onOpenChange={setIsEditModalOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>Edit Service</DialogTitle>
+            </DialogHeader>
+            <Form {...form}>
+              <form onSubmit={form.handleSubmit(handleFormSubmit)} className="space-y-4">
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Plumbing Repair" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
                 
-                <div className="grid grid-cols-3 gap-3">
-                  <div className="text-center p-3 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">Low</p>
-                    <p className="text-lg font-bold">${suggestedPrices.low.toFixed(2)}</p>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => applyPrice(suggestedPrices.low)}
-                      className="mt-2"
-                    >
-                      Use this price
-                    </Button>
-                  </div>
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea 
+                          placeholder="Brief description of the service..."
+                          className="min-h-[80px]"
+                          {...field}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <FormField
+                  control={form.control}
+                  name="category"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Category</FormLabel>
+                      <FormControl>
+                        <Input placeholder="e.g., Plumbing, Electrical, HVAC" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField
+                    control={form.control}
+                    name="price_per_unit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price per Unit</FormLabel>
+                        <FormControl>
+                          <Input type="number" step="0.01" placeholder="0.00" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                   
-                  <div className="text-center p-3 border rounded-lg border-primary bg-primary/5">
-                    <p className="text-sm text-muted-foreground">Average</p>
-                    <p className="text-lg font-bold text-primary">${suggestedPrices.average.toFixed(2)}</p>
-                    <Button 
-                      size="sm" 
-                      onClick={() => applyPrice(suggestedPrices.average)}
-                      className="mt-2"
-                    >
-                      Use this price
-                    </Button>
-                  </div>
-                  
-                  <div className="text-center p-3 border rounded-lg">
-                    <p className="text-sm text-muted-foreground">High</p>
-                    <p className="text-lg font-bold">${suggestedPrices.high.toFixed(2)}</p>
-                    <Button 
-                      size="sm" 
-                      variant="outline" 
-                      onClick={() => applyPrice(suggestedPrices.high)}
-                      className="mt-2"
-                    >
-                      Use this price
-                    </Button>
-                  </div>
+                  <FormField
+                    control={form.control}
+                    name="unit_type"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Unit Type</FormLabel>
+                        <FormControl>
+                          <Input placeholder="hour, item, sq ft" {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
                 </div>
-              </div>
-            )}
-            
-            <div className="flex justify-end">
-              <Button variant="outline" onClick={() => setIsPriceSuggestionOpen(false)}>
-                Close
-              </Button>
-            </div>
-          </div>
-        </DialogContent>
-      </Dialog>
 
-      {/* Delete Confirmation */}
-      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle>Delete Service</AlertDialogTitle>
-            <AlertDialogDescription>
-              Are you sure you want to delete "{serviceToDelete?.name}"? This action cannot be undone.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={confirmDelete} className="bg-destructive hover:bg-destructive/90">
-              Delete Service
-            </AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    type="button"
+                    variant="outline"
+                    onClick={() => setIsPriceSuggestionOpen(true)}
+                    className="flex-1"
+                    disabled={submitting}
+                  >
+                    <Zap className="mr-2 h-4 w-4" />
+                    AI Price Suggestion
+                  </Button>
+                  
+                  <Button type="submit" className="flex-1" disabled={submitting}>
+                    {submitting ? (
+                      <>
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                        Updating...
+                      </>
+                    ) : (
+                      'Update Service'
+                    )}
+                  </Button>
+                </div>
+              </form>
+            </Form>
+          </DialogContent>
+        </Dialog>
+
+        {/* Delete Confirmation Dialog */}
+        <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+          <AlertDialogContent>
+            <AlertDialogHeader>
+              <AlertDialogTitle>Delete Service</AlertDialogTitle>
+              <AlertDialogDescription>
+                Are you sure you want to delete "{deletingService?.name}"? This action cannot be undone.
+              </AlertDialogDescription>
+            </AlertDialogHeader>
+            <AlertDialogFooter>
+              <AlertDialogCancel>Cancel</AlertDialogCancel>
+              <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+            </AlertDialogFooter>
+          </AlertDialogContent>
+        </AlertDialog>
+
+        {/* AI Price Suggestion Modal */}
+        <Dialog open={isPriceSuggestionOpen} onOpenChange={setIsPriceSuggestionOpen}>
+          <DialogContent className="sm:max-w-[500px]">
+            <DialogHeader>
+              <DialogTitle>AI Price Suggestions</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                Here are some price suggestions based on market analysis:
+              </p>
+              
+              {suggestedPrices.length === 0 ? (
+                <Button onClick={handlePriceSuggestion} className="w-full">
+                  <Zap className="mr-2 h-4 w-4" />
+                  Get Price Suggestions
+                </Button>
+              ) : (
+                <div className="space-y-3">
+                  {suggestedPrices.map((suggestion, index) => (
+                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
+                      <div>
+                        <p className="font-medium">${suggestion.price.toFixed(2)}</p>
+                        <p className="text-sm text-muted-foreground">{suggestion.confidence}</p>
+                      </div>
+                      <Button 
+                        size="sm" 
+                        onClick={() => applyPrice(suggestion.price)}
+                      >
+                        Use This Price
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
+      </main>
     </div>
   );
 }
