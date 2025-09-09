@@ -11,6 +11,7 @@ interface LineItem {
   quantity: number;
   unit_price: number;
   total: number;
+  taxable?: boolean;
 }
 
 interface Quote {
@@ -128,7 +129,9 @@ export const useQuotes = () => {
       
       // Calculate totals
       const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
-      const taxAmount = subtotal * (formData.tax_rate / 100);
+      const taxableAmount = formData.line_items.reduce((sum, item) => 
+        sum + (item.taxable !== false ? item.total : 0), 0);
+      const taxAmount = taxableAmount * (formData.tax_rate / 100);
       const totalAmount = subtotal + taxAmount;
 
       const quoteData = {
@@ -181,7 +184,9 @@ export const useQuotes = () => {
       
       // Calculate totals
       const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
-      const taxAmount = subtotal * (formData.tax_rate / 100);
+      const taxableAmount = formData.line_items.reduce((sum, item) => 
+        sum + (item.taxable !== false ? item.total : 0), 0);
+      const taxAmount = taxableAmount * (formData.tax_rate / 100);
       const totalAmount = subtotal + taxAmount;
 
       const quoteData = {

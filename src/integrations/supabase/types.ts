@@ -429,6 +429,7 @@ export type Database = {
           id: string
           name: string
           price_per_unit: number
+          taxable: boolean
           tenant_id: string
           unit_type: string
           updated_at: string | null
@@ -441,6 +442,7 @@ export type Database = {
           id?: string
           name: string
           price_per_unit: number
+          taxable?: boolean
           tenant_id: string
           unit_type?: string
           updated_at?: string | null
@@ -453,6 +455,7 @@ export type Database = {
           id?: string
           name?: string
           price_per_unit?: number
+          taxable?: boolean
           tenant_id?: string
           unit_type?: string
           updated_at?: string | null

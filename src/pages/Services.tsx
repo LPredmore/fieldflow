@@ -4,11 +4,12 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Badge } from "@/components/ui/badge";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -24,6 +25,7 @@ const formSchema = z.object({
   category: z.string().optional(),
   price_per_unit: z.string().min(1, "Price is required"),
   unit_type: z.string().min(1, "Unit type is required"),
+  taxable: z.boolean().default(true),
 });
 
 export default function Services() {
@@ -60,6 +62,7 @@ export default function Services() {
       category: "",
       price_per_unit: "",
       unit_type: "",
+      taxable: true,
     },
   });
 
@@ -71,6 +74,7 @@ export default function Services() {
       category: "",
       price_per_unit: "",
       unit_type: "",
+      taxable: true,
     });
     setEditingService(null);
     setIsCreateModalOpen(true);
@@ -84,6 +88,7 @@ export default function Services() {
       category: service.category || "",
       price_per_unit: service.price_per_unit.toString(),
       unit_type: service.unit_type,
+      taxable: service.taxable ?? true,
     });
     setIsEditModalOpen(true);
   };
@@ -103,6 +108,7 @@ export default function Services() {
         category: values.category || null,
         price_per_unit: parseFloat(values.price_per_unit),
         unit_type: values.unit_type,
+        taxable: values.taxable,
       };
 
       if (editingService) {
@@ -307,6 +313,30 @@ export default function Services() {
                       )}
                     />
                   </div>
+                  
+                  <FormField
+                    control={form.control}
+                    name="taxable"
+                    render={({ field }) => (
+                      <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                        <FormControl>
+                          <Checkbox
+                            checked={field.value}
+                            onCheckedChange={field.onChange}
+                          />
+                        </FormControl>
+                        <div className="space-y-1 leading-none">
+                          <FormLabel>
+                            Taxable
+                          </FormLabel>
+                          <FormDescription>
+                            Apply sales tax to this service when added to quotes and invoices
+                          </FormDescription>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
                   <div className="flex gap-2 pt-4">
                     <Button 
@@ -510,6 +540,30 @@ export default function Services() {
                     )}
                   />
                 </div>
+                
+                <FormField
+                  control={form.control}
+                  name="taxable"
+                  render={({ field }) => (
+                    <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                      <FormControl>
+                        <Checkbox
+                          checked={field.value}
+                          onCheckedChange={field.onChange}
+                        />
+                      </FormControl>
+                      <div className="space-y-1 leading-none">
+                        <FormLabel>
+                          Taxable
+                        </FormLabel>
+                        <FormDescription>
+                          Apply sales tax to this service when added to quotes and invoices
+                        </FormDescription>
+                      </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
 
                 <div className="flex gap-2 pt-4">
                   <Button 

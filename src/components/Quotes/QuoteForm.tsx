@@ -46,6 +46,7 @@ const lineItemSchema = z.object({
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unit_price: z.number().min(0, "Unit price cannot be negative"),
   total: z.number(),
+  taxable: z.boolean().default(true),
 });
 
 const formSchema = z.object({
@@ -102,7 +103,7 @@ export function QuoteForm({
       title: "",
       status: 'draft',
       valid_until: addDays(new Date(), 30),
-      line_items: [{ description: "", quantity: 1, unit_price: 0, total: 0 }],
+      line_items: [{ description: "", quantity: 1, unit_price: 0, total: 0, taxable: true }],
       tax_rate: 8.75,
       notes: "",
       terms: "Payment due within 30 days of acceptance",
@@ -149,7 +150,7 @@ export function QuoteForm({
         title: "",
         status: 'draft',
         valid_until: addDays(new Date(), 30),
-        line_items: [{ description: "", quantity: 1, unit_price: 0, total: 0 }],
+        line_items: [{ description: "", quantity: 1, unit_price: 0, total: 0, taxable: true }],
         tax_rate: 8.75,
         notes: "",
         terms: "Payment due within 30 days of acceptance",
@@ -171,6 +172,7 @@ export function QuoteForm({
     if (service) {
       form.setValue(`line_items.${index}.description`, service.name);
       form.setValue(`line_items.${index}.unit_price`, Number(service.price_per_unit));
+      form.setValue(`line_items.${index}.taxable`, service.taxable);
       
       // Recalculate total
       const quantity = form.getValues(`line_items.${index}.quantity`);
@@ -184,6 +186,7 @@ export function QuoteForm({
     const updatedLineItems = data.line_items.map(item => ({
       ...item,
       total: calculateLineItemTotal(item.quantity, item.unit_price),
+      taxable: item.taxable ?? true,
     }));
 
     const submissionData = {
@@ -201,7 +204,7 @@ export function QuoteForm({
   };
 
   const addLineItem = () => {
-    append({ description: "", quantity: 1, unit_price: 0, total: 0 });
+    append({ description: "", quantity: 1, unit_price: 0, total: 0, taxable: true });
   };
 
   const removeLineItem = (index: number) => {

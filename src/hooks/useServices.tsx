@@ -10,6 +10,7 @@ export interface Service {
   category: string | null;
   price_per_unit: number;
   unit_type: string;
+  taxable: boolean;
   created_at: string;
   updated_at: string | null;
 }
