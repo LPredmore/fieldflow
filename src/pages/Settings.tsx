@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import Navigation from "@/components/Layout/Navigation";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { canManageUsers } from "@/utils/roleUtils";
 import BusinessSettings from "@/components/Settings/BusinessSettings";
 import FinancialSettings from "@/components/Settings/FinancialSettings";
 import OperationsSettings from "@/components/Settings/OperationsSettings";
@@ -69,7 +70,6 @@ const settingsCategories = [
 export default function Settings() {
   const [activeCategory, setActiveCategory] = useState('business');
   const { userRole } = useAuth();
-  const { user } = useAuth();
 
   const renderContent = () => {
     switch (activeCategory) {
@@ -93,7 +93,7 @@ export default function Settings() {
   };
 
   const visibleCategories = settingsCategories.filter(category => 
-    !category.adminOnly // Show all categories for now, will implement role check later
+    !category.adminOnly || canManageUsers(userRole)
   );
 
   return (
