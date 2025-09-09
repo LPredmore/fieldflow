@@ -20,10 +20,25 @@ export function useServices() {
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
 
+  // Add debug logging
+  console.log('[useServices] Debug info:', { 
+    user: user?.id, 
+    tenantId, 
+    loading,
+    userEmail: user?.email 
+  });
+
   const fetchServices = async () => {
-    if (!user || !tenantId) return;
+    console.log('[useServices] fetchServices called:', { user: !!user, tenantId });
+    
+    if (!user || !tenantId) {
+      console.log('[useServices] Missing user or tenantId, skipping fetch');
+      setLoading(false);
+      return;
+    }
 
     try {
+      console.log('[useServices] Starting services fetch...');
       setLoading(true);
       const { data, error } = await supabase
         .from('services')
