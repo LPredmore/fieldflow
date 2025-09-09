@@ -323,7 +323,20 @@ export function QuoteForm({
 
               <FormField control={form.control} name="tax_rate" render={({
               field
-            }) => {}} />
+            }) => (
+                <FormItem>
+                  <FormLabel>Tax Rate (%)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      {...field}
+                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
             </div>
 
             {/* Line Items */}
