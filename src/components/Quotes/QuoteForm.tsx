@@ -14,6 +14,7 @@ import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, Command
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useServices } from "@/hooks/useServices";
@@ -23,7 +24,8 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unit_price: z.number().min(0, "Unit price cannot be negative"),
-  total: z.number()
+  total: z.number(),
+  taxable: z.boolean().default(true)
 });
 const formSchema = z.object({
   customer_id: z.string().min(1, "Customer is required"),
@@ -87,7 +89,8 @@ export function QuoteForm({
         description: "",
         quantity: 1,
         unit_price: 0,
-        total: 0
+        total: 0,
+        taxable: true
       }],
       tax_rate: 8.75,
       notes: "",
@@ -126,7 +129,8 @@ export function QuoteForm({
           description: item.description,
           quantity: item.quantity,
           unit_price: item.unit_price,
-          total: item.total
+          total: item.total,
+          taxable: item.taxable ?? true // Default to true for backward compatibility
         })),
         tax_rate: quote.tax_rate || 8.75,
         notes: quote.notes || "",
@@ -144,7 +148,8 @@ export function QuoteForm({
           description: "",
           quantity: 1,
           unit_price: 0,
-          total: 0
+          total: 0,
+          taxable: true
         }],
         tax_rate: 8.75,
         notes: "",
@@ -168,11 +173,13 @@ export function QuoteForm({
       form.setValue(`line_items.${index}.description`, "");
       form.setValue(`line_items.${index}.unit_price`, 0);
       form.setValue(`line_items.${index}.total`, 0);
+      form.setValue(`line_items.${index}.taxable`, true); // Default to taxable for custom items
     } else {
       const service = services.find(s => s.id === serviceId);
       if (service) {
         form.setValue(`line_items.${index}.description`, service.name);
         form.setValue(`line_items.${index}.unit_price`, Number(service.price_per_unit));
+        form.setValue(`line_items.${index}.taxable`, service.taxable); // Use service's taxable status
 
         // Recalculate total
         const quantity = form.getValues(`line_items.${index}.quantity`);
@@ -226,7 +233,8 @@ export function QuoteForm({
       description: "",
       quantity: 1,
       unit_price: 0,
-      total: 0
+      total: 0,
+      taxable: true
     });
     
     // Reset the flag after a short delay to prevent rapid clicking
@@ -248,9 +256,11 @@ export function QuoteForm({
   
   const taxRate = form.watch("tax_rate") || 0;
   const taxableAmount = watchedLineItems.reduce((sum, item) => {
-    const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
-    // Assume all items are taxable by default (can be made configurable per item later)
-    return sum + total;
+    if (item.taxable) {
+      const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
+      return sum + total;
+    }
+    return sum;
   }, 0);
   const taxAmount = taxableAmount * (taxRate / 100);
   const totalAmount = subtotal + taxAmount;
@@ -350,6 +360,7 @@ export function QuoteForm({
                   <div className="flex-1 text-sm font-medium text-muted-foreground">Item Description</div>
                   <div className="w-24 text-sm font-medium text-muted-foreground text-center">Quantity</div>
                   <div className="w-32 text-sm font-medium text-muted-foreground text-center">Unit Price</div>
+                  <div className="w-16 text-sm font-medium text-muted-foreground text-center">Tax</div>
                   <div className="w-28 text-sm font-medium text-muted-foreground text-right">Line Cost</div>
                   <div className="w-12"></div>
                 </div>
@@ -419,6 +430,20 @@ export function QuoteForm({
                         </div>
                       </div>
 
+                      <div className="w-16 flex items-center justify-center">
+                        <Controller 
+                          name={`line_items.${index}.taxable`} 
+                          control={form.control} 
+                          render={({ field }) => (
+                            <Checkbox 
+                              checked={field.value} 
+                              onCheckedChange={field.onChange}
+                              className="mx-auto"
+                            />
+                          )} 
+                        />
+                      </div>
+
                       <div className="w-28 flex items-center justify-end">
                         <div className="text-lg font-semibold">
                           ${calculateLineItemTotal(form.getValues(`line_items.${index}.quantity`) || 0, form.getValues(`line_items.${index}.unit_price`) || 0).toFixed(2)}
@@ -456,9 +481,17 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
+              {taxableAmount < subtotal && (
+                <>
+                  <div className="flex justify-between text-xs text-muted-foreground">
+                    <span className="ml-4">Taxable: ${taxableAmount.toFixed(2)}</span>
+                    <span>Non-taxable: ${(subtotal - taxableAmount).toFixed(2)}</span>
+                  </div>
+                </>
+              )}
               {taxAmount > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span>Tax ({taxRate}%):</span>
+                  <span>Tax ({taxRate}% on taxable items):</span>
                   <span>${taxAmount.toFixed(2)}</span>
                 </div>
               )}
