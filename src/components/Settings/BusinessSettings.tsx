@@ -16,8 +16,8 @@ const formSchema = z.object({
   business_email: z.string().email("Invalid email address").optional(),
   business_website: z.string().optional(),
   logo_url: z.string().optional(),
-  brand_color: z.string().optional(),
-  text_color: z.string().optional(),
+  brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
+  text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
   business_address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -61,6 +61,22 @@ export default function BusinessSettings() {
       },
     },
   });
+
+  // Helper function to validate hex color
+  const isValidHex = (color: string): boolean => {
+    return /^#[0-9A-Fa-f]{6}$/.test(color);
+  };
+
+  // Helper function to handle color changes from either color picker or text input
+  const handleColorChange = (fieldName: 'brand_color' | 'text_color', value: string) => {
+    // If it's a valid hex color, update the form
+    if (isValidHex(value)) {
+      form.setValue(fieldName, value, { shouldValidate: true });
+    } else if (value.length <= 7) {
+      // Allow partial typing but don't validate until complete
+      form.setValue(fieldName, value, { shouldValidate: false });
+    }
+  };
 
   // Watch form values for real-time updates
   const brandColor = form.watch('brand_color');
@@ -269,10 +285,21 @@ export default function BusinessSettings() {
                         <FormLabel>Brand Color</FormLabel>
                         <div className="flex gap-2">
                           <FormControl>
-                            <Input type="color" className="w-16 h-10" {...field} />
+                            <Input 
+                              type="color" 
+                              className="w-16 h-10" 
+                              value={field.value || "#3B82F6"}
+                              onChange={(e) => handleColorChange('brand_color', e.target.value)}
+                            />
                           </FormControl>
                           <FormControl>
-                            <Input placeholder="#3B82F6" {...field} />
+                            <Input 
+                              placeholder="#3B82F6" 
+                              value={field.value || ""}
+                              onChange={(e) => handleColorChange('brand_color', e.target.value)}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                            />
                           </FormControl>
                         </div>
                         <FormMessage />
@@ -288,10 +315,21 @@ export default function BusinessSettings() {
                         <FormLabel>Text Color (Over Brand Color)</FormLabel>
                         <div className="flex gap-2">
                           <FormControl>
-                            <Input type="color" className="w-16 h-10" {...field} />
+                            <Input 
+                              type="color" 
+                              className="w-16 h-10" 
+                              value={field.value || "#FFFFFF"}
+                              onChange={(e) => handleColorChange('text_color', e.target.value)}
+                            />
                           </FormControl>
                           <FormControl>
-                            <Input placeholder="#FFFFFF" {...field} />
+                            <Input 
+                              placeholder="#FFFFFF" 
+                              value={field.value || ""}
+                              onChange={(e) => handleColorChange('text_color', e.target.value)}
+                              onBlur={field.onBlur}
+                              name={field.name}
+                            />
                           </FormControl>
                         </div>
                         <p className="text-xs text-muted-foreground">

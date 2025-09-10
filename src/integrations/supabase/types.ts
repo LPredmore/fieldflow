@@ -533,6 +533,7 @@ export type Database = {
           system_settings: Json | null
           tax_settings: Json | null
           tenant_id: string
+          text_color: string | null
           updated_at: string | null
           user_preferences: Json | null
         }
@@ -555,6 +556,7 @@ export type Database = {
           system_settings?: Json | null
           tax_settings?: Json | null
           tenant_id: string
+          text_color?: string | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
@@ -577,6 +579,7 @@ export type Database = {
           system_settings?: Json | null
           tax_settings?: Json | null
           tenant_id?: string
+          text_color?: string | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
