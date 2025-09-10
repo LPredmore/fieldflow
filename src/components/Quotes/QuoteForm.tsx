@@ -334,26 +334,28 @@ export function QuoteForm({
               {/* Single card container for all line items */}
               <div className="border rounded-lg p-4 space-y-4">
                 {/* Header row */}
-                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pb-2 border-b">
-                  <div className="text-sm font-medium text-muted-foreground">Item Description</div>
-                  <div className="text-sm font-medium text-muted-foreground">Quantity</div>
-                  <div className="text-sm font-medium text-muted-foreground">Unit Price</div>
-                  <div className="text-sm font-medium text-muted-foreground">Line Cost</div>
-                  <div className="text-sm font-medium text-muted-foreground"></div>
+                <div className="flex items-center gap-4 pb-2 border-b">
+                  <div className="flex-1 text-sm font-medium text-muted-foreground">Item Description</div>
+                  <div className="w-24 text-sm font-medium text-muted-foreground text-center">Quantity</div>
+                  <div className="w-32 text-sm font-medium text-muted-foreground text-center">Unit Price</div>
+                  <div className="w-28 text-sm font-medium text-muted-foreground text-right">Line Cost</div>
+                  <div className="w-12"></div>
                 </div>
                 
                 {/* Line items as rows */}
                 <div className="space-y-3">
                   {fields.map((field, index) => (
-                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 py-2">
-                      <div>
+                    <div key={field.id} className="flex items-center gap-4 py-2">
+                      <div className="flex-1">
                         <Popover open={openComboboxes[index]} onOpenChange={open => setOpenComboboxes(prev => ({
                           ...prev,
                           [index]: open
                         }))}>
                           <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between h-20 whitespace-normal text-muted-foreground">
-                              {form.getValues(`line_items.${index}.description`) || "Service"}
+                            <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between text-left text-muted-foreground">
+                              <span className="truncate">
+                                {form.getValues(`line_items.${index}.description`) || "Service"}
+                              </span>
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </PopoverTrigger>
@@ -378,10 +380,10 @@ export function QuoteForm({
                         </Popover>
                       </div>
                       
-                      <div>
+                      <div className="w-24">
                         <Controller name={`line_items.${index}.quantity`} control={form.control} render={({
                         field
-                      }) => <Input type="number" step="0.01" {...field} onChange={e => {
+                      }) => <Input type="number" step="0.01" {...field} className="text-center" onChange={e => {
                         const quantity = parseFloat(e.target.value) || 0;
                         field.onChange(quantity);
                         const unitPrice = form.getValues(`line_items.${index}.unit_price`);
@@ -390,12 +392,12 @@ export function QuoteForm({
                       }} />} />
                       </div>
 
-                      <div>
+                      <div className="w-32">
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
                           <Controller name={`line_items.${index}.unit_price`} control={form.control} render={({
                           field
-                        }) => <Input type="number" step="0.01" {...field} className="pl-7" onChange={e => {
+                        }) => <Input type="number" step="0.01" {...field} className="pl-7 text-right" onChange={e => {
                           const unitPrice = parseFloat(e.target.value) || 0;
                           field.onChange(unitPrice);
                           const quantity = form.getValues(`line_items.${index}.quantity`);
@@ -405,13 +407,13 @@ export function QuoteForm({
                         </div>
                       </div>
 
-                      <div className="flex items-center">
+                      <div className="w-28 flex items-center justify-end">
                         <div className="text-lg font-semibold">
                           ${calculateLineItemTotal(form.getValues(`line_items.${index}.quantity`) || 0, form.getValues(`line_items.${index}.unit_price`) || 0).toFixed(2)}
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-end">
+                      <div className="w-12 flex items-center justify-center">
                         <Button type="button" variant="outline" size="sm" onClick={() => removeLineItem(index)} disabled={fields.length === 1}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
