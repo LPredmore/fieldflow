@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useForm, useFieldArray, Controller } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -72,6 +72,7 @@ export function QuoteForm({
     services
   } = useServices();
   const [openComboboxes, setOpenComboboxes] = useState<Record<number, boolean>>({});
+  const [isAddingItem, setIsAddingItem] = useState(false);
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
@@ -109,7 +110,9 @@ export function QuoteForm({
 
   // Update form when quote changes (for editing)
   useEffect(() => {
+    console.log("useEffect triggered - quote:", !!quote, "open:", open);
     if (quote && open) {
+      console.log("Resetting form with quote data, line items:", quote.line_items.length);
       form.reset({
         customer_id: quote.customer_id,
         customer_name: quote.customer_name,
@@ -126,6 +129,7 @@ export function QuoteForm({
         terms: quote.terms
       });
     } else if (open && !quote) {
+      console.log("Resetting form for new quote with default line item");
       form.reset({
         customer_id: "",
         customer_name: "",
@@ -199,14 +203,32 @@ export function QuoteForm({
     }
     onOpenChange(false);
   };
-  const addLineItem = () => {
+  const addLineItem = useCallback((event?: React.MouseEvent) => {
+    if (event) {
+      event.preventDefault();
+      event.stopPropagation();
+    }
+    
+    if (isAddingItem) {
+      console.log("Prevented duplicate addLineItem call - already adding");
+      return;
+    }
+    
+    console.log("Adding line item - current fields count:", fields.length);
+    setIsAddingItem(true);
+    
     append({
       description: "",
       quantity: 1,
       unit_price: 0,
       total: 0
     });
-  };
+    
+    // Reset the flag after a short delay to prevent rapid clicking
+    setTimeout(() => {
+      setIsAddingItem(false);
+    }, 200);
+  }, [append, fields.length, isAddingItem]);
   const removeLineItem = (index: number) => {
     if (fields.length > 1) {
       remove(index);
@@ -400,9 +422,15 @@ export function QuoteForm({
                 
                 {/* Single Add Item Button at bottom */}
                 <div className="flex justify-center pt-4 border-t">
-                  <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={addLineItem}
+                    disabled={isAddingItem}
+                  >
                     <Plus className="h-4 w-4 mr-2" />
-                    Add Item
+                    {isAddingItem ? "Adding..." : "Add Item"}
                   </Button>
                 </div>
               </div>
