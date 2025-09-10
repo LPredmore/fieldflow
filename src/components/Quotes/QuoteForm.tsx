@@ -23,8 +23,7 @@ const lineItemSchema = z.object({
   description: z.string().min(1, "Description is required"),
   quantity: z.number().min(0.01, "Quantity must be greater than 0"),
   unit_price: z.number().min(0, "Unit price cannot be negative"),
-  total: z.number(),
-  taxable: z.boolean().default(true)
+  total: z.number()
 });
 const formSchema = z.object({
   customer_id: z.string().min(1, "Customer is required"),
@@ -33,7 +32,6 @@ const formSchema = z.object({
   status: z.enum(['draft', 'sent', 'accepted', 'declined']),
   valid_until: z.date().optional(),
   line_items: z.array(lineItemSchema).min(1, "At least one line item is required"),
-  tax_rate: z.number().min(0).max(100),
   notes: z.string().optional(),
   terms: z.string().min(1, "Terms are required")
 });
@@ -86,8 +84,7 @@ export function QuoteForm({
         description: "",
         quantity: 1,
         unit_price: 0,
-        total: 0,
-        taxable: true
+        total: 0
       }],
       notes: "",
       terms: "Payment due within 30 days of acceptance"
@@ -139,8 +136,7 @@ export function QuoteForm({
           description: "",
           quantity: 1,
           unit_price: 0,
-          total: 0,
-          taxable: true
+          total: 0
         }],
         notes: "",
         terms: "Payment due within 30 days of acceptance"
@@ -162,14 +158,12 @@ export function QuoteForm({
       // Clear the description for custom line items
       form.setValue(`line_items.${index}.description`, "");
       form.setValue(`line_items.${index}.unit_price`, 0);
-      form.setValue(`line_items.${index}.taxable`, true);
       form.setValue(`line_items.${index}.total`, 0);
     } else {
       const service = services.find(s => s.id === serviceId);
       if (service) {
         form.setValue(`line_items.${index}.description`, service.name);
         form.setValue(`line_items.${index}.unit_price`, Number(service.price_per_unit));
-        form.setValue(`line_items.${index}.taxable`, service.taxable);
 
         // Recalculate total
         const quantity = form.getValues(`line_items.${index}.quantity`);
@@ -186,14 +180,15 @@ export function QuoteForm({
     // Ensure all line item totals are calculated
     const updatedLineItems = data.line_items.map(item => ({
       ...item,
-      total: calculateLineItemTotal(item.quantity, item.unit_price),
-      taxable: item.taxable ?? true
+      total: calculateLineItemTotal(item.quantity, item.unit_price)
     }));
+    
     const submissionData = {
       ...data,
       line_items: updatedLineItems,
       valid_until: data.valid_until?.toISOString()
     };
+    
     if (quote) {
       onSubmit({
         ...submissionData,
@@ -209,8 +204,7 @@ export function QuoteForm({
       description: "",
       quantity: 1,
       unit_price: 0,
-      total: 0,
-      taxable: true
+      total: 0
     });
   };
   const removeLineItem = (index: number) => {
