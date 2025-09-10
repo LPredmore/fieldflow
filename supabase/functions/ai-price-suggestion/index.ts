@@ -92,14 +92,16 @@ Format your response as JSON with this structure:
   ]
 }`
 
-    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${openaiApiKey}`,
         'Content-Type': 'application/json',
+        'HTTP-Referer': 'https://lovable.dev',
+        'X-Title': 'AI Price Suggestion'
       },
         body: JSON.stringify({
-          model: 'gpt-4.1-2025-04-14',
+          model: 'openai/gpt-4o-mini',
           messages: [
             {
               role: 'system',
@@ -110,7 +112,8 @@ Format your response as JSON with this structure:
               content: prompt
             }
           ],
-          max_completion_tokens: 500
+          max_tokens: 500,
+          temperature: 0.7
         })
     })
 
