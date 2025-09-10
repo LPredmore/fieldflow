@@ -325,12 +325,14 @@ export const useQuotes = () => {
     }
   };
 
-  // Share quote mutation (legacy - now just copies link)
+  // Share quote mutation - generates token via edge function
   const shareQuoteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!tenantId) throw new Error("Authentication required");
       
-      // Get quote details to generate share token if not exists
+      console.log("[shareQuoteMutation] Starting share process for quote:", id);
+      
+      // Get quote details first
       const { data: quote, error: fetchError } = await supabase
         .from("quotes")
         .select("share_token, customer_name")
@@ -338,26 +340,42 @@ export const useQuotes = () => {
         .eq("tenant_id", tenantId)
         .single();
 
-      if (fetchError) throw fetchError;
+      if (fetchError) {
+        console.error("[shareQuoteMutation] Error fetching quote:", fetchError);
+        throw fetchError;
+      }
 
       let shareToken = quote.share_token;
+      let publicUrl = '';
       
-      // Generate share token if it doesn't exist
+      // If no share token exists, generate one via edge function
       if (!shareToken) {
-        const { data: tokenData } = await supabase.rpc('generate_quote_share_token');
-        shareToken = tokenData;
+        console.log("[shareQuoteMutation] No share token, generating via edge function...");
         
-        const { error: updateError } = await supabase
-          .from("quotes")
-          .update({ share_token: shareToken })
-          .eq("id", id)
-          .eq("tenant_id", tenantId);
+        const response = await supabase.functions.invoke("send-quote-email", {
+          body: {
+            quoteId: id,
+            generateTokenOnly: true, // Flag to only generate token, not send email
+          },
+        });
 
-        if (updateError) throw updateError;
+        if (response.error) {
+          console.error("[shareQuoteMutation] Error generating token:", response.error);
+          throw new Error("Failed to generate share link: " + response.error.message);
+        }
+
+        shareToken = response.data?.shareToken;
+        publicUrl = response.data?.publicUrl;
+        
+        if (!shareToken || !publicUrl) {
+          throw new Error("Failed to generate share token");
+        }
+      } else {
+        // Use existing token to create URL
+        publicUrl = `${window.location.origin}/public-quote/${shareToken}`;
       }
       
-      // Generate public URL using share token
-      const publicUrl = `${window.location.origin}/public-quote/${shareToken}`;
+      console.log("[shareQuoteMutation] Generated URL:", publicUrl);
       
       // Copy to clipboard
       await navigator.clipboard.writeText(publicUrl);
