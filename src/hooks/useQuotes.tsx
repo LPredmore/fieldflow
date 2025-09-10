@@ -261,37 +261,114 @@ export const useQuotes = () => {
     },
   });
 
-  // Share quote mutation
+  // Send quote email mutation (improved)
+  const sendQuoteEmailMutation = useMutation({
+    mutationFn: async ({ quoteId, customerEmail, customerName }: { quoteId: string; customerEmail: string; customerName: string }) => {
+      if (!tenantId) throw new Error("Authentication required");
+      
+      const response = await supabase.functions.invoke("send-quote-email", {
+        body: {
+          quoteId,
+          customerEmail,
+          customerName,
+        },
+      });
+
+      if (response.error) {
+        throw new Error(response.error.message || "Failed to send email");
+      }
+
+      return response.data;
+    },
+    onSuccess: (result) => {
+      queryClient.invalidateQueries({ queryKey: ["quotes"] });
+      toast({
+        title: "Quote sent successfully!",
+        description: `Email sent to customer with quote link.`,
+      });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error sending quote",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Enhanced send quote email function that fetches customer email
+  const sendQuoteWithCustomerEmail = async (quoteId: string, customerName: string, customerId: string) => {
+    try {
+      // Fetch customer email from database
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('email')
+        .eq('id', customerId)
+        .single();
+
+      if (customerError || !customer?.email) {
+        throw new Error('Customer email not found. Please update customer information first.');
+      }
+
+      // Send the email
+      sendQuoteEmailMutation.mutate({
+        quoteId,
+        customerEmail: customer.email,
+        customerName,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,          
+        variant: "destructive",
+      });
+    }
+  };
+
+  // Share quote mutation (legacy - now just copies link)
   const shareQuoteMutation = useMutation({
     mutationFn: async (id: string) => {
       if (!tenantId) throw new Error("Authentication required");
       
-      const { data, error } = await supabase
+      // Get quote details to generate share token if not exists
+      const { data: quote, error: fetchError } = await supabase
         .from("quotes")
-        .update({ 
-          status: 'sent',
-          sent_date: new Date().toISOString() 
-        })
+        .select("share_token, customer_name")
         .eq("id", id)
         .eq("tenant_id", tenantId)
-        .select()
         .single();
 
-      if (error) throw error;
+      if (fetchError) throw fetchError;
+
+      let shareToken = quote.share_token;
       
-      // Generate public URL
-      const publicUrl = `${window.location.origin}/public-quote/${id}`;
+      // Generate share token if it doesn't exist
+      if (!shareToken) {
+        const { data: tokenData } = await supabase.rpc('generate_quote_share_token');
+        shareToken = tokenData;
+        
+        const { error: updateError } = await supabase
+          .from("quotes")
+          .update({ share_token: shareToken })
+          .eq("id", id)
+          .eq("tenant_id", tenantId);
+
+        if (updateError) throw updateError;
+      }
+      
+      // Generate public URL using share token
+      const publicUrl = `${window.location.origin}/public-quote/${shareToken}`;
       
       // Copy to clipboard
       await navigator.clipboard.writeText(publicUrl);
       
-      return { quote: data, publicUrl };
+      return { publicUrl, customerName: quote.customer_name };
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       toast({
         title: "Link copied to clipboard!",
-        description: `Share it with ${result.quote.customer_name}: ${result.publicUrl}`,
+        description: `Share it with ${result.customerName}: ${result.publicUrl}`,
       });
     },
     onError: (error: Error) => {
@@ -377,11 +454,13 @@ export const useQuotes = () => {
     updateQuote: updateQuoteMutation.mutate,
     deleteQuote: deleteQuoteMutation.mutate,
     shareQuote: shareQuoteMutation.mutate,
+    sendQuoteEmail: sendQuoteWithCustomerEmail,
     convertToJob: convertToJobMutation.mutate,
     isCreating: createQuoteMutation.isPending,
     isUpdating: updateQuoteMutation.isPending,
     isDeleting: deleteQuoteMutation.isPending,
     isSharing: shareQuoteMutation.isPending,
+    isSendingEmail: sendQuoteEmailMutation.isPending,
     isConverting: convertToJobMutation.isPending,
   };
 };

@@ -14,6 +14,7 @@ import Invoices from "./pages/Invoices";
 import Quotes from "./pages/Quotes";
 import Settings from "./pages/Settings";
 import Auth from "./pages/Auth";
+import PublicQuote from "./pages/PublicQuote";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -27,6 +28,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
+            <Route path="/public-quote/:token" element={<PublicQuote />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
             <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />

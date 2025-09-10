@@ -23,6 +23,7 @@ import {
   Trash2, 
   Eye, 
   Share, 
+  Mail,
   Briefcase,
   FileText,
   Clock,
@@ -52,6 +53,7 @@ interface QuoteCardProps {
   onDelete: (id: string) => void;
   onPreview: (quote: Quote) => void;
   onShare: (id: string) => void;
+  onSendEmail: (quote: Quote) => void;
   onConvertToJob: (id: string) => void;
 }
 
@@ -62,6 +64,7 @@ export function QuoteCard({
   onDelete, 
   onPreview, 
   onShare, 
+  onSendEmail,
   onConvertToJob 
 }: QuoteCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -129,10 +132,16 @@ export function QuoteCard({
                   Edit
                 </DropdownMenuItem>
                 {canShare && (
-                  <DropdownMenuItem onClick={() => onShare(quote.id)}>
-                    <Share className="mr-2 h-4 w-4" />
-                    Share with Customer
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => onSendEmail(quote)}>
+                      <Mail className="mr-2 h-4 w-4" />
+                      Send to Customer
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onShare(quote.id)}>
+                      <Share className="mr-2 h-4 w-4" />
+                      Copy Share Link
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {canConvert && (
                   <DropdownMenuItem onClick={() => setShowConvertDialog(true)}>

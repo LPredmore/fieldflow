@@ -48,6 +48,7 @@ export default function Quotes() {
     updateQuote,
     deleteQuote,
     shareQuote,
+    sendQuoteEmail,
     convertToJob,
   } = useQuotes();
 
@@ -86,6 +87,10 @@ export default function Quotes() {
   const handlePreviewQuote = (quote: Quote) => {
     setSelectedQuote(quote);
     setShowQuotePreview(true);
+  };
+
+  const handleSendQuoteEmail = (quote: Quote) => {
+    sendQuoteEmail(quote.id, quote.customer_name, quote.customer_id);
   };
 
   const handleQuoteFormSubmit = (data: any) => {
@@ -173,6 +178,7 @@ export default function Quotes() {
                 onDelete={deleteQuote}
                 onPreview={handlePreviewQuote}
                 onShare={shareQuote}
+                onSendEmail={handleSendQuoteEmail}
                 onConvertToJob={convertToJob}
               />
             ))}

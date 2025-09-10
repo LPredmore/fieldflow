@@ -10,6 +10,12 @@ max_rows = 1000
 [functions.ai-price-suggestion]
 verify_jwt = false
 
+[functions.send-quote-email]
+verify_jwt = false
+
+[functions.quote-response]
+verify_jwt = false
+
 [db]
 port = 54322
 shadow_port = 54320
