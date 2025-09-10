@@ -14,6 +14,7 @@ const formSchema = z.object({
   business_phone: z.string().optional(),
   business_email: z.string().email("Invalid email address").optional(),
   business_website: z.string().optional(),
+  logo_url: z.string().optional(),
   brand_color: z.string().optional(),
   business_address: z.object({
     street: z.string().optional(),
@@ -36,6 +37,7 @@ const US_STATES = [
 
 export default function BusinessSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const { settings, loading, updateSettings, createSettings } = useSettings();
 
   const form = useForm<FormData>({
@@ -45,6 +47,7 @@ export default function BusinessSettings() {
       business_phone: "",
       business_email: "",
       business_website: "",
+      logo_url: "",
       brand_color: "#3B82F6",
       business_address: {
         street: "",
@@ -63,6 +66,7 @@ export default function BusinessSettings() {
         business_phone: settings.business_phone || "",
         business_email: settings.business_email || "",
         business_website: settings.business_website || "",
+        logo_url: settings.logo_url || "",
         brand_color: settings.brand_color || "#3B82F6",
         business_address: settings.business_address || {
           street: "",
@@ -74,6 +78,19 @@ export default function BusinessSettings() {
       });
     }
   }, [settings, form]);
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    // For now, we'll use a simple file URL (in production, you'd upload to Supabase Storage)
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const logoUrl = e.target?.result as string;
+      form.setValue('logo_url', logoUrl);
+    };
+    reader.readAsDataURL(file);
+  };
 
   const onSubmit = async (data: FormData) => {
     setIsSubmitting(true);
@@ -177,13 +194,40 @@ export default function BusinessSettings() {
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Company Logo</label>
                   <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
-                    <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
-                    <p className="text-sm text-muted-foreground">
-                      Click to upload or drag and drop
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      SVG, PNG, JPG or GIF (max. 800x400px)
-                    </p>
+                    {form.watch('logo_url') ? (
+                      <div className="space-y-2">
+                        <img 
+                          src={form.watch('logo_url')} 
+                          alt="Company Logo" 
+                          className="h-16 mx-auto object-contain"
+                        />
+                        <p className="text-sm text-muted-foreground">Logo uploaded</p>
+                        <Button 
+                          type="button" 
+                          variant="outline" 
+                          size="sm"
+                          onClick={() => form.setValue('logo_url', '')}
+                        >
+                          Remove
+                        </Button>
+                      </div>
+                    ) : (
+                      <>
+                        <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
+                        <p className="text-sm text-muted-foreground">
+                          Click to upload or drag and drop
+                        </p>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          SVG, PNG, JPG or GIF (max. 800x400px)
+                        </p>
+                      </>
+                    )}
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleLogoUpload}
+                      className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    />
                   </div>
                 </div>
 

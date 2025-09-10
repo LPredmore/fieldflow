@@ -6,6 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
+import { useSettings } from '@/hooks/useSettings';
 import { Loader2, Building, UserCheck } from 'lucide-react';
 
 export default function Auth() {
@@ -18,6 +19,7 @@ export default function Auth() {
   const [loading, setLoading] = useState(false);
   
   const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
@@ -71,8 +73,18 @@ export default function Auth() {
         {/* Header */}
         <div className="text-center space-y-2">
           <div className="flex items-center justify-center space-x-2">
-            <Building className="h-8 w-8 text-primary" />
-            <h1 className="text-3xl font-bold text-foreground">FieldFlow</h1>
+            {settings?.logo_url ? (
+              <img 
+                src={settings.logo_url} 
+                alt="Business Logo" 
+                className="h-8 w-8 object-contain"
+              />
+            ) : (
+              <Building className="h-8 w-8 text-primary" />
+            )}
+            <h1 className="text-3xl font-bold text-foreground">
+              {settings?.business_name || 'FieldFlow'}
+            </h1>
           </div>
           <p className="text-muted-foreground">
             Professional field service management platform
@@ -86,8 +98,8 @@ export default function Auth() {
             </CardTitle>
             <CardDescription className="text-center">
               {isLogin 
-                ? 'Sign in to your FieldFlow account' 
-                : 'Get started with FieldFlow today'
+                ? `Sign in to your ${settings?.business_name || 'FieldFlow'} account` 
+                : `Get started with ${settings?.business_name || 'FieldFlow'} today`
               }
             </CardDescription>
           </CardHeader>

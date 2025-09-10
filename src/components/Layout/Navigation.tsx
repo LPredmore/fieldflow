@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
+import { useSettings } from "@/hooks/useSettings";
 import { getRoleDisplayName, canAccessSettings } from "@/utils/roleUtils";
 
 const navigationItems = [
@@ -33,6 +34,7 @@ export default function Navigation() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const location = useLocation();
   const { signOut, user, userRole } = useAuth();
+  const { settings } = useSettings();
 
   const handleSignOut = async () => {
     await signOut();
@@ -59,8 +61,17 @@ export default function Navigation() {
       )}>
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-center border-b border-border bg-primary px-6">
-            <h1 className="text-xl font-bold text-primary-foreground">FieldFlow</h1>
+          <div className="flex h-16 items-center justify-start border-b border-border bg-primary px-6 gap-3">
+            {settings?.logo_url && (
+              <img 
+                src={settings.logo_url} 
+                alt="Business Logo" 
+                className="h-8 w-8 object-contain"
+              />
+            )}
+            <h1 className="text-xl font-bold text-primary-foreground">
+              {settings?.business_name || 'FieldFlow'}
+            </h1>
           </div>
 
           {/* Navigation Items */}
