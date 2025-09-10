@@ -47,7 +47,7 @@ interface Quote {
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
   line_items: any[];
-  tax_rate: number;
+  tax_rate?: number; // Make optional for backward compatibility
   notes?: string;
   terms: string;
 }
@@ -89,7 +89,6 @@ export function QuoteForm({
         total: 0,
         taxable: true
       }],
-      tax_rate: 8.75,
       notes: "",
       terms: "Payment due within 30 days of acceptance"
     }
@@ -103,9 +102,8 @@ export function QuoteForm({
     name: "line_items"
   });
 
-  // Watch line items and tax rate for calculations
+  // Watch line items for calculations
   const watchedLineItems = form.watch("line_items");
-  const watchedTaxRate = form.watch("tax_rate");
 
   // Calculate line item total
   const calculateLineItemTotal = (quantity: number, unitPrice: number): number => {
@@ -127,7 +125,6 @@ export function QuoteForm({
           unit_price: item.unit_price,
           total: item.total
         })),
-        tax_rate: quote.tax_rate,
         notes: quote.notes || "",
         terms: quote.terms
       });
@@ -145,7 +142,6 @@ export function QuoteForm({
           total: 0,
           taxable: true
         }],
-        tax_rate: 8.75,
         notes: "",
         terms: "Payment due within 30 days of acceptance"
       });
@@ -228,15 +224,8 @@ export function QuoteForm({
     const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
     return sum + total;
   }, 0);
-  const taxableAmount = watchedLineItems.reduce((sum, item) => {
-    if (item.taxable !== false) {
-      const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
-      return sum + total;
-    }
-    return sum;
-  }, 0);
-  const taxAmount = taxableAmount * (watchedTaxRate / 100);
-  const totalAmount = subtotal + taxAmount;
+  
+  const totalAmount = subtotal;
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -300,44 +289,25 @@ export function QuoteForm({
                   <FormMessage />
                 </FormItem>} />
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <FormField control={form.control} name="valid_until" render={({
-              field
-            }) => <FormItem className="flex flex-col">
-                    <FormLabel>Valid Until</FormLabel>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
-                      </PopoverContent>
-                    </Popover>
-                    <FormMessage />
-                  </FormItem>} />
-
-              <FormField control={form.control} name="tax_rate" render={({
-              field
-            }) => (
-                <FormItem>
-                  <FormLabel>Tax Rate (%)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      {...field}
-                      onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                    />
-                  </FormControl>
+            <FormField control={form.control} name="valid_until" render={({
+            field
+          }) => <FormItem className="flex flex-col">
+                  <FormLabel>Valid Until</FormLabel>
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <FormControl>
+                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                        </Button>
+                      </FormControl>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-auto p-0" align="start">
+                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
+                    </PopoverContent>
+                  </Popover>
                   <FormMessage />
-                </FormItem>
-              )} />
-            </div>
+                </FormItem>} />
 
             {/* Line Items */}
             <div className="space-y-4">
@@ -347,60 +317,57 @@ export function QuoteForm({
               
               <div className="space-y-4">
                 {fields.map((field, index) => <div key={field.id} className="border rounded-lg p-4 space-y-4">
-                    {/* Service Selection */}
-                    <div>
-                      
-                      <Popover open={openComboboxes[index]} onOpenChange={open => setOpenComboboxes(prev => ({
-                    ...prev,
-                    [index]: open
-                  }))}>
-                        <PopoverTrigger asChild>
-                          <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between">
-                            Select a service or enter custom details below
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent className="w-full p-0">
-                          <Command>
-                            <CommandInput placeholder="Search services..." />
-                            <CommandList>
-                              <CommandEmpty>No service found.</CommandEmpty>
-                              <CommandGroup>
-                                <CommandItem onSelect={() => handleServiceSelect(index, "custom")} className="font-medium">
-                                  <Check className="mr-2 h-4 w-4 opacity-0" />
-                                  Custom Line Item
-                                </CommandItem>
-                                {services.map(service => <CommandItem key={service.id} onSelect={() => handleServiceSelect(index, service.id)}>
-                                    <Check className="mr-2 h-4 w-4 opacity-0" />
-                                    {service.name}
-                                  </CommandItem>)}
-                              </CommandGroup>
-                            </CommandList>
-                          </Command>
-                        </PopoverContent>
-                      </Popover>
-                    </div>
-
                     {/* Item Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
                       <div>
-                        <FormLabel className="text-sm">Item description...</FormLabel>
-                        <Controller name={`line_items.${index}.description`} control={form.control} render={({
-                      field
-                    }) => <Textarea placeholder="Item description..." {...field} rows={2} className="resize-none" />} />
+                        <FormLabel className="text-sm">Item Description</FormLabel>
+                        <Popover open={openComboboxes[index]} onOpenChange={open => setOpenComboboxes(prev => ({
+                          ...prev,
+                          [index]: open
+                        }))}>
+                          <PopoverTrigger asChild>
+                            <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between h-20 whitespace-normal">
+                              {form.getValues(`line_items.${index}.description`) || "Select service or enter custom description"}
+                              <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                            </Button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-0">
+                            <Command>
+                              <CommandInput placeholder="Search services..." />
+                              <CommandList>
+                                <CommandEmpty>No service found.</CommandEmpty>
+                                <CommandGroup>
+                                  <CommandItem onSelect={() => handleServiceSelect(index, "custom")} className="font-medium">
+                                    <Check className="mr-2 h-4 w-4 opacity-0" />
+                                    Custom Line Item
+                                  </CommandItem>
+                                  {services.map(service => <CommandItem key={service.id} onSelect={() => handleServiceSelect(index, service.id)}>
+                                      <Check className="mr-2 h-4 w-4 opacity-0" />
+                                      {service.name}
+                                    </CommandItem>)}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
+                        <div className="mt-2">
+                          <Controller name={`line_items.${index}.description`} control={form.control} render={({
+                            field
+                          }) => <Textarea placeholder="Or type custom description..." {...field} rows={2} className="resize-none" />} />
+                        </div>
                       </div>
                       
                       <div>
                         <FormLabel className="text-sm">Quantity</FormLabel>
                         <Controller name={`line_items.${index}.quantity`} control={form.control} render={({
-                      field
-                    }) => <Input type="number" step="0.01" {...field} onChange={e => {
-                      const quantity = parseFloat(e.target.value) || 0;
-                      field.onChange(quantity);
-                      const unitPrice = form.getValues(`line_items.${index}.unit_price`);
-                      const total = calculateLineItemTotal(quantity, unitPrice);
-                      form.setValue(`line_items.${index}.total`, total);
-                    }} />} />
+                        field
+                      }) => <Input type="number" step="0.01" {...field} onChange={e => {
+                        const quantity = parseFloat(e.target.value) || 0;
+                        field.onChange(quantity);
+                        const unitPrice = form.getValues(`line_items.${index}.unit_price`);
+                        const total = calculateLineItemTotal(quantity, unitPrice);
+                        form.setValue(`line_items.${index}.total`, total);
+                      }} />} />
                       </div>
 
                       <div>
@@ -408,38 +375,39 @@ export function QuoteForm({
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
                           <Controller name={`line_items.${index}.unit_price`} control={form.control} render={({
-                        field
-                      }) => <Input type="number" step="0.01" {...field} className="pl-7" onChange={e => {
-                        const unitPrice = parseFloat(e.target.value) || 0;
-                        field.onChange(unitPrice);
-                        const quantity = form.getValues(`line_items.${index}.quantity`);
-                        const total = calculateLineItemTotal(quantity, unitPrice);
-                        form.setValue(`line_items.${index}.total`, total);
-                      }} />} />
+                          field
+                        }) => <Input type="number" step="0.01" {...field} className="pl-7" onChange={e => {
+                          const unitPrice = parseFloat(e.target.value) || 0;
+                          field.onChange(unitPrice);
+                          const quantity = form.getValues(`line_items.${index}.quantity`);
+                          const total = calculateLineItemTotal(quantity, unitPrice);
+                          form.setValue(`line_items.${index}.total`, total);
+                        }} />} />
                         </div>
                       </div>
 
-                      <div className="flex items-end gap-2">
-                        <div className="flex-1">
-                          <FormLabel className="text-sm">Total</FormLabel>
-                          <div className="text-lg font-semibold">
-                            ${calculateLineItemTotal(form.getValues(`line_items.${index}.quantity`) || 0, form.getValues(`line_items.${index}.unit_price`) || 0).toFixed(2)}
-                          </div>
+                      <div>
+                        <FormLabel className="text-sm">Line Cost</FormLabel>
+                        <div className="text-lg font-semibold">
+                          ${calculateLineItemTotal(form.getValues(`line_items.${index}.quantity`) || 0, form.getValues(`line_items.${index}.unit_price`) || 0).toFixed(2)}
                         </div>
+                      </div>
+
+                      <div className="flex items-end">
                         <Button type="button" variant="outline" size="sm" onClick={() => removeLineItem(index)} disabled={fields.length === 1}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
+
+                    {/* Add Item Button - Inside each card */}
+                    <div className="flex justify-center pt-2 border-t">
+                      <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        Add Item
+                      </Button>
+                    </div>
                   </div>)}
-              </div>
-              
-              {/* Add Item Button */}
-              <div className="flex justify-center pt-2">
-                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
               </div>
             </div>
 
@@ -448,10 +416,6 @@ export function QuoteForm({
               <div className="flex justify-between text-sm">
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
-              </div>
-              <div className="flex justify-between text-sm">
-                <span>Tax ({watchedTaxRate}%):</span>
-                <span>${taxAmount.toFixed(2)}</span>
               </div>
               <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
                 <span>Total:</span>
