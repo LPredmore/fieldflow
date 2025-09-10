@@ -320,8 +320,8 @@ export function QuoteForm({
                           [index]: open
                         }))}>
                           <PopoverTrigger asChild>
-                            <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between h-20 whitespace-normal">
-                              {form.getValues(`line_items.${index}.description`) || "Select service or enter custom description"}
+                            <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between h-20 whitespace-normal text-muted-foreground">
+                              {form.getValues(`line_items.${index}.description`) || "Service"}
                               <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                             </Button>
                           </PopoverTrigger>
@@ -344,11 +344,6 @@ export function QuoteForm({
                             </Command>
                           </PopoverContent>
                         </Popover>
-                        <div className="mt-2">
-                          <Controller name={`line_items.${index}.description`} control={form.control} render={({
-                            field
-                          }) => <Textarea placeholder="Or type custom description..." {...field} rows={2} className="resize-none" />} />
-                        </div>
                       </div>
                       
                       <div>
