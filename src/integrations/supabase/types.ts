@@ -332,6 +332,39 @@ export type Database = {
           },
         ]
       }
+      quote_responses: {
+        Row: {
+          created_at: string
+          customer_comments: string | null
+          customer_email: string | null
+          id: string
+          ip_address: string | null
+          quote_id: string
+          response_type: string
+          user_agent: string | null
+        }
+        Insert: {
+          created_at?: string
+          customer_comments?: string | null
+          customer_email?: string | null
+          id?: string
+          ip_address?: string | null
+          quote_id: string
+          response_type: string
+          user_agent?: string | null
+        }
+        Update: {
+          created_at?: string
+          customer_comments?: string | null
+          customer_email?: string | null
+          id?: string
+          ip_address?: string | null
+          quote_id?: string
+          response_type?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       quotes: {
         Row: {
           created_at: string
@@ -343,6 +376,7 @@ export type Database = {
           notes: string | null
           quote_number: string
           sent_date: string | null
+          share_token: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
@@ -364,6 +398,7 @@ export type Database = {
           notes?: string | null
           quote_number: string
           sent_date?: string | null
+          share_token?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
@@ -385,6 +420,7 @@ export type Database = {
           notes?: string | null
           quote_number?: string
           sent_date?: string | null
+          share_token?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
@@ -566,6 +602,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      generate_quote_share_token: {
+        Args: Record<PropertyKey, never>
+        Returns: string
+      }
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
