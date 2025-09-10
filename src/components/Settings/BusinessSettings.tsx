@@ -16,6 +16,7 @@ const formSchema = z.object({
   business_website: z.string().optional(),
   logo_url: z.string().optional(),
   brand_color: z.string().optional(),
+  text_color: z.string().optional(),
   business_address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -49,6 +50,7 @@ export default function BusinessSettings() {
       business_website: "",
       logo_url: "",
       brand_color: "#3B82F6",
+      text_color: "#FFFFFF",
       business_address: {
         street: "",
         city: "",
@@ -68,6 +70,7 @@ export default function BusinessSettings() {
         business_website: settings.business_website || "",
         logo_url: settings.logo_url || "",
         brand_color: settings.brand_color || "#3B82F6",
+        text_color: settings.text_color || "#FFFFFF",
         business_address: settings.business_address || {
           street: "",
           city: "",
@@ -245,6 +248,28 @@ export default function BusinessSettings() {
                           <Input placeholder="#3B82F6" {...field} />
                         </FormControl>
                       </div>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="text_color"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Text Color (Over Brand Color)</FormLabel>
+                      <div className="flex gap-2">
+                        <FormControl>
+                          <Input type="color" className="w-16 h-10" {...field} />
+                        </FormControl>
+                        <FormControl>
+                          <Input placeholder="#FFFFFF" {...field} />
+                        </FormControl>
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        Color for text that appears over the brand color background
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

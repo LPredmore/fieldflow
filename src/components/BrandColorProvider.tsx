@@ -1,6 +1,6 @@
 import { useEffect } from 'react';
 import { useSettings } from '@/hooks/useSettings';
-import { generateBrandColorPalette, DEFAULT_BRAND_COLORS } from '@/lib/colorUtils';
+import { generateBrandColorPalette, DEFAULT_BRAND_COLORS, hexToHsl } from '@/lib/colorUtils';
 
 /**
  * Brand Color Provider - Dynamically injects CSS variables based on brand color setting
@@ -12,6 +12,7 @@ export function BrandColorProvider({ children }: { children: React.ReactNode }) 
     if (loading) return;
 
     const brandColor = settings?.brand_color;
+    const textColor = settings?.text_color;
     const colorPalette = brandColor 
       ? generateBrandColorPalette(brandColor)
       : DEFAULT_BRAND_COLORS;
@@ -24,11 +25,19 @@ export function BrandColorProvider({ children }: { children: React.ReactNode }) 
     root.style.setProperty('--primary-dark', colorPalette.light.primaryDark);
     root.style.setProperty('--primary-light', colorPalette.light.primaryLight);
     root.style.setProperty('--ring', colorPalette.light.ring);
+    
+    // Update text color if provided
+    if (textColor) {
+      const textColorHSL = hexToHsl(textColor);
+      if (textColorHSL) {
+        root.style.setProperty('--primary-foreground', textColorHSL);
+      }
+    }
 
     // Update dark theme variables by creating/updating CSS rule
-    updateDarkThemeVariables(colorPalette.dark);
+    updateDarkThemeVariables(colorPalette.dark, textColor);
 
-  }, [settings?.brand_color, loading]);
+  }, [settings?.brand_color, settings?.text_color, loading]);
 
   return <>{children}</>;
 }
@@ -41,7 +50,7 @@ function updateDarkThemeVariables(darkColors: {
   primaryDark: string;
   primaryLight: string;
   ring: string;
-}) {
+}, textColor?: string | null) {
   // Find or create the dark theme style element
   let darkStyleElement = document.getElementById('dynamic-dark-theme') as HTMLStyleElement;
   
@@ -51,6 +60,9 @@ function updateDarkThemeVariables(darkColors: {
     document.head.appendChild(darkStyleElement);
   }
 
+  // Convert hex text color to HSL format for CSS variables if provided
+  const textColorHSL = textColor ? hexToHsl(textColor) : null;
+
   // Update dark theme CSS
   darkStyleElement.textContent = `
     .dark {
@@ -58,6 +70,7 @@ function updateDarkThemeVariables(darkColors: {
       --primary-dark: ${darkColors.primaryDark};
       --primary-light: ${darkColors.primaryLight};
       --ring: ${darkColors.ring};
+      ${textColorHSL ? `--primary-foreground: ${textColorHSL};` : ''}
     }
   `;
 }

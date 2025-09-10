@@ -14,6 +14,7 @@ export interface Settings {
   business_address: any | null;
   logo_url: string | null;
   brand_color: string | null;
+  text_color: string | null;
   tax_settings: any | null;
   payment_settings: any | null;
   invoice_settings: any | null;
@@ -48,7 +49,7 @@ export function useSettings() {
         return;
       }
 
-      setSettings(data || null);
+      setSettings(data ? { ...data, text_color: (data as any).text_color || null } : null);
     } catch (error: any) {
       console.error('Error loading settings:', error);
     } finally {
@@ -76,7 +77,7 @@ export function useSettings() {
         return { error };
       }
 
-      setSettings(data);
+      setSettings({ ...data, text_color: (data as any).text_color || null });
       toast({
         title: "Settings updated",
         description: "Your settings have been updated successfully.",
@@ -118,7 +119,7 @@ export function useSettings() {
         return { error };
       }
 
-      setSettings(data);
+      setSettings({ ...data, text_color: (data as any).text_color || null });
       toast({
         title: "Settings created",
         description: "Your settings have been created successfully.",
