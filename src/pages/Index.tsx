@@ -9,6 +9,7 @@ import {
   AlertTriangle
 } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
+import PageHeader from "@/components/Layout/PageHeader";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import MetricCard from "@/components/Dashboard/MetricCard";
 import RecentJobs from "@/components/Dashboard/RecentJobs";
@@ -86,6 +87,7 @@ const Index = () => {
       
       {/* Main Content */}
       <div className="lg:ml-64">
+        <PageHeader />
         <div className="p-6 lg:p-8">
           {/* Header */}
           <div className="mb-8">
