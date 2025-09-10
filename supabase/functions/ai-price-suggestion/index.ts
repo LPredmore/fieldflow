@@ -46,9 +46,9 @@ serve(async (req) => {
       )
     }
 
-    const openaiApiKey = Deno.env.get('OPENAI_API_KEY')
-    if (!openaiApiKey) {
-      console.error('OpenAI API key not found')
+    const nexusApiKey = Deno.env.get('NEXUSAI_API_KEY')
+    if (!nexusApiKey) {
+      console.error('Nexus AI API key not found')
       return new Response(
         JSON.stringify({ error: 'AI service temporarily unavailable' }),
         { 
@@ -58,9 +58,9 @@ serve(async (req) => {
       )
     }
 
-    // Construct the prompt for AI price suggestion
+    // Construct the query for Nexus AI price suggestion
     const location = `${businessAddress.city}, ${businessAddress.state}`
-    const prompt = `As a business pricing consultant, provide competitive pricing suggestions for the following service:
+    const query = `As a business pricing consultant, provide competitive pricing suggestions for the following service:
 
 Service: ${serviceName}
 Description: ${serviceDescription || 'No description provided'}
@@ -68,57 +68,61 @@ Unit Type: ${unitType}
 Location: ${location}
 Additional Context: ${additionalContext || 'None provided'}
 
-Please provide three pricing tiers (Low, Average, High) with brief reasoning for each. Consider local market rates, service complexity, and competitive positioning.
+Please provide three pricing tiers (Low, Average, High) with brief reasoning for each. Consider local market rates, service complexity, and competitive positioning.`
 
-Format your response as JSON with this structure:
-{
-  "reasoning": "Brief market analysis and factors considered",
-  "suggestions": [
-    {
-      "tier": "Low",
-      "price": 45.00,
-      "description": "Budget-friendly option, basic service level"
-    },
-    {
-      "tier": "Average", 
-      "price": 65.00,
-      "description": "Standard market rate, good value proposition"
-    },
-    {
-      "tier": "High",
-      "price": 85.00, 
-      "description": "Premium positioning, includes additional value"
+    // Define response schema for structured data
+    const responseSchema = {
+      type: "object",
+      properties: {
+        reasoning: {
+          type: "string",
+          description: "Brief market analysis and factors considered"
+        },
+        suggestions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              tier: { type: "string" },
+              price: { type: "number" },
+              description: { type: "string" }
+            },
+            required: ["tier", "price", "description"]
+          }
+        }
+      },
+      required: ["reasoning", "suggestions"]
     }
-  ]
-}`
 
-    const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+    const response = await fetch('https://nexus-ai-f957769a.base44.app/api/v1/search', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${openaiApiKey}`,
-        'Content-Type': 'application/json',
-        'HTTP-Referer': 'https://lovable.dev',
-        'X-Title': 'AI Price Suggestion'
+        'Authorization': `Bearer ${nexusApiKey}`,
+        'Content-Type': 'application/json'
       },
-        body: JSON.stringify({
-          model: 'openai/gpt-4o-mini',
-          messages: [
-            {
-              role: 'system',
-              content: 'You are a business pricing consultant with expertise in service-based businesses. Always respond with valid JSON only.'
-            },
-            {
-              role: 'user',
-              content: prompt
-            }
-          ],
-          max_tokens: 500,
-          temperature: 0.7
-        })
+      body: JSON.stringify({
+        query: query,
+        search_type: 'structured_data',
+        response_schema: responseSchema,
+        include_web_context: true
+      })
     })
 
     if (!response.ok) {
-      console.error('OpenAI API error:', await response.text())
+      const errorText = await response.text()
+      console.error('Nexus AI API error:', errorText)
+      
+      // Handle specific Nexus AI error codes
+      if (response.status === 429) {
+        return new Response(
+          JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 429 
+          }
+        )
+      }
+      
       return new Response(
         JSON.stringify({ error: 'Failed to get AI suggestions' }),
         { 
@@ -129,11 +133,11 @@ Format your response as JSON with this structure:
     }
 
     const aiResponse = await response.json()
-    const aiContent = aiResponse.choices[0]?.message?.content
-
-    if (!aiContent) {
+    
+    if (aiResponse.status !== 'success') {
+      console.error('Nexus AI error response:', aiResponse)
       return new Response(
-        JSON.stringify({ error: 'No suggestions received from AI' }),
+        JSON.stringify({ error: 'AI service returned an error' }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500 
@@ -141,14 +145,12 @@ Format your response as JSON with this structure:
       )
     }
 
-    // Try to parse the AI response as JSON
-    let suggestions
-    try {
-      suggestions = JSON.parse(aiContent)
-    } catch (parseError) {
-      console.error('Failed to parse AI response:', aiContent)
-      // Fallback to structured response if JSON parsing fails
-      suggestions = {
+    const suggestions = aiResponse.data
+
+    if (!suggestions || !suggestions.suggestions) {
+      console.error('Invalid response structure from Nexus AI:', suggestions)
+      // Fallback to structured response if data is invalid
+      const fallbackSuggestions = {
         reasoning: "Unable to get detailed market analysis at this time",
         suggestions: [
           { tier: "Low", price: 40.00, description: "Budget-friendly option" },
@@ -156,6 +158,13 @@ Format your response as JSON with this structure:
           { tier: "High", price: 80.00, description: "Premium positioning" }
         ]
       }
+      
+      return new Response(
+        JSON.stringify(fallbackSuggestions),
+        { 
+          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+        }
+      )
     }
 
     return new Response(
