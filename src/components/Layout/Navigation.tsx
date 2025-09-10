@@ -61,7 +61,7 @@ export default function Navigation() {
       )}>
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-start border-b border-border bg-primary px-6 gap-3">
+          <div className="flex h-16 items-center justify-end border-b border-border bg-primary px-6 gap-3">
             {settings?.logo_url && (
               <img 
                 src={settings.logo_url} 
