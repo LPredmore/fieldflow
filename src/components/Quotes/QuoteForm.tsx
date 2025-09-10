@@ -32,6 +32,7 @@ const formSchema = z.object({
   status: z.enum(['draft', 'sent', 'accepted', 'declined']),
   valid_until: z.date().optional(),
   line_items: z.array(lineItemSchema).min(1, "At least one line item is required"),
+  tax_rate: z.number().min(0, "Tax rate cannot be negative").max(100, "Tax rate cannot exceed 100%"),
   notes: z.string().optional(),
   terms: z.string().min(1, "Terms are required")
 });
@@ -54,6 +55,7 @@ interface QuoteFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: FormData & {
     id?: string;
+    tax_rate: number;
   }) => void;
   quote?: Quote | null;
   title: string;
@@ -87,6 +89,7 @@ export function QuoteForm({
         unit_price: 0,
         total: 0
       }],
+      tax_rate: 8.75,
       notes: "",
       terms: "Payment due within 30 days of acceptance"
     }
@@ -125,6 +128,7 @@ export function QuoteForm({
           unit_price: item.unit_price,
           total: item.total
         })),
+        tax_rate: quote.tax_rate || 8.75,
         notes: quote.notes || "",
         terms: quote.terms
       });
@@ -142,6 +146,7 @@ export function QuoteForm({
           unit_price: 0,
           total: 0
         }],
+        tax_rate: 8.75,
         notes: "",
         terms: "Payment due within 30 days of acceptance"
       });
@@ -241,7 +246,14 @@ export function QuoteForm({
     return sum + total;
   }, 0);
   
-  const totalAmount = subtotal;
+  const taxRate = form.watch("tax_rate") || 0;
+  const taxableAmount = watchedLineItems.reduce((sum, item) => {
+    const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
+    // Assume all items are taxable by default (can be made configurable per item later)
+    return sum + total;
+  }, 0);
+  const taxAmount = taxableAmount * (taxRate / 100);
+  const totalAmount = subtotal + taxAmount;
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -444,11 +456,39 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
+              {taxAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Tax ({taxRate}%):</span>
+                  <span>${taxAmount.toFixed(2)}</span>
+                </div>
+              )}
               <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
                 <span>Total:</span>
                 <span>${totalAmount.toFixed(2)}</span>
               </div>
             </div>
+
+            {/* Tax Rate Field */}
+            <FormField control={form.control} name="tax_rate" render={({
+            field
+          }) => <FormItem>
+                  <FormLabel>Tax Rate (%)</FormLabel>
+                  <FormControl>
+                    <Input 
+                      type="number" 
+                      step="0.01" 
+                      min="0" 
+                      max="100"
+                      placeholder="8.75" 
+                      {...field} 
+                      onChange={(e) => {
+                        const value = parseFloat(e.target.value) || 0;
+                        field.onChange(value);
+                      }}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>} />
 
             {/* Notes and Terms */}
             <FormField control={form.control} name="notes" render={({
