@@ -341,12 +341,8 @@ export function QuoteForm({
 
             {/* Line Items */}
             <div className="space-y-4">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center">
                 <h3 className="text-lg font-semibold">Line Items</h3>
-                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                  <Plus className="h-4 w-4 mr-2" />
-                  Add Item
-                </Button>
               </div>
               
               <div className="space-y-4">
@@ -436,6 +432,14 @@ export function QuoteForm({
                       </div>
                     </div>
                   </div>)}
+              </div>
+              
+              {/* Add Item Button */}
+              <div className="flex justify-center pt-2">
+                <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Item
+                </Button>
               </div>
             </div>
 
