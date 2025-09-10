@@ -119,7 +119,8 @@ export default function Quotes() {
     <div className="min-h-screen bg-background">
       <Navigation />
       
-      <main className="container mx-auto px-4 py-8 space-y-8">
+      <div className="lg:ml-64">
+        <main className="container mx-auto px-4 py-8 space-y-8">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
           <div className="flex items-center gap-4">
@@ -229,7 +230,8 @@ export default function Quotes() {
           onOpenChange={setShowQuotePreview}
           quote={selectedQuote}
         />
-      </main>
+        </main>
+      </div>
     </div>
   );
 }
