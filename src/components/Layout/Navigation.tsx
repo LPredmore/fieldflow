@@ -50,7 +50,7 @@ export default function Navigation() {
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
           className="bg-surface shadow-material-md"
         >
-          {isMobileMenuOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
+          <Menu className="h-4 w-4" />
         </Button>
       </div>
 
