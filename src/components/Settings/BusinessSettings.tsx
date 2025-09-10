@@ -190,10 +190,10 @@ export default function BusinessSettings() {
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Branding</h3>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-2">
                   <label className="text-sm font-medium">Company Logo</label>
-                  <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
+                  <div className="relative border-2 border-dashed border-muted-foreground/25 rounded-lg p-6 text-center">
                     {form.watch('logo_url') ? (
                       <div className="space-y-2">
                         <img 
