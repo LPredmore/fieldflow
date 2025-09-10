@@ -7,6 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Loader2, Upload } from "lucide-react";
+import { hexToHsl } from "@/lib/colorUtils";
 import { useSettings } from "@/hooks/useSettings";
 
 const formSchema = z.object({
@@ -60,6 +61,31 @@ export default function BusinessSettings() {
       },
     },
   });
+
+  // Watch form values for real-time updates
+  const brandColor = form.watch('brand_color');
+  const textColor = form.watch('text_color');
+
+  // Apply colors in real-time as user selects them
+  useEffect(() => {
+    if (brandColor || textColor) {
+      const root = document.documentElement;
+      
+      if (brandColor) {
+        const hsl = hexToHsl(brandColor);
+        if (hsl) {
+          root.style.setProperty('--primary', hsl);
+        }
+      }
+      
+      if (textColor) {
+        const textHsl = hexToHsl(textColor);
+        if (textHsl) {
+          root.style.setProperty('--primary-foreground', textHsl);
+        }
+      }
+    }
+  }, [brandColor, textColor]);
 
   useEffect(() => {
     if (settings) {
@@ -234,46 +260,48 @@ export default function BusinessSettings() {
                   </div>
                 </div>
 
-                <FormField
-                  control={form.control}
-                  name="brand_color"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Brand Color</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input type="color" className="w-16 h-10" {...field} />
-                        </FormControl>
-                        <FormControl>
-                          <Input placeholder="#3B82F6" {...field} />
-                        </FormControl>
-                      </div>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                <div className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="brand_color"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Brand Color</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input type="color" className="w-16 h-10" {...field} />
+                          </FormControl>
+                          <FormControl>
+                            <Input placeholder="#3B82F6" {...field} />
+                          </FormControl>
+                        </div>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
 
-                <FormField
-                  control={form.control}
-                  name="text_color"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Text Color (Over Brand Color)</FormLabel>
-                      <div className="flex gap-2">
-                        <FormControl>
-                          <Input type="color" className="w-16 h-10" {...field} />
-                        </FormControl>
-                        <FormControl>
-                          <Input placeholder="#FFFFFF" {...field} />
-                        </FormControl>
-                      </div>
-                      <p className="text-xs text-muted-foreground">
-                        Color for text that appears over the brand color background
-                      </p>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                  <FormField
+                    control={form.control}
+                    name="text_color"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Text Color (Over Brand Color)</FormLabel>
+                        <div className="flex gap-2">
+                          <FormControl>
+                            <Input type="color" className="w-16 h-10" {...field} />
+                          </FormControl>
+                          <FormControl>
+                            <Input placeholder="#FFFFFF" {...field} />
+                          </FormControl>
+                        </div>
+                        <p className="text-xs text-muted-foreground">
+                          Color for text that appears over the brand color background
+                        </p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
               </div>
             </div>
 
