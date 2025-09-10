@@ -309,12 +309,22 @@ export function QuoteForm({
                 <h3 className="text-lg font-semibold">Line Items</h3>
               </div>
               
-              <div className="space-y-4">
-                {fields.map((field, index) => <div key={field.id} className="border rounded-lg p-4 space-y-4">
-                    {/* Item Details */}
-                    <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+              {/* Single card container for all line items */}
+              <div className="border rounded-lg p-4 space-y-4">
+                {/* Header row */}
+                <div className="grid grid-cols-1 md:grid-cols-5 gap-4 pb-2 border-b">
+                  <div className="text-sm font-medium text-muted-foreground">Item Description</div>
+                  <div className="text-sm font-medium text-muted-foreground">Quantity</div>
+                  <div className="text-sm font-medium text-muted-foreground">Unit Price</div>
+                  <div className="text-sm font-medium text-muted-foreground">Line Cost</div>
+                  <div className="text-sm font-medium text-muted-foreground"></div>
+                </div>
+                
+                {/* Line items as rows */}
+                <div className="space-y-3">
+                  {fields.map((field, index) => (
+                    <div key={field.id} className="grid grid-cols-1 md:grid-cols-5 gap-4 py-2">
                       <div>
-                        <FormLabel className="text-sm">Item Description</FormLabel>
                         <Popover open={openComboboxes[index]} onOpenChange={open => setOpenComboboxes(prev => ({
                           ...prev,
                           [index]: open
@@ -347,7 +357,6 @@ export function QuoteForm({
                       </div>
                       
                       <div>
-                        <FormLabel className="text-sm">Quantity</FormLabel>
                         <Controller name={`line_items.${index}.quantity`} control={form.control} render={({
                         field
                       }) => <Input type="number" step="0.01" {...field} onChange={e => {
@@ -360,7 +369,6 @@ export function QuoteForm({
                       </div>
 
                       <div>
-                        <FormLabel className="text-sm">Unit Price</FormLabel>
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
                           <Controller name={`line_items.${index}.unit_price`} control={form.control} render={({
@@ -375,28 +383,28 @@ export function QuoteForm({
                         </div>
                       </div>
 
-                      <div>
-                        <FormLabel className="text-sm">Line Cost</FormLabel>
+                      <div className="flex items-center">
                         <div className="text-lg font-semibold">
                           ${calculateLineItemTotal(form.getValues(`line_items.${index}.quantity`) || 0, form.getValues(`line_items.${index}.unit_price`) || 0).toFixed(2)}
                         </div>
                       </div>
 
-                      <div className="flex items-end">
+                      <div className="flex items-center justify-end">
                         <Button type="button" variant="outline" size="sm" onClick={() => removeLineItem(index)} disabled={fields.length === 1}>
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
                     </div>
-
-                    {/* Add Item Button - Inside each card */}
-                    <div className="flex justify-center pt-2 border-t">
-                      <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
-                        <Plus className="h-4 w-4 mr-2" />
-                        Add Item
-                      </Button>
-                    </div>
-                  </div>)}
+                  ))}
+                </div>
+                
+                {/* Single Add Item Button at bottom */}
+                <div className="flex justify-center pt-4 border-t">
+                  <Button type="button" variant="outline" size="sm" onClick={addLineItem}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Item
+                  </Button>
+                </div>
               </div>
             </div>
 
