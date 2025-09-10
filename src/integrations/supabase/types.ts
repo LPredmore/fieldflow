@@ -372,6 +372,7 @@ export type Database = {
           customer_id: string
           customer_name: string
           id: string
+          is_emergency: boolean
           line_items: Json
           notes: string | null
           quote_number: string
@@ -394,6 +395,7 @@ export type Database = {
           customer_id: string
           customer_name: string
           id?: string
+          is_emergency?: boolean
           line_items: Json
           notes?: string | null
           quote_number: string
@@ -416,6 +418,7 @@ export type Database = {
           customer_id?: string
           customer_name?: string
           id?: string
+          is_emergency?: boolean
           line_items?: Json
           notes?: string | null
           quote_number?: string

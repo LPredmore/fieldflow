@@ -23,6 +23,7 @@ interface Quote {
   status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
   valid_until?: string;
   sent_date?: string;
+  is_emergency?: boolean;
   line_items: LineItem[];
   subtotal: number;
   tax_rate: number;
@@ -42,6 +43,7 @@ interface QuoteFormData {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  is_emergency?: boolean;
   line_items: LineItem[];
   tax_rate: number;
   notes?: string;
@@ -127,12 +129,17 @@ export const useQuotes = () => {
       
       const quoteNumber = await generateQuoteNumber();
       
-      // Calculate totals
-      const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
-      const taxableAmount = formData.line_items.reduce((sum, item) => 
-        sum + (item.taxable !== false ? item.total : 0), 0);
-      const taxAmount = taxableAmount * (formData.tax_rate / 100);
-      const totalAmount = subtotal + taxAmount;
+    // Calculate totals with emergency multiplier
+    const isEmergency = formData.is_emergency || false;
+    const emergencyMultiplier = isEmergency ? 1.5 : 1; // TODO: Get from settings
+    
+    const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
+    const taxableAmount = formData.line_items.reduce((sum, item) => 
+      sum + (item.taxable !== false ? item.total * emergencyMultiplier : item.total), 0);
+    const taxAmount = (taxableAmount - (isEmergency ? subtotal * (emergencyMultiplier - 1) : 0)) * (formData.tax_rate / 100) + 
+                     (isEmergency ? subtotal * (emergencyMultiplier - 1) * (formData.tax_rate / 100) : 0);
+    const totalAmount = subtotal * (isEmergency ? emergencyMultiplier : 1) + 
+                       (taxAmount - (isEmergency ? subtotal * (emergencyMultiplier - 1) * (formData.tax_rate / 100) : 0));
 
       const quoteData = {
         quote_number: quoteNumber,
@@ -141,6 +148,7 @@ export const useQuotes = () => {
         title: formData.title,
         status: formData.status,
         valid_until: formData.valid_until,
+        is_emergency: formData.is_emergency || false,
         line_items: formData.line_items as any,
         subtotal,
         tax_rate: formData.tax_rate,
@@ -195,6 +203,7 @@ export const useQuotes = () => {
         title: formData.title,
         status: formData.status,
         valid_until: formData.valid_until,
+        is_emergency: formData.is_emergency || false,
         line_items: formData.line_items as any,
         subtotal,
         tax_rate: formData.tax_rate,

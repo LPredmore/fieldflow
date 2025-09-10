@@ -18,6 +18,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { cn } from "@/lib/utils";
 import { useCustomers } from "@/hooks/useCustomers";
 import { useServices } from "@/hooks/useServices";
+import { useSettings } from "@/hooks/useSettings";
 
 // Validation schemas
 const lineItemSchema = z.object({
@@ -33,6 +34,7 @@ const formSchema = z.object({
   title: z.string().min(1, "Quote title is required"),
   status: z.enum(['draft', 'sent', 'accepted', 'declined']),
   valid_until: z.date().optional(),
+  is_emergency: z.boolean().default(false),
   line_items: z.array(lineItemSchema).min(1, "At least one line item is required"),
   tax_rate: z.number().min(0, "Tax rate cannot be negative").max(100, "Tax rate cannot exceed 100%"),
   notes: z.string().optional(),
@@ -47,6 +49,7 @@ interface Quote {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  is_emergency?: boolean;
   line_items: any[];
   tax_rate?: number; // Make optional for backward compatibility
   notes?: string;
@@ -75,6 +78,7 @@ export function QuoteForm({
   const {
     services
   } = useServices();
+  const { settings } = useSettings();
   const [openComboboxes, setOpenComboboxes] = useState<Record<number, boolean>>({});
   const [isAddingItem, setIsAddingItem] = useState(false);
   const form = useForm<FormData>({
@@ -85,6 +89,7 @@ export function QuoteForm({
       title: "",
       status: 'draft',
       valid_until: addDays(new Date(), 30),
+      is_emergency: false,
       line_items: [{
         description: "",
         quantity: 1,
@@ -125,6 +130,7 @@ export function QuoteForm({
         title: quote.title,
         status: quote.status,
         valid_until: quote.valid_until ? new Date(quote.valid_until) : undefined,
+        is_emergency: quote.is_emergency || false,
         line_items: quote.line_items.map(item => ({
           description: item.description,
           quantity: item.quantity,
@@ -144,6 +150,7 @@ export function QuoteForm({
         title: "",
         status: 'draft',
         valid_until: addDays(new Date(), 30),
+        is_emergency: false,
         line_items: [{
           description: "",
           quantity: 1,
@@ -202,7 +209,8 @@ export function QuoteForm({
     const submissionData = {
       ...data,
       line_items: updatedLineItems,
-      valid_until: data.valid_until?.toISOString()
+      valid_until: data.valid_until?.toISOString(),
+      is_emergency: data.is_emergency || false
     };
     
     if (quote) {
@@ -249,21 +257,30 @@ export function QuoteForm({
   };
 
   // Calculate totals
+  const isEmergency = form.watch("is_emergency") || false;
+  const emergencyMultiplier = settings?.service_settings?.emergency_rate_multiplier || 1.5;
+  
   const subtotal = watchedLineItems.reduce((sum, item) => {
     const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
     return sum + total;
   }, 0);
   
-  const taxRate = form.watch("tax_rate") || 0;
-  const taxableAmount = watchedLineItems.reduce((sum, item) => {
+  // Calculate emergency adjustment for taxable items only
+  const taxableSubtotal = watchedLineItems.reduce((sum, item) => {
     if (item.taxable) {
       const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
       return sum + total;
     }
     return sum;
   }, 0);
+  
+  const emergencyAdjustment = isEmergency ? taxableSubtotal * (emergencyMultiplier - 1) : 0;
+  const adjustedSubtotal = subtotal + emergencyAdjustment;
+  
+  const taxRate = form.watch("tax_rate") || 0;
+  const taxableAmount = taxableSubtotal + (isEmergency ? emergencyAdjustment : 0);
   const taxAmount = taxableAmount * (taxRate / 100);
-  const totalAmount = subtotal + taxAmount;
+  const totalAmount = adjustedSubtotal + taxAmount;
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -327,25 +344,44 @@ export function QuoteForm({
                   <FormMessage />
                 </FormItem>} />
 
-            <FormField control={form.control} name="valid_until" render={({
-            field
-          }) => <FormItem className="flex flex-col">
-                  <FormLabel>Valid Until</FormLabel>
-                  <Popover>
-                    <PopoverTrigger asChild>
-                      <FormControl>
-                        <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
-                          {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
-                          <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
-                        </Button>
-                      </FormControl>
-                    </PopoverTrigger>
-                    <PopoverContent className="w-auto p-0" align="start">
-                      <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
-                    </PopoverContent>
-                  </Popover>
-                  <FormMessage />
-                </FormItem>} />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="valid_until" render={({
+              field
+            }) => <FormItem className="flex flex-col">
+                    <FormLabel>Valid Until</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>} />
+
+              <FormField control={form.control} name="is_emergency" render={({
+              field
+            }) => <FormItem className="flex flex-col">
+                    <FormLabel>Service Type</FormLabel>
+                    <div className="flex items-center space-x-2 h-10">
+                      <Checkbox 
+                        id="emergency-service"
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                      <label htmlFor="emergency-service" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                        Emergency Service {settings?.service_settings?.emergency_rate_multiplier && `(${settings.service_settings.emergency_rate_multiplier}x rate)`}
+                      </label>
+                    </div>
+                    <FormMessage />
+                  </FormItem>} />
+            </div>
 
             {/* Line Items */}
             <div className="space-y-4">
@@ -481,17 +517,23 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
+              {isEmergency && emergencyAdjustment > 0 && (
+                <div className="flex justify-between text-sm text-orange-600">
+                  <span>Emergency Service ({emergencyMultiplier}x on taxable items):</span>
+                  <span>+${emergencyAdjustment.toFixed(2)}</span>
+                </div>
+              )}
               {taxableAmount < subtotal && (
                 <>
                   <div className="flex justify-between text-xs text-muted-foreground">
-                    <span className="ml-4">Taxable: ${taxableAmount.toFixed(2)}</span>
-                    <span>Non-taxable: ${(subtotal - taxableAmount).toFixed(2)}</span>
+                    <span className="ml-4">Taxable: ${taxableSubtotal.toFixed(2)}</span>
+                    <span>Non-taxable: ${(subtotal - taxableSubtotal).toFixed(2)}</span>
                   </div>
                 </>
               )}
               {taxAmount > 0 && (
                 <div className="flex justify-between text-sm">
-                  <span>Tax ({taxRate}% on taxable items):</span>
+                  <span>Tax ({taxRate}% on {isEmergency ? 'emergency-adjusted ' : ''}taxable items):</span>
                   <span>${taxAmount.toFixed(2)}</span>
                 </div>
               )}
