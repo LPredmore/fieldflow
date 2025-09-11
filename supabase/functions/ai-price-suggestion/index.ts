@@ -94,7 +94,7 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
       required: ["reasoning", "suggestions"]
     }
 
-    const response = await fetch('https://nexus-ai-f957769a.base44.app/api/v1/search', {
+    const response = await fetch('https://nexus-ai-f957769a.base44.app/ApiSearch', {
       method: 'POST',
       headers: {
         'Authorization': `Bearer ${nexusApiKey}`,
@@ -105,14 +105,38 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
         search_type: 'structured_data',
         response_schema: responseSchema,
         include_web_context: true
-      })
+      }),
+      signal: AbortSignal.timeout(30000) // 30 second timeout
     })
 
     if (!response.ok) {
-      const errorText = await response.text()
-      console.error('Nexus AI API error:', errorText)
+      let errorMessage = 'Failed to get AI suggestions'
+      
+      try {
+        const errorData = await response.json()
+        errorMessage = errorData.detail || errorMessage
+        console.error('Nexus AI API error:', {
+          status: response.status,
+          detail: errorData.detail,
+          timestamp: new Date().toISOString()
+        })
+      } catch (parseError) {
+        const errorText = await response.text()
+        console.error('Nexus AI API error (raw):', errorText)
+      }
       
       // Handle specific Nexus AI error codes
+      if (response.status === 401) {
+        console.error('Invalid or missing API key')
+        return new Response(
+          JSON.stringify({ error: 'AI service authentication failed' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        )
+      }
+      
       if (response.status === 429) {
         return new Response(
           JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
@@ -124,7 +148,7 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
       }
       
       return new Response(
-        JSON.stringify({ error: 'Failed to get AI suggestions' }),
+        JSON.stringify({ error: errorMessage }),
         { 
           headers: { ...corsHeaders, 'Content-Type': 'application/json' },
           status: 500 
@@ -133,6 +157,14 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
     }
 
     const aiResponse = await response.json()
+    
+    // Log performance metrics from Nexus AI
+    console.log('Nexus AI response metrics:', {
+      processing_time_ms: aiResponse.processing_time_ms,
+      request_id: aiResponse.request_id,
+      search_type: aiResponse.search_type,
+      timestamp: new Date().toISOString()
+    })
     
     if (aiResponse.status !== 'success') {
       console.error('Nexus AI error response:', aiResponse)
@@ -166,6 +198,11 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
         }
       )
     }
+
+    console.log('Successfully processed AI price suggestion request:', {
+      request_id: aiResponse.request_id,
+      suggestions_count: suggestions.suggestions?.length || 0
+    })
 
     return new Response(
       JSON.stringify(suggestions),
