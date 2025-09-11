@@ -118,17 +118,34 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
     console.log('API Key prefix:', nexusApiKey ? nexusApiKey.substring(0, 10) + '...' : 'NONE')
     console.log('=====================================')
 
+    // Try GET method first since server indicates "allow: GET"
+    console.log('=== ATTEMPTING GET REQUEST FIRST ===')
+    
+    // Convert request body to URL parameters for GET request
+    const urlParams = new URLSearchParams({
+      query: query,
+      search_type: 'structured_data',
+      response_schema: JSON.stringify(responseSchema),
+      include_web_context: 'true'
+    })
+    const getUrl = `${requestUrl}?${urlParams.toString()}`
+    
+    console.log('GET URL:', getUrl)
+    console.log('GET URL length:', getUrl.length)
+    
     let response
     try {
-      response = await fetch(requestUrl, {
-        method: 'POST',
-        headers: requestHeaders,
-        body: JSON.stringify(requestBody),
+      response = await fetch(getUrl, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${nexusApiKey}`,
+          'Content-Type': 'application/json'
+        },
         signal: AbortSignal.timeout(30000) // 30 second timeout
       })
       
       // LOG: Response status and headers
-      console.log('=== NEXUS AI RESPONSE STATUS ===')
+      console.log('=== GET REQUEST RESPONSE STATUS ===')
       console.log('Status:', response.status)
       console.log('Status Text:', response.statusText)
       console.log('Headers:', Object.fromEntries(response.headers.entries()))
@@ -136,23 +153,46 @@ Please provide three pricing tiers (Low, Average, High) with brief reasoning for
       console.log('================================')
       
     } catch (fetchError) {
-      console.error('=== FETCH ERROR ===')
+      console.error('=== GET REQUEST FETCH ERROR ===')
       console.error('Error name:', fetchError.name)
       console.error('Error message:', fetchError.message)
       console.error('Error stack:', fetchError.stack)
       console.error('Error cause:', fetchError.cause)
-      console.error('==================')
+      console.error('================================')
       
-      return new Response(
-        JSON.stringify({ 
-          error: 'Network error contacting AI service',
-          details: `Fetch failed: ${fetchError.message}`
-        }),
-        { 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-          status: 500 
-        }
-      )
+      // If GET fails, try POST as fallback (in case API docs are correct)
+      console.log('=== FALLBACK: TRYING POST REQUEST ===')
+      try {
+        response = await fetch(requestUrl, {
+          method: 'POST',
+          headers: requestHeaders,
+          body: JSON.stringify(requestBody),
+          signal: AbortSignal.timeout(30000)
+        })
+        
+        console.log('=== POST FALLBACK RESPONSE STATUS ===')
+        console.log('Status:', response.status)
+        console.log('Status Text:', response.statusText)
+        console.log('Headers:', Object.fromEntries(response.headers.entries()))
+        console.log('OK:', response.ok)
+        console.log('=====================================')
+        
+      } catch (postError) {
+        console.error('=== POST FALLBACK ALSO FAILED ===')
+        console.error('POST Error:', postError.message)
+        console.error('================================')
+        
+        return new Response(
+          JSON.stringify({ 
+            error: 'Network error contacting AI service',
+            details: `Both GET and POST failed. GET: ${fetchError.message}, POST: ${postError.message}`
+          }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 500 
+          }
+        )
+      }
     }
 
     if (!response.ok) {
