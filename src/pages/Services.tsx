@@ -203,7 +203,7 @@ export default function Services() {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
-        <main className="lg:ml-64 p-8">
+        <main className="ml-64 p-8">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
@@ -218,7 +218,7 @@ export default function Services() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      <main className="lg:ml-64 p-8">
+      <main className="ml-64 p-8">
         {/* Header section with title and create button */}
         <div className="flex justify-between items-center mb-8">
           <div>
