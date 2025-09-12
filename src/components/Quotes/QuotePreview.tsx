@@ -9,6 +9,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Printer, X } from "lucide-react";
 import { format } from "date-fns";
+import { useQuery } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Quote {
   id: string;
@@ -42,6 +44,20 @@ interface QuotePreviewProps {
 }
 
 export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
+  // Fetch business settings for display
+  const { data: settings } = useQuery({
+    queryKey: ["settings"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("settings")
+        .select("*")
+        .single();
+
+      if (error) throw error;
+      return data;
+    },
+  });
+
   if (!quote) return null;
 
   const handlePrint = () => {
@@ -54,6 +70,13 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
       currency: "USD",
     }).format(amount);
   };
+
+  const businessAddress = settings?.business_address ? 
+    (() => {
+      const addr = settings.business_address as any;
+      return `${addr?.street || ''}, ${addr?.city || ''}, ${addr?.state || ''} ${addr?.zip_code || ''}`.replace(/^,\s*|,\s*$/g, '');
+    })()
+    : '';
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -72,13 +95,45 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
         </DialogHeader>
 
         <div className="space-y-6 print:space-y-4">
-          {/* Quote Header */}
+          {/* Business Header */}
           <Card>
             <CardContent className="pt-6">
-              <div className="text-center mb-6">
-                <h1 className="text-3xl font-bold text-primary">QUOTE</h1>
-                <p className="text-lg text-muted-foreground">{quote.quote_number}</p>
+              <div className="flex justify-between items-start mb-6">
+                <div>
+                  {settings?.logo_url && (
+                    <img 
+                      src={settings.logo_url} 
+                      alt="Company Logo" 
+                      className="h-16 mb-4"
+                    />
+                  )}
+                  <h1 className="text-2xl font-bold text-primary">
+                    {settings?.business_name || 'FieldFlow Business'}
+                  </h1>
+                  {businessAddress && (
+                    <p className="text-muted-foreground mt-2">{businessAddress}</p>
+                  )}
+                  {settings?.business_phone && (
+                    <p className="text-muted-foreground">Phone: {settings.business_phone}</p>
+                  )}
+                  {settings?.business_email && (
+                    <p className="text-muted-foreground">Email: {settings.business_email}</p>
+                  )}
+                  {settings?.business_website && (
+                    <p className="text-muted-foreground">Web: {settings.business_website}</p>
+                  )}
+                </div>
+                <div className="text-right">
+                  <h2 className="text-3xl font-bold text-primary mb-2">QUOTE</h2>
+                  <p className="text-lg text-muted-foreground">{quote.quote_number}</p>
+                </div>
               </div>
+            </CardContent>
+          </Card>
+
+          {/* Quote Details */}
+          <Card>
+            <CardContent className="pt-6">
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div>
