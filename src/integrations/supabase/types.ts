@@ -200,6 +200,7 @@ export type Database = {
       jobs: {
         Row: {
           actual_cost: number | null
+          additional_info: string | null
           assigned_to_user_id: string | null
           completion_notes: string | null
           created_at: string
@@ -210,7 +211,6 @@ export type Database = {
           estimated_cost: number | null
           estimated_duration: number | null
           id: string
-          materials_needed: Json | null
           priority: Database["public"]["Enums"]["job_priority"]
           scheduled_date: string
           scheduled_time: string | null
@@ -222,6 +222,7 @@ export type Database = {
         }
         Insert: {
           actual_cost?: number | null
+          additional_info?: string | null
           assigned_to_user_id?: string | null
           completion_notes?: string | null
           created_at?: string
@@ -232,7 +233,6 @@ export type Database = {
           estimated_cost?: number | null
           estimated_duration?: number | null
           id?: string
-          materials_needed?: Json | null
           priority?: Database["public"]["Enums"]["job_priority"]
           scheduled_date: string
           scheduled_time?: string | null
@@ -244,6 +244,7 @@ export type Database = {
         }
         Update: {
           actual_cost?: number | null
+          additional_info?: string | null
           assigned_to_user_id?: string | null
           completion_notes?: string | null
           created_at?: string
@@ -254,7 +255,6 @@ export type Database = {
           estimated_cost?: number | null
           estimated_duration?: number | null
           id?: string
-          materials_needed?: Json | null
           priority?: Database["public"]["Enums"]["job_priority"]
           scheduled_date?: string
           scheduled_time?: string | null
