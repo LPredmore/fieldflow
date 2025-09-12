@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
+import { PermissionProtectedRoute } from "@/components/PermissionProtectedRoute";
 import { BrandColorProvider } from "@/components/BrandColorProvider";
 import Index from "./pages/Index";
 import Jobs from "./pages/Jobs";
@@ -35,8 +36,26 @@ const App = () => (
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
             <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
-            <Route path="/services" element={<ProtectedRoute><Services /></ProtectedRoute>} />
-            <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
+            <Route path="/services" element={
+              <ProtectedRoute>
+                <PermissionProtectedRoute 
+                  requiredPermission="access_services"
+                  fallbackMessage="You need Services permission to access this page."
+                >
+                  <Services />
+                </PermissionProtectedRoute>
+              </ProtectedRoute>
+            } />
+            <Route path="/invoices" element={
+              <ProtectedRoute>
+                <PermissionProtectedRoute 
+                  requiredPermission="access_invoicing"
+                  fallbackMessage="You need Invoicing permission to access this page."
+                >
+                  <Invoices />
+                </PermissionProtectedRoute>
+              </ProtectedRoute>
+            } />
             <Route path="/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
             <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AdminProtectedRoute><Settings /></AdminProtectedRoute></ProtectedRoute>} />

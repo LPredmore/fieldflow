@@ -18,7 +18,9 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { useSettings } from "@/hooks/useSettings";
+import { usePermissions } from "@/hooks/usePermissions";
 import { getRoleDisplayName, canAccessSettings } from "@/utils/roleUtils";
+import { canAccessServices, canAccessInvoicing } from "@/utils/permissionUtils";
 
 const navigationItems = [
   { name: "Dashboard", href: "/", icon: Home },
@@ -37,6 +39,7 @@ export default function Navigation() {
   const location = useLocation();
   const { signOut, user, userRole } = useAuth();
   const { settings } = useSettings();
+  const { permissions } = usePermissions();
 
   const handleSignOut = async () => {
     await signOut();
@@ -84,6 +87,16 @@ export default function Navigation() {
               
               // Hide Settings for non-admin users
               if (item.name === 'Settings' && !canAccessSettings(userRole)) {
+                return null;
+              }
+              
+              // Hide Services for users without access_services permission
+              if (item.name === 'Services' && !canAccessServices(permissions)) {
+                return null;
+              }
+              
+              // Hide Invoices for users without access_invoicing permission
+              if (item.name === 'Invoices' && !canAccessInvoicing(permissions)) {
                 return null;
               }
               
