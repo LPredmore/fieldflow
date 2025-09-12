@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
@@ -6,11 +6,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Mail, User } from "lucide-react";
 import { useProfiles } from "@/hooks/useProfiles";
 import { useAuth } from "@/hooks/useAuth";
+import { usePermissions } from "@/hooks/usePermissions";
+import { UserPermissions } from "@/utils/permissionUtils";
+import { UserTable } from "./UserManagement/UserTable";
+import { UserRow } from "./UserManagement/UserRow";
+import { supabase } from '@/integrations/supabase/client';
 
 const inviteSchema = z.object({
   email: z.string().email("Please enter a valid email address"),
@@ -21,8 +24,11 @@ type InviteFormData = z.infer<typeof inviteSchema>;
 export default function UserManagement() {
   const [isInviting, setIsInviting] = useState(false);
   const [updatingUser, setUpdatingUser] = useState<string | null>(null);
+  const [expandedUser, setExpandedUser] = useState<string | null>(null);
+  const [userPermissions, setUserPermissions] = useState<Record<string, UserPermissions | null>>({});
   const { profiles, loading, updateProfile, inviteUser } = useProfiles();
   const { user: currentUser } = useAuth();
+  const { refetchPermissions } = usePermissions();
 
   const inviteForm = useForm<InviteFormData>({
     resolver: zodResolver(inviteSchema),
@@ -54,6 +60,51 @@ export default function UserManagement() {
       setUpdatingUser(null);
     }
   };
+
+  const handleToggleExpanded = (userId: string) => {
+    setExpandedUser(expandedUser === userId ? null : userId);
+  };
+
+  const fetchUserPermissions = async (userId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('user_permissions')
+        .select('send_quotes, access_services, access_invoicing, supervisor')
+        .eq('user_id', userId)
+        .single();
+
+      if (!error) {
+        setUserPermissions(prev => ({ ...prev, [userId]: data }));
+      } else if (error.code === 'PGRST116') {
+        // No permissions found, set defaults
+        setUserPermissions(prev => ({ 
+          ...prev, 
+          [userId]: {
+            send_quotes: false,
+            access_services: false,
+            access_invoicing: false,
+            supervisor: false
+          }
+        }));
+      }
+    } catch (error) {
+      console.error('Error fetching user permissions:', error);
+    }
+  };
+
+  const handlePermissionUpdate = () => {
+    // Refetch permissions for all users
+    profiles.forEach(profile => {
+      fetchUserPermissions(profile.id);
+    });
+  };
+
+  // Fetch permissions for expanded user
+  useEffect(() => {
+    if (expandedUser) {
+      fetchUserPermissions(expandedUser);
+    }
+  }, [expandedUser]);
 
   if (loading) {
     return (
@@ -131,70 +182,26 @@ export default function UserManagement() {
               </p>
             </div>
           ) : (
-            <div className="space-y-4">
+            <UserTable>
               {profiles.map((profile) => {
                 const isCurrentUser = profile.id === currentUser?.id;
-                const isUpdating = updatingUser === profile.id;
+                const isExpanded = expandedUser === profile.id;
                 
                 return (
-                  <div 
-                    key={profile.id} 
-                    className="flex items-center justify-between p-4 rounded-lg border"
-                  >
-                    <div className="flex items-center space-x-4">
-                      <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center">
-                        <span className="text-sm font-medium text-primary-foreground">
-                          {(profile.full_name || profile.email || 'U').charAt(0).toUpperCase()}
-                        </span>
-                      </div>
-                      
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <p className="font-medium">
-                            {profile.full_name || 'Unnamed User'}
-                          </p>
-                          {isCurrentUser && (
-                            <Badge variant="outline">You</Badge>
-                          )}
-                        </div>
-                        <p className="text-sm text-muted-foreground">
-                          {profile.email}
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center space-x-4">
-                      <div className="flex items-center space-x-2">
-                        <span className="text-sm text-muted-foreground">Role:</span>
-                        {isCurrentUser ? (
-                          <Badge variant="default">
-                            {profile.role === 'business_admin' ? 'Admin' : 'Contractor'}
-                          </Badge>
-                        ) : (
-                          <Select
-                            value={profile.role}
-                            onValueChange={(value) => handleRoleChange(profile.id, value as 'business_admin' | 'contractor')}
-                            disabled={isUpdating}
-                          >
-                            <SelectTrigger className="w-32">
-                              <SelectValue />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="business_admin">Admin</SelectItem>
-                              <SelectItem value="contractor">Contractor</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        )}
-                        
-                        {isUpdating && (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        )}
-                      </div>
-                    </div>
-                  </div>
+                  <UserRow
+                    key={profile.id}
+                    profile={profile}
+                    isCurrentUser={isCurrentUser}
+                    isExpanded={isExpanded}
+                    userPermissions={userPermissions[profile.id] || null}
+                    updatingUser={updatingUser}
+                    onToggleExpanded={() => handleToggleExpanded(profile.id)}
+                    onRoleChange={handleRoleChange}
+                    onPermissionUpdate={handlePermissionUpdate}
+                  />
                 );
               })}
-            </div>
+            </UserTable>
           )}
         </CardContent>
       </Card>
@@ -204,9 +211,9 @@ export default function UserManagement() {
         <CardContent className="p-4">
           <div className="rounded-lg bg-muted p-4">
             <p className="text-sm text-muted-foreground">
-              <strong>Note:</strong> New users invited to your team will default to the "Contractor" 
-              role and can be promoted to "Admin" here. Admins have full access to all business 
-              settings and can manage other team members.
+              <strong>Note:</strong> Click the arrow next to a user's name to expand and manage their specific permissions. 
+              New users invited to your team will default to the "Contractor" role with no special permissions. 
+              Admins have full access to all business settings and can manage other team members.
             </p>
           </div>
         </CardContent>
