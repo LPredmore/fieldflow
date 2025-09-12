@@ -76,7 +76,7 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Use the correct domain for public URL
-    const publicUrl = `https://fieldflow-customer-connect.lovable.app/public-quote/${shareToken}`;
+    const publicUrl = `https://fieldflow.flo-pro.org/public-quote/${shareToken}`;
     console.log("[send-quote-email] Generated public URL:", publicUrl);
 
     // If only generating token for share link, return early

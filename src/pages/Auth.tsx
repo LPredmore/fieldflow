@@ -7,10 +7,11 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { useAuth } from '@/hooks/useAuth';
 import { useSettings } from '@/hooks/useSettings';
-import { Loader2, Building, UserCheck } from 'lucide-react';
+import { Loader2, Building, UserCheck, Mail, ArrowLeft } from 'lucide-react';
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
+  const [showForgotPassword, setShowForgotPassword] = useState(false);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
@@ -18,7 +19,7 @@ export default function Auth() {
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, resetPassword, user, loading: authLoading } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
@@ -36,7 +37,13 @@ export default function Auth() {
     setLoading(true);
 
     try {
-      if (isLogin) {
+      if (showForgotPassword) {
+        const { error } = await resetPassword(email);
+        if (!error) {
+          setShowForgotPassword(false);
+          setEmail('');
+        }
+      } else if (isLogin) {
         const { error } = await signIn(email, password);
         if (!error) {
           const redirectTo = (location.state as any)?.from?.pathname || '/';
@@ -94,18 +101,35 @@ export default function Auth() {
         <Card className="shadow-material-lg">
           <CardHeader className="space-y-1">
             <CardTitle className="text-2xl font-semibold text-center">
-              {isLogin ? 'Welcome back' : 'Create your account'}
+              {showForgotPassword ? 'Reset your password' : (isLogin ? 'Welcome back' : 'Create your account')}
             </CardTitle>
             <CardDescription className="text-center">
-              {isLogin 
-                ? `Sign in to your ${settings?.business_name || 'FieldFlow'} account` 
-                : `Get started with ${settings?.business_name || 'FieldFlow'} today`
+              {showForgotPassword 
+                ? 'Enter your email address to receive a password reset link'
+                : (isLogin 
+                  ? `Sign in to your ${settings?.business_name || 'FieldFlow'} account` 
+                  : `Get started with ${settings?.business_name || 'FieldFlow'} today`
+                )
               }
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            {showForgotPassword && (
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setShowForgotPassword(false);
+                  setEmail('');
+                }}
+                className="mb-4 p-0 h-auto text-sm text-muted-foreground hover:text-foreground"
+              >
+                <ArrowLeft className="mr-2 h-4 w-4" />
+                Back to sign in
+              </Button>
+            )}
+            
             <form onSubmit={handleSubmit} className="space-y-4">
-              {!isLogin && (
+              {!isLogin && !showForgotPassword && (
                 <>
                   <div className="space-y-2">
                     <Label htmlFor="fullName">Full Name</Label>
@@ -161,18 +185,32 @@ export default function Auth() {
                 />
               </div>
               
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  placeholder="Enter your password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                  className="transition-all duration-normal"
-                />
-              </div>
+              {!showForgotPassword && (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="password">Password</Label>
+                    {isLogin && (
+                      <Button
+                        type="button"
+                        variant="link"
+                        onClick={() => setShowForgotPassword(true)}
+                        className="p-0 h-auto text-sm text-muted-foreground hover:text-foreground"
+                      >
+                        Forgot password?
+                      </Button>
+                    )}
+                  </div>
+                  <Input
+                    id="password"
+                    placeholder="Enter your password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                    className="transition-all duration-normal"
+                  />
+                </div>
+              )}
 
               <Button
                 type="submit"
@@ -182,32 +220,45 @@ export default function Auth() {
                 {loading ? (
                   <>
                     <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    {isLogin ? 'Signing in...' : 'Creating account...'}
+                    {showForgotPassword ? 'Sending email...' : (isLogin ? 'Signing in...' : 'Creating account...')}
                   </>
                 ) : (
                   <>
-                    <UserCheck className="mr-2 h-4 w-4" />
-                    {isLogin ? 'Sign In' : 'Sign Up'}
+                    {showForgotPassword ? (
+                      <>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Send Reset Email
+                      </>
+                    ) : (
+                      <>
+                        <UserCheck className="mr-2 h-4 w-4" />
+                        {isLogin ? 'Sign In' : 'Sign Up'}
+                      </>
+                    )}
                   </>
                 )}
               </Button>
             </form>
 
-            <Separator />
+            {!showForgotPassword && (
+              <>
+                <Separator />
 
-            <div className="text-center space-y-2">
-              <p className="text-sm text-muted-foreground">
-                {isLogin ? "Don't have an account?" : "Already have an account?"}
-              </p>
-              <Button
-                variant="outline"
-                onClick={() => setIsLogin(!isLogin)}
-                className="w-full"
-                disabled={loading}
-              >
-                {isLogin ? 'Create new account' : 'Sign in instead'}
-              </Button>
-            </div>
+                <div className="text-center space-y-2">
+                  <p className="text-sm text-muted-foreground">
+                    {isLogin ? "Don't have an account?" : "Already have an account?"}
+                  </p>
+                  <Button
+                    variant="outline"
+                    onClick={() => setIsLogin(!isLogin)}
+                    className="w-full"
+                    disabled={loading}
+                  >
+                    {isLogin ? 'Create new account' : 'Sign in instead'}
+                  </Button>
+                </div>
+              </>
+            )}
           </CardContent>
         </Card>
 
