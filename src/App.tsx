@@ -14,6 +14,7 @@ import Services from "./pages/Services";
 import Invoices from "./pages/Invoices";
 import Quotes from "./pages/Quotes";
 import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import PublicQuote from "./pages/PublicQuote";
 import NotFound from "./pages/NotFound";
@@ -37,6 +38,7 @@ const App = () => (
             <Route path="/services" element={<ProtectedRoute><Services /></ProtectedRoute>} />
             <Route path="/invoices" element={<ProtectedRoute><Invoices /></ProtectedRoute>} />
             <Route path="/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
             <Route path="/settings" element={<ProtectedRoute><AdminProtectedRoute><Settings /></AdminProtectedRoute></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />

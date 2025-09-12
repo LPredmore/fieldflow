@@ -11,6 +11,7 @@ import {
   Menu,
   X,
   Wrench,
+  User,
   LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -27,6 +28,7 @@ const navigationItems = [
   { name: "Quotes", href: "/quotes", icon: FileText },
   { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
 
