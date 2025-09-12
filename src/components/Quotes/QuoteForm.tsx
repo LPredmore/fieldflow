@@ -256,24 +256,35 @@ export function QuoteForm({
   // Calculate totals
   const isEmergency = form.watch("is_emergency") || false;
   const emergencyMultiplier = settings?.service_settings?.emergency_rate_multiplier || 1.5;
+  
+  // Calculate subtotals for taxable and non-taxable items
   const subtotal = watchedLineItems.reduce((sum, item) => {
     const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
     return sum + total;
   }, 0);
 
-  // Calculate emergency adjustment for taxable items only
   const taxableSubtotal = watchedLineItems.reduce((sum, item) => {
-    if (item.taxable) {
+    if (item.taxable === true) {
       const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
       return sum + total;
     }
     return sum;
   }, 0);
-  const emergencyAdjustment = isEmergency ? taxableSubtotal * (emergencyMultiplier - 1) : 0;
+
+  const nonTaxableSubtotal = watchedLineItems.reduce((sum, item) => {
+    if (item.taxable === false) {
+      const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
+      return sum + total;
+    }
+    return sum;
+  }, 0);
+
+  // Emergency adjustment based on non-taxable items (as per requirement)
+  const emergencyAdjustment = isEmergency ? nonTaxableSubtotal * (emergencyMultiplier - 1) : 0;
   const adjustedSubtotal = subtotal + emergencyAdjustment;
+  
   const taxRate = form.watch("tax_rate") || 0;
-  const taxableAmount = taxableSubtotal + (isEmergency ? emergencyAdjustment : 0);
-  const taxAmount = taxableAmount * (taxRate / 100);
+  const taxAmount = taxableSubtotal * (taxRate / 100);
   const totalAmount = adjustedSubtotal + taxAmount;
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
@@ -491,20 +502,23 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              {isEmergency && emergencyAdjustment > 0 && <div className="flex justify-between text-sm text-orange-600">
-                  <span>Emergency Service ({emergencyMultiplier}x on taxable items):</span>
+              {taxableSubtotal > 0 && nonTaxableSubtotal > 0 && (
+                <div className="flex justify-between text-xs text-muted-foreground">
+                  <span className="ml-4">Taxable: ${taxableSubtotal.toFixed(2)} • Non-taxable: ${nonTaxableSubtotal.toFixed(2)}</span>
+                </div>
+              )}
+              {isEmergency && emergencyAdjustment > 0 && (
+                <div className="flex justify-between text-sm text-orange-600">
+                  <span>Emergency Service ({emergencyMultiplier}x on non-taxable items):</span>
                   <span>+${emergencyAdjustment.toFixed(2)}</span>
-                </div>}
-              {taxableAmount < subtotal && <>
-                  <div className="flex justify-between text-xs text-muted-foreground">
-                    <span className="ml-4">Taxable: ${taxableSubtotal.toFixed(2)}</span>
-                    <span>Non-taxable: ${(subtotal - taxableSubtotal).toFixed(2)}</span>
-                  </div>
-                </>}
-              {taxAmount > 0 && <div className="flex justify-between text-sm">
-                  <span>Tax ({taxRate}% on {isEmergency ? 'emergency-adjusted ' : ''}taxable items):</span>
+                </div>
+              )}
+              {taxAmount > 0 && (
+                <div className="flex justify-between text-sm">
+                  <span>Tax ({taxRate}% on taxable items):</span>
                   <span>${taxAmount.toFixed(2)}</span>
-                </div>}
+                </div>
+              )}
               <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
                 <span>Total:</span>
                 <span>${totalAmount.toFixed(2)}</span>
@@ -514,7 +528,23 @@ export function QuoteForm({
             {/* Tax Rate Field */}
             <FormField control={form.control} name="tax_rate" render={({
             field
-          }) => {}} />
+          }) => (
+            <FormItem>
+              <FormLabel>Tax Rate (%)</FormLabel>
+              <FormControl>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  max="100"
+                  placeholder="8.75"
+                  {...field}
+                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
+                />
+              </FormControl>
+              <FormMessage />
+            </FormItem>
+          )} />
 
             {/* Notes and Terms */}
             <FormField control={form.control} name="notes" render={({

@@ -18,11 +18,13 @@ interface Quote {
   status: string;
   created_at: string;
   valid_until?: string;
+  is_emergency?: boolean;
   line_items: Array<{
     description: string;
     quantity: number;
     unit_price: number;
     total: number;
+    taxable?: boolean;
   }>;
   subtotal: number;
   tax_rate: number;
@@ -123,6 +125,7 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
                       <th className="text-left py-2">Description</th>
                       <th className="text-right py-2">Qty</th>
                       <th className="text-right py-2">Unit Price</th>
+                      <th className="text-center py-2">Tax</th>
                       <th className="text-right py-2">Total</th>
                     </tr>
                   </thead>
@@ -132,9 +135,23 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
                         <td className="py-2">{item.description}</td>
                         <td className="text-right py-2">{item.quantity}</td>
                         <td className="text-right py-2">{formatCurrency(item.unit_price)}</td>
+                        <td className="text-center py-2">
+                          {item.taxable === false ? "No" : "Yes"}
+                        </td>
                         <td className="text-right py-2">{formatCurrency(item.total)}</td>
                       </tr>
                     ))}
+                    {quote.is_emergency && (
+                      <tr className="border-b bg-orange-50">
+                        <td className="py-2 font-medium text-orange-800">Emergency Service Surcharge</td>
+                        <td className="text-right py-2">-</td>
+                        <td className="text-right py-2">-</td>
+                        <td className="text-center py-2">No</td>
+                        <td className="text-right py-2 font-medium text-orange-800">
+                          {formatCurrency(quote.subtotal - quote.line_items.reduce((sum, item) => sum + item.total, 0))}
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
@@ -146,12 +163,20 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
                 <div className="w-64 space-y-2">
                   <div className="flex justify-between">
                     <span>Subtotal:</span>
-                    <span>{formatCurrency(quote.subtotal)}</span>
+                    <span>{formatCurrency(quote.line_items.reduce((sum, item) => sum + item.total, 0))}</span>
                   </div>
-                  <div className="flex justify-between">
-                    <span>Tax ({quote.tax_rate}%):</span>
-                    <span>{formatCurrency(quote.tax_amount)}</span>
-                  </div>
+                  {quote.is_emergency && quote.subtotal > quote.line_items.reduce((sum, item) => sum + item.total, 0) && (
+                    <div className="flex justify-between text-orange-600">
+                      <span>Emergency Service:</span>
+                      <span>{formatCurrency(quote.subtotal - quote.line_items.reduce((sum, item) => sum + item.total, 0))}</span>
+                    </div>
+                  )}
+                  {quote.tax_amount > 0 && (
+                    <div className="flex justify-between">
+                      <span>Tax ({quote.tax_rate}% on taxable items):</span>
+                      <span>{formatCurrency(quote.tax_amount)}</span>
+                    </div>
+                  )}
                   <Separator />
                   <div className="flex justify-between font-bold text-lg">
                     <span>Total:</span>

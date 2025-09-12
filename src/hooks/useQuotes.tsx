@@ -129,17 +129,34 @@ export const useQuotes = () => {
       
       const quoteNumber = await generateQuoteNumber();
       
-    // Calculate totals with emergency multiplier
-    const isEmergency = formData.is_emergency || false;
-    const emergencyMultiplier = isEmergency ? 1.5 : 1; // TODO: Get from settings
-    
-    const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
-    const taxableAmount = formData.line_items.reduce((sum, item) => 
-      sum + (item.taxable !== false ? item.total * emergencyMultiplier : item.total), 0);
-    const taxAmount = (taxableAmount - (isEmergency ? subtotal * (emergencyMultiplier - 1) : 0)) * (formData.tax_rate / 100) + 
-                     (isEmergency ? subtotal * (emergencyMultiplier - 1) * (formData.tax_rate / 100) : 0);
-    const totalAmount = subtotal * (isEmergency ? emergencyMultiplier : 1) + 
-                       (taxAmount - (isEmergency ? subtotal * (emergencyMultiplier - 1) * (formData.tax_rate / 100) : 0));
+      // Calculate totals with emergency multiplier
+      const isEmergency = formData.is_emergency || false;
+      
+      // Get emergency multiplier from settings
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("service_settings")
+        .eq("tenant_id", tenantId)
+        .single();
+      
+      const emergencyMultiplier = settingsData?.service_settings?.emergency_rate_multiplier || 1.5;
+      
+      const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
+      
+      // Calculate taxable and non-taxable amounts
+      const taxableAmount = formData.line_items.reduce((sum, item) => 
+        sum + (item.taxable === true ? item.total : 0), 0);
+      
+      const nonTaxableAmount = formData.line_items.reduce((sum, item) => 
+        sum + (item.taxable === false ? item.total : 0), 0);
+      
+      // Emergency adjustment based on non-taxable items
+      const emergencyAdjustment = isEmergency ? nonTaxableAmount * (emergencyMultiplier - 1) : 0;
+      const adjustedSubtotal = subtotal + emergencyAdjustment;
+      
+      // Tax only on taxable items (no tax on emergency adjustment)
+      const taxAmount = taxableAmount * (formData.tax_rate / 100);
+      const totalAmount = adjustedSubtotal + taxAmount;
 
       const quoteData = {
         quote_number: quoteNumber,
@@ -150,7 +167,7 @@ export const useQuotes = () => {
         valid_until: formData.valid_until,
         is_emergency: formData.is_emergency || false,
         line_items: formData.line_items as any,
-        subtotal,
+        subtotal: adjustedSubtotal,
         tax_rate: formData.tax_rate,
         tax_amount: taxAmount,
         total_amount: totalAmount,
@@ -190,12 +207,34 @@ export const useQuotes = () => {
     mutationFn: async ({ id, ...formData }: QuoteFormData & { id: string }) => {
       if (!tenantId) throw new Error("Authentication required");
       
-      // Calculate totals
+      // Calculate totals with emergency multiplier
+      const isEmergency = formData.is_emergency || false;
+      
+      // Get emergency multiplier from settings
+      const { data: settingsData } = await supabase
+        .from("settings")
+        .select("service_settings")
+        .eq("tenant_id", tenantId)
+        .single();
+      
+      const emergencyMultiplier = settingsData?.service_settings?.emergency_rate_multiplier || 1.5;
+      
       const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
+      
+      // Calculate taxable and non-taxable amounts
       const taxableAmount = formData.line_items.reduce((sum, item) => 
-        sum + (item.taxable !== false ? item.total : 0), 0);
+        sum + (item.taxable === true ? item.total : 0), 0);
+      
+      const nonTaxableAmount = formData.line_items.reduce((sum, item) => 
+        sum + (item.taxable === false ? item.total : 0), 0);
+      
+      // Emergency adjustment based on non-taxable items
+      const emergencyAdjustment = isEmergency ? nonTaxableAmount * (emergencyMultiplier - 1) : 0;
+      const adjustedSubtotal = subtotal + emergencyAdjustment;
+      
+      // Tax only on taxable items
       const taxAmount = taxableAmount * (formData.tax_rate / 100);
-      const totalAmount = subtotal + taxAmount;
+      const totalAmount = adjustedSubtotal + taxAmount;
 
       const quoteData = {
         customer_id: formData.customer_id,
@@ -205,7 +244,7 @@ export const useQuotes = () => {
         valid_until: formData.valid_until,
         is_emergency: formData.is_emergency || false,
         line_items: formData.line_items as any,
-        subtotal,
+        subtotal: adjustedSubtotal,
         tax_rate: formData.tax_rate,
         tax_amount: taxAmount,
         total_amount: totalAmount,
