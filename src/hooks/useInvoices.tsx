@@ -81,6 +81,16 @@ export const useInvoices = () => {
     },
   });
 
+  // Helper function to check if invoice is overdue
+  const isOverdue = (invoice: Invoice): boolean => {
+    if (invoice.status !== 'sent') return false;
+    const dueDate = new Date(invoice.due_date);
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    dueDate.setHours(0, 0, 0, 0);
+    return today > dueDate;
+  };
+
   // Calculate statistics
   const stats: InvoiceStats = {
     total_billed: invoices.reduce((sum, invoice) => sum + invoice.total_amount, 0),
@@ -100,16 +110,6 @@ export const useInvoices = () => {
       })
       .reduce((sum, invoice) => sum + invoice.total_amount, 0),
     total_count: invoices.length,
-  };
-
-  // Helper function to check if invoice is overdue
-  const isOverdue = (invoice: Invoice): boolean => {
-    if (invoice.status !== 'sent') return false;
-    const dueDate = new Date(invoice.due_date);
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    dueDate.setHours(0, 0, 0, 0);
-    return today > dueDate;
   };
 
   // Generate invoice number
