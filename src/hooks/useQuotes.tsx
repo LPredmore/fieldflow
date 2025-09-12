@@ -139,7 +139,7 @@ export const useQuotes = () => {
         .eq("tenant_id", tenantId)
         .single();
       
-      const emergencyMultiplier = settingsData?.service_settings?.emergency_rate_multiplier || 1.5;
+      const emergencyMultiplier = (settingsData?.service_settings as any)?.emergency_rate_multiplier || 1.5;
       
       const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
       
@@ -217,7 +217,7 @@ export const useQuotes = () => {
         .eq("tenant_id", tenantId)
         .single();
       
-      const emergencyMultiplier = settingsData?.service_settings?.emergency_rate_multiplier || 1.5;
+      const emergencyMultiplier = (settingsData?.service_settings as any)?.emergency_rate_multiplier || 1.5;
       
       const subtotal = formData.line_items.reduce((sum, item) => sum + item.total, 0);
       
