@@ -20,8 +20,8 @@ const jobSchema = z.object({
   customer_name: z.string().min(1, 'Customer name is required'),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
-  scheduled_date: z.string().min(1, 'Date is required'),
-  scheduled_time: z.string().optional(),
+  scheduled_date: z.string().min(1, 'Start Date is required'),
+  complete_date: z.string().optional(),
   estimated_duration: z.coerce.number().optional(),
   assigned_to_user_id: z.string().optional(),
   service_type: z.enum(['plumbing', 'electrical', 'hvac', 'cleaning', 'landscaping', 'general_maintenance', 'other']),
@@ -55,7 +55,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       status: job?.status || 'scheduled',
       priority: job?.priority || 'medium',
       scheduled_date: job?.scheduled_date || '',
-      scheduled_time: job?.scheduled_time || '',
+      complete_date: job?.complete_date || '',
       estimated_duration: job?.estimated_duration || undefined,
       assigned_to_user_id: job?.assigned_to_user_id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
@@ -164,7 +164,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                 name="scheduled_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Date</FormLabel>
+                    <FormLabel>Start Date</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -175,12 +175,12 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
 
               <FormField
                 control={form.control}
-                name="scheduled_time"
+                name="complete_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Time</FormLabel>
+                    <FormLabel>Completed by</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <Input type="date" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -123,7 +123,11 @@ const Index = () => {
                 <Users className="h-4 w-4 mr-2" />
                 Add Customer
               </Button>
-              <Button variant="outline" className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast">
+              <Button 
+                variant="outline" 
+                className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
+                onClick={() => window.location.href = '/calendar'}
+              >
                 <Calendar className="h-4 w-4 mr-2" />
                 Schedule
               </Button>
@@ -231,7 +235,11 @@ const Index = () => {
                   </div>
                 )}
                 
-                <Button variant="outline" className="w-full mt-4">
+                <Button 
+                  variant="outline" 
+                  className="w-full mt-4"
+                  onClick={() => window.location.href = '/calendar'}
+                >
                   View Full Calendar
                 </Button>
               </CardContent>

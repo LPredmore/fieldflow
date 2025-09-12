@@ -202,6 +202,7 @@ export type Database = {
           actual_cost: number | null
           additional_info: string | null
           assigned_to_user_id: string | null
+          complete_date: string | null
           completion_notes: string | null
           created_at: string
           created_by_user_id: string
@@ -224,6 +225,7 @@ export type Database = {
           actual_cost?: number | null
           additional_info?: string | null
           assigned_to_user_id?: string | null
+          complete_date?: string | null
           completion_notes?: string | null
           created_at?: string
           created_by_user_id: string
@@ -246,6 +248,7 @@ export type Database = {
           actual_cost?: number | null
           additional_info?: string | null
           assigned_to_user_id?: string | null
+          complete_date?: string | null
           completion_notes?: string | null
           created_at?: string
           created_by_user_id?: string

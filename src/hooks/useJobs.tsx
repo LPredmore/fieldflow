@@ -18,6 +18,7 @@ export interface Job {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   scheduled_date: string;
   scheduled_time?: string;
+  complete_date?: string;
   estimated_duration?: number;
   assigned_to_user_id?: string;
   service_type: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
