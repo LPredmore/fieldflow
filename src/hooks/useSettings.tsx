@@ -30,7 +30,7 @@ export interface Settings {
 export function useSettings() {
   const [settings, setSettings] = useState<Settings | null>(null);
   const [loading, setLoading] = useState(true);
-  const { user, tenantId } = useAuth();
+  const { user, tenantId, isAdmin } = useAuth();
   const { toast } = useToast();
 
   const fetchSettings = async () => {
@@ -59,6 +59,16 @@ export function useSettings() {
 
   const updateSettings = async (settingsData: Partial<Settings>) => {
     if (!user || !tenantId || !settings) return { error: 'Not authenticated or no settings found' };
+    
+    // Only admins can update settings
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Access denied",
+        description: "Only business administrators can update settings.",
+      });
+      return { error: 'Insufficient permissions' };
+    }
 
     try {
       const { data, error } = await supabase
@@ -96,6 +106,16 @@ export function useSettings() {
 
   const createSettings = async (settingsData: Partial<Settings>) => {
     if (!user || !tenantId) return { error: 'Not authenticated' };
+    
+    // Only admins can create settings
+    if (!isAdmin) {
+      toast({
+        variant: "destructive",
+        title: "Access denied",
+        description: "Only business administrators can create settings.",
+      });
+      return { error: 'Insufficient permissions' };
+    }
 
     try {
       const { data, error } = await supabase
