@@ -65,6 +65,13 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "customers_assigned_to_user_id_fkey"
+            columns: ["assigned_to_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "customers_created_by_user_id_fkey"
             columns: ["created_by_user_id"]
             isOneToOne: false
@@ -74,13 +81,6 @@ export type Database = {
           {
             foreignKeyName: "customers_tenant_id_fkey"
             columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "fk_assigned_user_profiles"
-            columns: ["assigned_to_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
