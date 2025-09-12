@@ -1,5 +1,5 @@
 import { useState, useRef } from "react";
-import { Search, Plus, MoreHorizontal, Edit, Trash2, Zap, Loader2 } from "lucide-react";
+import { Search, Plus, MoreHorizontal, Edit, Trash2, Sparkles, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -14,10 +14,10 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import Navigation from "@/components/Layout/Navigation";
+import PriceProModal from "@/components/PriceProModal";
 import { toast } from "sonner";
 import { useServices } from "@/hooks/useServices";
 import { useSettings } from "@/hooks/useSettings";
-import { supabase } from "@/integrations/supabase/client";
 
 const formSchema = z.object({
   name: z.string().min(1, "Service name is required"),
@@ -38,10 +38,9 @@ export default function Services() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
-  const [isPriceSuggestionOpen, setIsPriceSuggestionOpen] = useState(false);
+  const [isPriceProOpen, setIsPriceProOpen] = useState(false);
   const [editingService, setEditingService] = useState<any>(null);
   const [deletingService, setDeletingService] = useState<any>(null);
-  const [suggestedPrices, setSuggestedPrices] = useState<{ price: number; confidence: string }[]>([]);
   const [submitting, setSubmitting] = useState(false);
   
   const triggerRef = useRef<HTMLButtonElement>(null);
@@ -136,67 +135,31 @@ export default function Services() {
     }
   };
 
-  // AI Price Suggestion functionality using real AI integration
-  const handlePriceSuggestion = async () => {
+  // Price Pro functionality
+  const handlePricePro = () => {
     // Check if business address is configured
     if (!settings?.business_address || !settings.business_address.city || !settings.business_address.state) {
-      toast.error("Business address is required for AI price suggestions. Please configure your business address in Settings first.");
+      toast.error("Business address is required for Price Pro analysis. Please configure your business address in Settings first.");
       return;
     }
 
     // Get current form values for context
     const serviceName = form.getValues("name");
     const serviceDescription = form.getValues("description");
+    const category = form.getValues("category");
     const unitType = form.getValues("unit_type");
 
     if (!serviceName || !unitType) {
-      toast.error("Please enter service name and unit type before getting AI suggestions.");
+      toast.error("Please enter service name and unit type before using Price Pro.");
       return;
     }
 
-    try {
-      setSubmitting(true);
-      
-      const { data, error } = await supabase.functions.invoke('ai-price-suggestion', {
-        body: {
-          serviceName,
-          serviceDescription,
-          unitType,
-          businessAddress: settings.business_address,
-          additionalContext: "" // Could add a field for this in the modal
-        }
-      });
-
-      if (error) {
-        console.error('AI suggestion error:', error);
-        if (error.message?.includes('requiresAddress')) {
-          toast.error("Business address is required for AI price suggestions. Please configure your business address in Settings first.");
-        } else {
-          toast.error("Failed to get AI price suggestions. Please try again.");
-        }
-        return;
-      }
-
-      // Transform AI response to match our expected format
-      const transformedSuggestions = data.suggestions?.map((suggestion: any) => ({
-        price: suggestion.price,
-        confidence: suggestion.description
-      })) || [];
-
-      setSuggestedPrices(transformedSuggestions);
-      setIsPriceSuggestionOpen(true);
-
-    } catch (error: any) {
-      console.error('AI suggestion error:', error);
-      toast.error("Failed to get AI price suggestions. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
+    setIsPriceProOpen(true);
   };
 
   const applyPrice = (price: number) => {
     form.setValue("price_per_unit", price.toString());
-    setIsPriceSuggestionOpen(false);
+    setIsPriceProOpen(false);
   };
 
   if (loading) {
@@ -218,7 +181,7 @@ export default function Services() {
   return (
     <div className="min-h-screen bg-background">
       <Navigation />
-      <main className="ml-64 p-8">
+      <main className="lg:ml-64 p-8">
         {/* Header section with title and create button */}
         <div className="flex justify-between items-center mb-8">
           <div>
@@ -342,12 +305,12 @@ export default function Services() {
                     <Button 
                       type="button"
                       variant="outline"
-                      onClick={() => setIsPriceSuggestionOpen(true)}
+                      onClick={handlePricePro}
                       className="flex-1"
                       disabled={submitting}
                     >
-                      <Zap className="mr-2 h-4 w-4" />
-                      AI Price Suggestion
+                      <Sparkles className="mr-2 h-4 w-4" />
+                      Price Pro
                     </Button>
                     
                     <Button type="submit" className="flex-1" disabled={submitting}>
@@ -569,12 +532,12 @@ export default function Services() {
                   <Button 
                     type="button"
                     variant="outline"
-                    onClick={() => setIsPriceSuggestionOpen(true)}
+                    onClick={handlePricePro}
                     className="flex-1"
                     disabled={submitting}
                   >
-                    <Zap className="mr-2 h-4 w-4" />
-                    AI Price Suggestion
+                    <Sparkles className="mr-2 h-4 w-4" />
+                    Price Pro
                   </Button>
                   
                   <Button type="submit" className="flex-1" disabled={submitting}>
@@ -609,43 +572,19 @@ export default function Services() {
           </AlertDialogContent>
         </AlertDialog>
 
-        {/* AI Price Suggestion Modal */}
-        <Dialog open={isPriceSuggestionOpen} onOpenChange={setIsPriceSuggestionOpen}>
-          <DialogContent className="sm:max-w-[500px]">
-            <DialogHeader>
-              <DialogTitle>AI Price Suggestions</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4">
-              <p className="text-sm text-muted-foreground">
-                Here are some price suggestions based on market analysis:
-              </p>
-              
-              {suggestedPrices.length === 0 ? (
-                <Button onClick={handlePriceSuggestion} className="w-full">
-                  <Zap className="mr-2 h-4 w-4" />
-                  Get Price Suggestions
-                </Button>
-              ) : (
-                <div className="space-y-3">
-                  {suggestedPrices.map((suggestion, index) => (
-                    <div key={index} className="flex items-center justify-between p-3 border rounded-lg">
-                      <div>
-                        <p className="font-medium">${suggestion.price.toFixed(2)}</p>
-                        <p className="text-sm text-muted-foreground">{suggestion.confidence}</p>
-                      </div>
-                      <Button 
-                        size="sm" 
-                        onClick={() => applyPrice(suggestion.price)}
-                      >
-                        Use This Price
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Price Pro Modal */}
+        <PriceProModal
+          isOpen={isPriceProOpen}
+          onOpenChange={setIsPriceProOpen}
+          serviceData={{
+            name: form.getValues("name"),
+            description: form.getValues("description"),
+            category: form.getValues("category"),
+            unitType: form.getValues("unit_type"),
+          }}
+          businessAddress={settings?.business_address}
+          onApplyPrice={applyPrice}
+        />
       </main>
     </div>
   );
