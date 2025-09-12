@@ -72,10 +72,7 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
   };
 
   const businessAddress = settings?.business_address ? 
-    (() => {
-      const addr = settings.business_address as any;
-      return `${addr?.street || ''}, ${addr?.city || ''}, ${addr?.state || ''} ${addr?.zip_code || ''}`.replace(/^,\s*|,\s*$/g, '');
-    })()
+    `${(settings.business_address as any)?.street || ''}, ${(settings.business_address as any)?.city || ''}, ${(settings.business_address as any)?.state || ''} ${(settings.business_address as any)?.zip_code || ''}`.replace(/^,\s*|,\s*$/g, '')
     : '';
 
   return (
