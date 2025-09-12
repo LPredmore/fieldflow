@@ -54,7 +54,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       scheduled_date: job?.scheduled_date || '',
       scheduled_time: job?.scheduled_time || '',
       estimated_duration: job?.estimated_duration || undefined,
-      assigned_to_user_id: job?.assigned_to_user_id || '',
+      assigned_to_user_id: job?.assigned_to_user_id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
