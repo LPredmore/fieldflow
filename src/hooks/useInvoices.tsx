@@ -62,7 +62,7 @@ export interface InvoiceStats {
 export const useInvoices = () => {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const { user } = useAuth();
+  const { user, tenantId } = useAuth();
 
   // Fetch all invoices
   const { data: invoices = [], isLoading: loading } = useQuery({
@@ -160,7 +160,7 @@ export const useInvoices = () => {
           total_amount,
           notes: invoiceData.notes || null,
           payment_terms: invoiceData.payment_terms,
-          tenant_id: user?.id!,
+          tenant_id: tenantId!,
           created_by_user_id: user?.id!,
         }])
         .select()
