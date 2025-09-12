@@ -19,6 +19,8 @@ export interface Customer {
   notes: string | null;
   total_jobs_count: number;
   total_revenue_billed: number;
+  assigned_to_user_id: string;
+  assigned_user_name?: string;
   created_at: string;
   updated_at: string | null;
 }
@@ -36,6 +38,7 @@ export interface CustomerFormData {
     country?: string;
   };
   notes?: string;
+  assigned_to_user_id?: string;
 }
 
 export function useCustomers() {
@@ -51,7 +54,12 @@ export function useCustomers() {
       setLoading(true);
       const { data, error } = await supabase
         .from('customers')
-        .select('*')
+        .select(`
+          *,
+          assigned_user:profiles!customers_assigned_to_user_id_fkey(
+            full_name
+          )
+        `)
         .order('created_at', { ascending: false });
 
       if (error) {
@@ -64,9 +72,10 @@ export function useCustomers() {
       }
 
       // Transform the data to match our Customer interface
-      const transformedCustomers = (data || []).map(customer => ({
+      const transformedCustomers = (data || []).map((customer: any) => ({
         ...customer,
-        address: customer.address as Customer['address']
+        address: customer.address as Customer['address'],
+        assigned_user_name: customer.assigned_user?.full_name || 'Unknown User'
       }));
 
       setCustomers(transformedCustomers);
@@ -92,9 +101,15 @@ export function useCustomers() {
             ...customerData,
             tenant_id: tenantId,
             created_by_user_id: user.id,
+            assigned_to_user_id: customerData.assigned_to_user_id || user.id,
           },
         ])
-        .select()
+        .select(`
+          *,
+          assigned_user:profiles!customers_assigned_to_user_id_fkey(
+            full_name
+          )
+        `)
         .single();
 
       if (error) {
@@ -108,7 +123,8 @@ export function useCustomers() {
 
       const transformedCustomer = {
         ...data,
-        address: data.address as Customer['address']
+        address: data.address as Customer['address'],
+        assigned_user_name: (data as any).assigned_user?.full_name || 'Unknown User'
       };
       setCustomers((prev) => [transformedCustomer, ...prev]);
       toast({
@@ -135,7 +151,12 @@ export function useCustomers() {
         .from('customers')
         .update(customerData)
         .eq('id', id)
-        .select()
+        .select(`
+          *,
+          assigned_user:profiles!customers_assigned_to_user_id_fkey(
+            full_name
+          )
+        `)
         .single();
 
       if (error) {
@@ -149,7 +170,8 @@ export function useCustomers() {
 
       const transformedCustomer = {
         ...data,
-        address: data.address as Customer['address']
+        address: data.address as Customer['address'],
+        assigned_user_name: (data as any).assigned_user?.full_name || 'Unknown User'
       };
       setCustomers((prev) =>
         prev.map((customer) => (customer.id === id ? transformedCustomer : customer))

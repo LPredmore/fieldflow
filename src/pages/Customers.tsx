@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users, User } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
@@ -238,7 +238,7 @@ export default function Customers() {
                   </CardHeader>
                   <CardContent className="space-y-4">
                     {/* Contact Information */}
-                    <div className="space-y-2">
+                     <div className="space-y-2">
                       {customer.email && (
                         <div className="flex items-center gap-2 text-sm">
                           <Mail className="h-4 w-4 text-muted-foreground" />
@@ -252,6 +252,12 @@ export default function Customers() {
                       <div className="flex items-start gap-2 text-sm">
                         <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
                         <span className="text-muted-foreground">{formatAddress(customer.address)}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-muted-foreground">
+                          Assigned: {customer.assigned_user_name}
+                        </span>
                       </div>
                     </div>
 

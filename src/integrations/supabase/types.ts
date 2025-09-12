@@ -17,6 +17,7 @@ export type Database = {
       customers: {
         Row: {
           address: Json | null
+          assigned_to_user_id: string | null
           created_at: string
           created_by_user_id: string
           customer_type: Database["public"]["Enums"]["customer_type"]
@@ -32,6 +33,7 @@ export type Database = {
         }
         Insert: {
           address?: Json | null
+          assigned_to_user_id?: string | null
           created_at?: string
           created_by_user_id: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
@@ -47,6 +49,7 @@ export type Database = {
         }
         Update: {
           address?: Json | null
+          assigned_to_user_id?: string | null
           created_at?: string
           created_by_user_id?: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
@@ -71,6 +74,13 @@ export type Database = {
           {
             foreignKeyName: "customers_tenant_id_fkey"
             columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "fk_assigned_user_profiles"
+            columns: ["assigned_to_user_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]

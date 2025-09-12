@@ -10,6 +10,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Customer, CustomerFormData } from "@/hooks/useCustomers";
+import { ContractorSelector } from "@/components/Customers/ContractorSelector";
+import { useAuth } from "@/hooks/useAuth";
 
 const customerSchema = z.object({
   name: z.string().min(1, "Customer name is required"),
@@ -22,6 +24,7 @@ const customerSchema = z.object({
   zip_code: z.string().optional(),
   country: z.string().optional(),
   notes: z.string().optional(),
+  assigned_to_user_id: z.string().optional(),
 });
 
 type CustomerFormValues = z.infer<typeof customerSchema>;
@@ -44,6 +47,7 @@ const US_STATES = [
 
 export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: CustomerFormProps) {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const { isAdmin } = useAuth();
 
   const form = useForm<CustomerFormValues>({
     resolver: zodResolver(customerSchema),
@@ -58,6 +62,7 @@ export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: 
       zip_code: "",
       country: "USA",
       notes: "",
+      assigned_to_user_id: "",
     },
   });
 
@@ -74,6 +79,7 @@ export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: 
         zip_code: customer.address?.zip_code || "",
         country: customer.address?.country || "USA",
         notes: customer.notes || "",
+        assigned_to_user_id: customer.assigned_to_user_id || "",
       });
     } else {
       form.reset({
@@ -87,6 +93,7 @@ export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: 
         zip_code: "",
         country: "USA",
         notes: "",
+        assigned_to_user_id: "",
       });
     }
   }, [customer, form]);
@@ -94,20 +101,21 @@ export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: 
   const handleSubmit = async (values: CustomerFormValues) => {
     setIsSubmitting(true);
     try {
-      const formData: CustomerFormData = {
-        name: values.name,
-        customer_type: values.customer_type,
-        phone: values.phone,
-        email: values.email || undefined,
-        address: {
-          street: values.street,
-          city: values.city,
-          state: values.state,
-          zip_code: values.zip_code,
-          country: values.country,
-        },
-        notes: values.notes,
-      };
+        const formData: CustomerFormData = {
+          name: values.name,
+          customer_type: values.customer_type,
+          phone: values.phone,
+          email: values.email || undefined,
+          address: {
+            street: values.street,
+            city: values.city,
+            state: values.state,
+            zip_code: values.zip_code,
+            country: values.country,
+          },
+          notes: values.notes,
+          assigned_to_user_id: values.assigned_to_user_id,
+        };
 
       await onSubmit(formData);
       onOpenChange(false);
@@ -187,6 +195,24 @@ export function CustomerForm({ open, onOpenChange, onSubmit, customer, title }: 
                     <FormControl>
                       <Input placeholder="customer@example.com" {...field} />
                     </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="assigned_to_user_id"
+                render={({ field }) => (
+                  <FormItem className="md:col-span-2">
+                    <FormLabel>
+                      Assigned Contractor {!isAdmin && '(View Only)'}
+                    </FormLabel>
+                    <ContractorSelector
+                      value={field.value}
+                      onValueChange={field.onChange}
+                      disabled={!isAdmin}
+                    />
                     <FormMessage />
                   </FormItem>
                 )}
