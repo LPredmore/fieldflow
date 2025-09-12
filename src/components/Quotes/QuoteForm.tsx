@@ -78,7 +78,9 @@ export function QuoteForm({
   const {
     services
   } = useServices();
-  const { settings } = useSettings();
+  const {
+    settings
+  } = useSettings();
   const [openComboboxes, setOpenComboboxes] = useState<Record<number, boolean>>({});
   const [isAddingItem, setIsAddingItem] = useState(false);
   const form = useForm<FormData>({
@@ -205,14 +207,12 @@ export function QuoteForm({
       ...item,
       total: calculateLineItemTotal(item.quantity, item.unit_price)
     }));
-    
     const submissionData = {
       ...data,
       line_items: updatedLineItems,
       valid_until: data.valid_until?.toISOString(),
       is_emergency: data.is_emergency || false
     };
-    
     if (quote) {
       onSubmit({
         ...submissionData,
@@ -228,15 +228,12 @@ export function QuoteForm({
       event.preventDefault();
       event.stopPropagation();
     }
-    
     if (isAddingItem) {
       console.log("Prevented duplicate addLineItem call - already adding");
       return;
     }
-    
     console.log("Adding line item - current fields count:", fields.length);
     setIsAddingItem(true);
-    
     append({
       description: "",
       quantity: 1,
@@ -244,7 +241,7 @@ export function QuoteForm({
       total: 0,
       taxable: true
     });
-    
+
     // Reset the flag after a short delay to prevent rapid clicking
     setTimeout(() => {
       setIsAddingItem(false);
@@ -259,12 +256,11 @@ export function QuoteForm({
   // Calculate totals
   const isEmergency = form.watch("is_emergency") || false;
   const emergencyMultiplier = settings?.service_settings?.emergency_rate_multiplier || 1.5;
-  
   const subtotal = watchedLineItems.reduce((sum, item) => {
     const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
     return sum + total;
   }, 0);
-  
+
   // Calculate emergency adjustment for taxable items only
   const taxableSubtotal = watchedLineItems.reduce((sum, item) => {
     if (item.taxable) {
@@ -273,10 +269,8 @@ export function QuoteForm({
     }
     return sum;
   }, 0);
-  
   const emergencyAdjustment = isEmergency ? taxableSubtotal * (emergencyMultiplier - 1) : 0;
   const adjustedSubtotal = subtotal + emergencyAdjustment;
-  
   const taxRate = form.watch("tax_rate") || 0;
   const taxableAmount = taxableSubtotal + (isEmergency ? emergencyAdjustment : 0);
   const taxAmount = taxableAmount * (taxRate / 100);
@@ -370,11 +364,7 @@ export function QuoteForm({
             }) => <FormItem className="flex flex-col">
                     <FormLabel>Service Type</FormLabel>
                     <div className="flex items-center space-x-2 h-10">
-                      <Checkbox 
-                        id="emergency-service"
-                        checked={field.value}
-                        onCheckedChange={field.onChange}
-                      />
+                      <Checkbox id="emergency-service" checked={field.value} onCheckedChange={field.onChange} />
                       <label htmlFor="emergency-service" className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
                         Emergency Service {settings?.service_settings?.emergency_rate_multiplier && `(${settings.service_settings.emergency_rate_multiplier}x rate)`}
                       </label>
@@ -403,13 +393,12 @@ export function QuoteForm({
                 
                 {/* Line items as rows */}
                 <div className="space-y-3">
-                  {fields.map((field, index) => (
-                    <div key={field.id} className="flex items-center gap-4 py-2">
+                  {fields.map((field, index) => <div key={field.id} className="flex items-center gap-4 py-2">
                       <div className="flex-1">
                         <Popover open={openComboboxes[index]} onOpenChange={open => setOpenComboboxes(prev => ({
-                          ...prev,
-                          [index]: open
-                        }))}>
+                      ...prev,
+                      [index]: open
+                    }))}>
                           <PopoverTrigger asChild>
                             <Button variant="outline" role="combobox" aria-expanded={openComboboxes[index]} className="w-full justify-between text-left text-muted-foreground">
                               <span className="truncate">
@@ -441,43 +430,35 @@ export function QuoteForm({
                       
                       <div className="w-24">
                         <Controller name={`line_items.${index}.quantity`} control={form.control} render={({
-                        field
-                      }) => <Input type="number" step="0.01" {...field} className="text-center" onChange={e => {
-                        const quantity = parseFloat(e.target.value) || 0;
-                        field.onChange(quantity);
-                        const unitPrice = form.getValues(`line_items.${index}.unit_price`);
-                        const total = calculateLineItemTotal(quantity, unitPrice);
-                        form.setValue(`line_items.${index}.total`, total);
-                      }} />} />
+                      field
+                    }) => <Input type="number" step="0.01" {...field} className="text-center" onChange={e => {
+                      const quantity = parseFloat(e.target.value) || 0;
+                      field.onChange(quantity);
+                      const unitPrice = form.getValues(`line_items.${index}.unit_price`);
+                      const total = calculateLineItemTotal(quantity, unitPrice);
+                      form.setValue(`line_items.${index}.total`, total);
+                    }} />} />
                       </div>
 
                       <div className="w-32">
                         <div className="relative">
                           <span className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground">$</span>
                           <Controller name={`line_items.${index}.unit_price`} control={form.control} render={({
-                          field
-                        }) => <Input type="number" step="0.01" {...field} className="pl-7 text-right" onChange={e => {
-                          const unitPrice = parseFloat(e.target.value) || 0;
-                          field.onChange(unitPrice);
-                          const quantity = form.getValues(`line_items.${index}.quantity`);
-                          const total = calculateLineItemTotal(quantity, unitPrice);
-                          form.setValue(`line_items.${index}.total`, total);
-                        }} />} />
+                        field
+                      }) => <Input type="number" step="0.01" {...field} className="pl-7 text-right" onChange={e => {
+                        const unitPrice = parseFloat(e.target.value) || 0;
+                        field.onChange(unitPrice);
+                        const quantity = form.getValues(`line_items.${index}.quantity`);
+                        const total = calculateLineItemTotal(quantity, unitPrice);
+                        form.setValue(`line_items.${index}.total`, total);
+                      }} />} />
                         </div>
                       </div>
 
                       <div className="w-16 flex items-center justify-center">
-                        <Controller 
-                          name={`line_items.${index}.taxable`} 
-                          control={form.control} 
-                          render={({ field }) => (
-                            <Checkbox 
-                              checked={field.value} 
-                              onCheckedChange={field.onChange}
-                              className="mx-auto"
-                            />
-                          )} 
-                        />
+                        <Controller name={`line_items.${index}.taxable`} control={form.control} render={({
+                      field
+                    }) => <Checkbox checked={field.value} onCheckedChange={field.onChange} className="mx-auto" />} />
                       </div>
 
                       <div className="w-28 flex items-center justify-end">
@@ -491,19 +472,12 @@ export function QuoteForm({
                           <Trash2 className="h-4 w-4" />
                         </Button>
                       </div>
-                    </div>
-                  ))}
+                    </div>)}
                 </div>
                 
                 {/* Single Add Item Button at bottom */}
                 <div className="flex justify-center pt-4 border-t">
-                  <Button 
-                    type="button" 
-                    variant="outline" 
-                    size="sm" 
-                    onClick={addLineItem}
-                    disabled={isAddingItem}
-                  >
+                  <Button type="button" variant="outline" size="sm" onClick={addLineItem} disabled={isAddingItem}>
                     <Plus className="h-4 w-4 mr-2" />
                     {isAddingItem ? "Adding..." : "Add Item"}
                   </Button>
@@ -517,26 +491,20 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              {isEmergency && emergencyAdjustment > 0 && (
-                <div className="flex justify-between text-sm text-orange-600">
+              {isEmergency && emergencyAdjustment > 0 && <div className="flex justify-between text-sm text-orange-600">
                   <span>Emergency Service ({emergencyMultiplier}x on taxable items):</span>
                   <span>+${emergencyAdjustment.toFixed(2)}</span>
-                </div>
-              )}
-              {taxableAmount < subtotal && (
-                <>
+                </div>}
+              {taxableAmount < subtotal && <>
                   <div className="flex justify-between text-xs text-muted-foreground">
                     <span className="ml-4">Taxable: ${taxableSubtotal.toFixed(2)}</span>
                     <span>Non-taxable: ${(subtotal - taxableSubtotal).toFixed(2)}</span>
                   </div>
-                </>
-              )}
-              {taxAmount > 0 && (
-                <div className="flex justify-between text-sm">
+                </>}
+              {taxAmount > 0 && <div className="flex justify-between text-sm">
                   <span>Tax ({taxRate}% on {isEmergency ? 'emergency-adjusted ' : ''}taxable items):</span>
                   <span>${taxAmount.toFixed(2)}</span>
-                </div>
-              )}
+                </div>}
               <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
                 <span>Total:</span>
                 <span>${totalAmount.toFixed(2)}</span>
@@ -546,24 +514,7 @@ export function QuoteForm({
             {/* Tax Rate Field */}
             <FormField control={form.control} name="tax_rate" render={({
             field
-          }) => <FormItem>
-                  <FormLabel>Tax Rate (%)</FormLabel>
-                  <FormControl>
-                    <Input 
-                      type="number" 
-                      step="0.01" 
-                      min="0" 
-                      max="100"
-                      placeholder="8.75" 
-                      {...field} 
-                      onChange={(e) => {
-                        const value = parseFloat(e.target.value) || 0;
-                        field.onChange(value);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>} />
+          }) => {}} />
 
             {/* Notes and Terms */}
             <FormField control={form.control} name="notes" render={({
