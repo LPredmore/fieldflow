@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Loader2, User, Mail, Phone, Lock } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useToast } from '@/hooks/use-toast';
+import Navigation from '@/components/Layout/Navigation';
 
 export default function Profile() {
   const { profile, loading, updatePersonalInfo, updateEmail, updatePassword } = useProfile();
@@ -109,17 +110,26 @@ export default function Profile() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-background flex items-center justify-center">
-        <div className="flex flex-col items-center space-y-4">
-          <Loader2 className="h-8 w-8 animate-spin text-primary" />
-          <p className="text-muted-foreground">Loading profile...</p>
+      <div className="min-h-screen bg-background">
+        <Navigation />
+        <div className="lg:ml-64">
+          <div className="p-6 lg:p-8 flex items-center justify-center min-h-[80vh]">
+            <div className="flex flex-col items-center space-y-4">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+              <p className="text-muted-foreground">Loading profile...</p>
+            </div>
+          </div>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="min-h-screen bg-background">
+      <Navigation />
+      
+      <div className="lg:ml-64">
+        <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center space-x-4">
         <Avatar className="h-16 w-16">
           <AvatarImage src={profile?.avatar_url || ''} />
@@ -297,6 +307,8 @@ export default function Profile() {
           )}
         </CardContent>
       </Card>
+        </div>
+      </div>
     </div>
   );
 }
