@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
+import { usePermissions } from "@/hooks/usePermissions";
+import { canSendQuotes } from "@/utils/permissionUtils";
 
 interface Quote {
   id: string;
@@ -69,6 +71,7 @@ export function QuoteCard({
 }: QuoteCardProps) {
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const { permissions } = usePermissions();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -104,7 +107,7 @@ export function QuoteCard({
     setShowConvertDialog(false);
   };
 
-  const canShare = quote.status === 'draft' || quote.status === 'sent';
+  const canShare = (quote.status === 'draft' || quote.status === 'sent') && canSendQuotes(permissions);
   const canConvert = quote.status === 'accepted' || quote.status === 'sent';
 
   return (
