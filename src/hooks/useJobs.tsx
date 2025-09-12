@@ -46,7 +46,7 @@ export function useJobs() {
         .from('jobs')
         .select(`
           *,
-          profiles!jobs_assigned_to_user_id_fkey(full_name)
+          assigned_contractor:profiles!assigned_to_user_id(full_name, email)
         `)
         .order('created_at', { ascending: false });
 
@@ -62,8 +62,10 @@ export function useJobs() {
       // Process jobs to include contractor names
       const processedJobs = (jobsData || []).map(job => ({
         ...job,
-        contractor_name: job.profiles?.full_name || null,
-        profiles: undefined, // Remove the nested profile object
+        contractor_name: job.assigned_contractor?.full_name || 
+                         job.assigned_contractor?.email?.split('@')[0] || 
+                         (job.assigned_to_user_id ? 'Unnamed User' : null),
+        assigned_contractor: undefined, // Remove the nested profile object
       }));
 
       setJobs(processedJobs);
