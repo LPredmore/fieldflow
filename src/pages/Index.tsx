@@ -18,13 +18,20 @@ import { useCustomers } from "@/hooks/useCustomers";
 import { useJobs } from "@/hooks/useJobs";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useQuotes } from "@/hooks/useQuotes";
-import { useMemo } from "react";
+import { QuoteForm } from "@/components/Quotes/QuoteForm";
+import { CustomerForm } from "@/components/Customers/CustomerForm";
+import { useMemo, useState } from "react";
+import { toast } from "sonner";
 
 const Index = () => {
-  const { stats: customerStats } = useCustomers();
+  const { stats: customerStats, createCustomer } = useCustomers();
   const { jobs } = useJobs();
   const { stats: invoiceStats } = useInvoices();
-  const { stats: quoteStats } = useQuotes();
+  const { stats: quoteStats, createQuote } = useQuotes();
+
+  // Modal state
+  const [isQuoteModalOpen, setIsQuoteModalOpen] = useState(false);
+  const [isCustomerModalOpen, setIsCustomerModalOpen] = useState(false);
 
   // Calculate dashboard metrics from real data
   const dashboardMetrics = useMemo(() => {
@@ -101,11 +108,18 @@ const Index = () => {
           {/* Quick Actions */}
           <div className="mb-8">
             <div className="flex flex-wrap gap-4">
-              <Button className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast">
+              <Button 
+                onClick={() => setIsQuoteModalOpen(true)}
+                className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
+              >
                 <Briefcase className="h-4 w-4 mr-2" />
                 New Job
               </Button>
-              <Button variant="outline" className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast">
+              <Button 
+                onClick={() => setIsCustomerModalOpen(true)}
+                variant="outline" 
+                className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
+              >
                 <Users className="h-4 w-4 mr-2" />
                 Add Customer
               </Button>
@@ -225,6 +239,35 @@ const Index = () => {
           </div>
         </div>
       </div>
+
+      {/* Modals */}
+      <QuoteForm
+        open={isQuoteModalOpen}
+        onOpenChange={setIsQuoteModalOpen}
+        onSubmit={async (data) => {
+          try {
+            await createQuote(data as any);
+            toast.success("Quote created successfully");
+          } catch (error) {
+            toast.error("Failed to create quote");
+          }
+        }}
+        title="Create New Quote"
+      />
+
+      <CustomerForm
+        open={isCustomerModalOpen}
+        onOpenChange={setIsCustomerModalOpen}
+        onSubmit={async (data) => {
+          try {
+            await createCustomer(data);
+            toast.success("Customer added successfully");
+          } catch (error) {
+            toast.error("Failed to add customer");
+          }
+        }}
+        title="Add New Customer"
+      />
     </div>
   );
 };
