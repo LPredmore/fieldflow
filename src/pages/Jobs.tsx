@@ -6,6 +6,17 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import {
   Table,
   TableBody,
@@ -14,7 +25,11 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useJobs } from "@/hooks/useJobs";
+import { useJobs, Job } from "@/hooks/useJobs";
+import { useAuth } from "@/hooks/useAuth";
+import JobView from "@/components/Jobs/JobView";
+import JobForm from "@/components/Jobs/JobForm";
+import { useToast } from "@/hooks/use-toast";
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -34,7 +49,16 @@ const getStatusColor = (status: string) => {
 
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
-  const { jobs, loading } = useJobs();
+  const [viewJob, setViewJob] = useState<Job | null>(null);
+  const [editJob, setEditJob] = useState<Job | null>(null);
+  const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
+  const [isFormOpen, setIsFormOpen] = useState(false);
+  const [formLoading, setFormLoading] = useState(false);
+  
+  const { jobs, loading, createJob, updateJob, deleteJob } = useJobs();
+  const { userRole } = useAuth();
+  const { toast } = useToast();
+  const isAdmin = userRole === 'business_admin';
 
   // Filter jobs based on search term
   const filteredJobs = jobs.filter(job => 
@@ -42,6 +66,65 @@ export default function Jobs() {
     job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     job.service_type.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  const handleCreateJob = () => {
+    setEditJob(null);
+    setIsFormOpen(true);
+  };
+
+  const handleEditJob = (job: Job) => {
+    setEditJob(job);
+    setIsFormOpen(true);
+  };
+
+  const handleViewJob = (job: Job) => {
+    setViewJob(job);
+  };
+
+  const handleDeleteJob = (jobId: string) => {
+    setDeleteJobId(jobId);
+  };
+
+  const confirmDelete = async () => {
+    if (!deleteJobId) return;
+    
+    try {
+      await deleteJob(deleteJobId);
+      setDeleteJobId(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: "Error deleting job",
+        description: error.message,
+      });
+    }
+  };
+
+  const handleFormSubmit = async (data: any) => {
+    try {
+      setFormLoading(true);
+      if (editJob) {
+        await updateJob(editJob.id, data);
+      } else {
+        await createJob(data);
+      }
+      setIsFormOpen(false);
+      setEditJob(null);
+    } catch (error: any) {
+      toast({
+        variant: "destructive",
+        title: editJob ? "Error updating job" : "Error creating job",
+        description: error.message,
+      });
+    } finally {
+      setFormLoading(false);
+    }
+  };
+
+  const canEditJob = (job: Job) => {
+    if (isAdmin) return true;
+    return job.assigned_to_user_id === jobs[0]?.created_by_user_id || job.created_by_user_id === jobs[0]?.created_by_user_id;
+  };
 
   return (
     <div className="min-h-screen bg-background">
@@ -58,7 +141,10 @@ export default function Jobs() {
               </div>
               <RoleIndicator />
             </div>
-            <Button className="mt-4 sm:mt-0 shadow-material-sm hover:shadow-material-md transition-shadow duration-fast">
+            <Button 
+              onClick={handleCreateJob}
+              className="mt-4 sm:mt-0 shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
+            >
               <Plus className="h-4 w-4 mr-2" />
               New Job
             </Button>
@@ -96,7 +182,7 @@ export default function Jobs() {
                   <TableRow>
                     <TableHead>Job ID</TableHead>
                     <TableHead>Customer</TableHead>
-                    <TableHead>Service</TableHead>
+                    <TableHead>Job Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Contractor</TableHead>
@@ -137,21 +223,38 @@ export default function Jobs() {
                           </Badge>
                         </TableCell>
                         <TableCell>{new Date(job.scheduled_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{job.assigned_to_user_id ? 'Assigned' : 'Unassigned'}</TableCell>
+                        <TableCell>{job.contractor_name || 'Unassigned'}</TableCell>
                         <TableCell className="font-medium">
                           {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-2">
-                            <Button variant="ghost" size="sm">
+                            <Button 
+                              variant="ghost" 
+                              size="sm"
+                              onClick={() => handleViewJob(job)}
+                            >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button variant="ghost" size="sm">
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button variant="ghost" size="sm" className="text-destructive hover:text-destructive">
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            {canEditJob(job) && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm"
+                                onClick={() => handleEditJob(job)}
+                              >
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                            )}
+                            {isAdmin && (
+                              <Button 
+                                variant="ghost" 
+                                size="sm" 
+                                className="text-destructive hover:text-destructive"
+                                onClick={() => handleDeleteJob(job.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            )}
                           </div>
                         </TableCell>
                       </TableRow>
@@ -163,6 +266,47 @@ export default function Jobs() {
           </Card>
         </div>
       </div>
+
+      {/* Job View Modal */}
+      <Dialog open={!!viewJob} onOpenChange={() => setViewJob(null)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>Job Details</DialogTitle>
+          </DialogHeader>
+          {viewJob && <JobView job={viewJob} />}
+        </DialogContent>
+      </Dialog>
+
+      {/* Job Form Modal */}
+      <Dialog open={isFormOpen} onOpenChange={() => setIsFormOpen(false)}>
+        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle>{editJob ? 'Edit Job' : 'Create New Job'}</DialogTitle>
+          </DialogHeader>
+          <JobForm
+            job={editJob || undefined}
+            onSubmit={handleFormSubmit}
+            onCancel={() => setIsFormOpen(false)}
+            loading={formLoading}
+          />
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation */}
+      <AlertDialog open={!!deleteJobId} onOpenChange={() => setDeleteJobId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Are you sure?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This action cannot be undone. This will permanently delete the job.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={confirmDelete}>Delete</AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
