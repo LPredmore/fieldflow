@@ -55,11 +55,13 @@ export function ContractorSelector({ value, onValueChange, disabled }: Contracto
 
   if (loading) {
     return (
-      <FormControl>
-        <SelectTrigger disabled>
-          <SelectValue placeholder="Loading..." />
-        </SelectTrigger>
-      </FormControl>
+      <Select disabled>
+        <FormControl>
+          <SelectTrigger disabled>
+            <SelectValue placeholder="Loading..." />
+          </SelectTrigger>
+        </FormControl>
+      </Select>
     );
   }
 
