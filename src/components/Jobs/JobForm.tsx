@@ -330,10 +330,10 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
               name="materials_needed"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Materials Needed (JSON)</FormLabel>
-                  <FormControl>
-                    <Textarea 
-                      placeholder='{"materials": ["item1", "item2"]}'
+              <FormLabel>Additional Info</FormLabel>
+              <FormControl>
+                <Textarea
+                  placeholder=""
                       className="font-mono"
                       {...field} 
                     />
