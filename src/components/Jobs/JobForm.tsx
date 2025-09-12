@@ -3,6 +3,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
 import { Job } from '@/hooks/useJobs';
 import { useAuth } from '@/hooks/useAuth';
+import { usePermissions } from '@/hooks/usePermissions';
+import { canSupervise } from '@/utils/permissionUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -40,7 +42,8 @@ interface JobFormProps {
 
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
   const { userRole } = useAuth();
-  const isAdmin = userRole === 'business_admin';
+  const { permissions } = usePermissions();
+  const canAssignContractors = canSupervise(permissions);
 
   const form = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
@@ -257,23 +260,33 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
             <CardTitle>Assignment</CardTitle>
           </CardHeader>
           <CardContent>
-            <FormField
-              control={form.control}
-              name="assigned_to_user_id"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Assigned Contractor</FormLabel>
-                  <FormControl>
-                    <ContractorSelector
-                      value={field.value}
-                      onValueChange={field.onChange}
-                      disabled={!isAdmin}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {canAssignContractors ? (
+              <FormField
+                control={form.control}
+                name="assigned_to_user_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Assigned Contractor</FormLabel>
+                    <FormControl>
+                      <ContractorSelector
+                        value={field.value}
+                        onValueChange={field.onChange}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            ) : (
+              <div className="space-y-2">
+                <FormLabel className="text-muted-foreground">Assigned Contractor</FormLabel>
+                <div className="p-3 rounded-md bg-muted border border-dashed">
+                  <p className="text-sm text-muted-foreground">
+                    You need Supervisor permission to assign contractors to jobs.
+                  </p>
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 
