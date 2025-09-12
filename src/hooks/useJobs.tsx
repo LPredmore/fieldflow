@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { useInvoices } from './useInvoices';
 
 export interface Job {
   id: string;
@@ -22,7 +23,7 @@ export interface Job {
   service_type: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
   estimated_cost?: number;
   actual_cost?: number;
-  materials_needed?: any;
+  additional_info?: string;
   completion_notes?: string;
   contractor_name?: string; // Added for display purposes
 }
@@ -32,6 +33,7 @@ export function useJobs() {
   const [loading, setLoading] = useState(true);
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
+  const { createInvoice } = useInvoices();
 
   const fetchJobs = async () => {
     if (!user || !tenantId) return;
@@ -103,6 +105,10 @@ export function useJobs() {
   const updateJob = async (jobId: string, updates: Partial<Job>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
+    // Get current job data to check for status changes
+    const currentJob = jobs.find(job => job.id === jobId);
+    const isStatusChangingToCompleted = updates.status === 'completed' && currentJob?.status !== 'completed';
+
     // Remove contractor_name from updates as it's not a database field
     const { contractor_name, ...dbUpdates } = updates;
 
@@ -115,10 +121,52 @@ export function useJobs() {
 
     if (error) throw error;
     
-    toast({
-      title: "Job updated",
-      description: "The job has been successfully updated.",
-    });
+    // Auto-create invoice when job is marked as completed
+    if (isStatusChangingToCompleted && currentJob) {
+      try {
+        const issueDate = new Date().toISOString().split('T')[0];
+        const dueDate = new Date();
+        dueDate.setDate(dueDate.getDate() + 30);
+        
+        const jobCost = data.actual_cost || data.estimated_cost || 0;
+        const lineItems = [{
+          description: `${data.service_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} - ${data.title}`,
+          quantity: 1,
+          unit_price: jobCost,
+          total: jobCost
+        }];
+
+        await createInvoice({
+          customer_id: data.customer_id,
+          customer_name: data.customer_name,
+          job_id: jobId,
+          issue_date: issueDate,
+          due_date: dueDate.toISOString().split('T')[0],
+          status: 'draft',
+          line_items: lineItems,
+          tax_rate: 8.75, // Default tax rate
+          payment_terms: 'Net 30',
+          notes: data.completion_notes || undefined
+        });
+
+        toast({
+          title: "Job completed & Invoice created",
+          description: "The job has been marked as completed and a draft invoice has been created.",
+        });
+      } catch (invoiceError) {
+        console.error('Error creating invoice:', invoiceError);
+        toast({
+          title: "Job updated",
+          description: "The job has been updated, but there was an error creating the invoice.",
+          variant: "destructive",
+        });
+      }
+    } else {
+      toast({
+        title: "Job updated",
+        description: "The job has been successfully updated.",
+      });
+    }
     
     await fetchJobs(); // Refresh the list
     return data;

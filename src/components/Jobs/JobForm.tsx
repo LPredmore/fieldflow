@@ -25,7 +25,7 @@ const jobSchema = z.object({
   service_type: z.enum(['plumbing', 'electrical', 'hvac', 'cleaning', 'landscaping', 'general_maintenance', 'other']),
   estimated_cost: z.coerce.number().optional(),
   actual_cost: z.coerce.number().optional(),
-  materials_needed: z.string().optional(),
+  additional_info: z.string().optional(),
   completion_notes: z.string().optional(),
 });
 
@@ -58,17 +58,13 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
-      materials_needed: job?.materials_needed ? JSON.stringify(job.materials_needed, null, 2) : '',
+      additional_info: job?.additional_info || '',
       completion_notes: job?.completion_notes || '',
     },
   });
 
   const handleSubmit = async (data: JobFormData) => {
-    const processedData = {
-      ...data,
-      materials_needed: data.materials_needed ? JSON.parse(data.materials_needed) : null,
-    };
-    await onSubmit(processedData);
+    await onSubmit(data);
   };
 
   return (
@@ -327,14 +323,13 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
           <CardContent className="space-y-4">
             <FormField
               control={form.control}
-              name="materials_needed"
+              name="additional_info"
               render={({ field }) => (
                 <FormItem>
-              <FormLabel>Additional Info</FormLabel>
-              <FormControl>
-                <Textarea
-                  placeholder=""
-                      className="font-mono"
+                  <FormLabel>Additional Info</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder=""
                       {...field} 
                     />
                   </FormControl>

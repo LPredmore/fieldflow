@@ -165,18 +165,18 @@ export default function JobView({ job }: JobViewProps) {
           </CardContent>
         </Card>
 
-        {job.materials_needed && (
+        {job.additional_info && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
                 <FileText className="h-4 w-4" />
-                Materials Needed
+                Additional Info
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <pre className="text-sm whitespace-pre-wrap font-mono bg-muted p-2 rounded">
-                {JSON.stringify(job.materials_needed, null, 2)}
-              </pre>
+              <p className="text-sm whitespace-pre-wrap">
+                {job.additional_info}
+              </p>
             </CardContent>
           </Card>
         )}
