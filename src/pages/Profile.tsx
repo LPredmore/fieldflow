@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -17,13 +17,26 @@ export default function Profile() {
   const [showPasswordForm, setShowPasswordForm] = useState(false);
 
   const [personalInfo, setPersonalInfo] = useState({
-    full_name: profile?.full_name || '',
-    phone: profile?.phone || '',
+    full_name: '',
+    phone: '',
   });
 
   const [emailForm, setEmailForm] = useState({
-    email: profile?.email || '',
+    email: '',
   });
+
+  // Synchronize form state with profile data when it loads
+  useEffect(() => {
+    if (profile) {
+      setPersonalInfo({
+        full_name: profile.full_name || '',
+        phone: profile.phone || '',
+      });
+      setEmailForm({
+        email: profile.email || '',
+      });
+    }
+  }, [profile]);
 
   const [passwordForm, setPasswordForm] = useState({
     currentPassword: '',
