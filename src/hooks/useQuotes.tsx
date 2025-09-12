@@ -35,6 +35,7 @@ interface Quote {
   updated_at?: string;
   tenant_id: string;
   created_by_user_id: string;
+  created_by_user_name?: string;
 }
 
 interface QuoteFormData {
@@ -76,16 +77,25 @@ export const useQuotes = () => {
     queryFn: async () => {
       if (!tenantId) return [];
       
+      // Fetch quotes with creator profile information
       const { data, error } = await supabase
         .from("quotes")
-        .select("*")
+        .select(`
+          *,
+          profiles!quotes_created_by_user_id_fkey (
+            full_name
+          )
+        `)
         .eq("tenant_id", tenantId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
+      
+      // Map the data to include creator name and proper line items
       return (data || []).map(quote => ({
         ...quote,
-        line_items: (quote.line_items as unknown) as LineItem[]
+        line_items: (quote.line_items as unknown) as LineItem[],
+        created_by_user_name: quote.profiles?.full_name || 'Unknown User'
       })) as Quote[];
     },
     enabled: !!tenantId,

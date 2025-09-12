@@ -32,6 +32,7 @@ interface Quote {
   total_amount: number;
   notes?: string;
   terms: string;
+  created_by_user_name?: string;
 }
 
 interface QuotePreviewProps {
@@ -108,6 +109,15 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
                   <div className="space-y-1 text-sm">
                     <div className="font-medium">{quote.customer_name}</div>
                   </div>
+                  
+                  {quote.created_by_user_name && (
+                    <div className="mt-4">
+                      <h3 className="font-semibold mb-2">Prepared by</h3>
+                      <div className="text-sm">
+                        <div className="font-medium">{quote.created_by_user_name}</div>
+                      </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </CardContent>

@@ -30,6 +30,7 @@ interface Quote {
   total_amount: number;
   notes: string;
   terms: string;
+  created_by_user_name?: string;
 }
 
 interface BusinessSettings {
@@ -65,10 +66,15 @@ export default function PublicQuote() {
 
   const loadQuote = async () => {
     try {
-      // Load quote by share token (no auth required due to RLS policy)
+      // Load quote by share token with creator profile information
       const { data: quoteData, error: quoteError } = await supabase
         .from("quotes")
-        .select("*")
+        .select(`
+          *,
+          profiles!quotes_created_by_user_id_fkey (
+            full_name
+          )
+        `)
         .eq("share_token", token)
         .single();
 
@@ -83,7 +89,8 @@ export default function PublicQuote() {
 
       setQuote({
         ...quoteData,
-        line_items: quoteData.line_items as any
+        line_items: quoteData.line_items as any,
+        created_by_user_name: quoteData.profiles?.full_name || 'Professional Services'
       });
 
       // Load business settings
@@ -230,6 +237,9 @@ export default function PublicQuote() {
               <div>
                 <p><strong>Service:</strong> {quote.title}</p>
                 <p><strong>Customer:</strong> {quote.customer_name}</p>
+                {quote.created_by_user_name && (
+                  <p><strong>Prepared by:</strong> {quote.created_by_user_name}</p>
+                )}
               </div>
               <div>
                 <p><strong>Valid Until:</strong> {format(new Date(quote.valid_until), "PPP")}</p>

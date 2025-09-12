@@ -54,6 +54,7 @@ interface Quote {
   tax_rate?: number; // Make optional for backward compatibility
   notes?: string;
   terms: string;
+  created_by_user_name?: string;
 }
 interface QuoteFormProps {
   open: boolean;
@@ -348,6 +349,20 @@ export function QuoteForm({
                   </FormControl>
                   <FormMessage />
                 </FormItem>} />
+
+            {/* Prepared by field - show only when editing existing quote */}
+            {quote && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm font-medium text-muted-foreground">Prepared by</label>
+                  <Input 
+                    value={quote.created_by_user_name || 'Unknown User'} 
+                    disabled 
+                    className="bg-muted"
+                  />
+                </div>
+              </div>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField control={form.control} name="valid_until" render={({
