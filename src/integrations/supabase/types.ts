@@ -613,6 +613,50 @@ export type Database = {
           },
         ]
       }
+      user_permissions: {
+        Row: {
+          access_invoicing: boolean
+          access_services: boolean
+          created_at: string
+          id: string
+          send_quotes: boolean
+          supervisor: boolean
+          tenant_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_invoicing?: boolean
+          access_services?: boolean
+          created_at?: string
+          id?: string
+          send_quotes?: boolean
+          supervisor?: boolean
+          tenant_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_invoicing?: boolean
+          access_services?: boolean
+          created_at?: string
+          id?: string
+          send_quotes?: boolean
+          supervisor?: boolean
+          tenant_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_permissions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
@@ -625,6 +669,15 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_user_permissions: {
+        Args: { target_user_id: string }
+        Returns: {
+          access_invoicing: boolean
+          access_services: boolean
+          send_quotes: boolean
+          supervisor: boolean
+        }[]
       }
       get_user_tenant_id: {
         Args: Record<PropertyKey, never>
