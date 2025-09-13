@@ -123,17 +123,57 @@ export const useQuotes = () => {
     acceptance_rate: quotes.length > 0 ? (quotes.filter(q => q.status === 'accepted').length / quotes.length) * 100 : 0,
   };
 
-  // Generate unique quote number
+  // Generate unique quote number with collision handling
   const generateQuoteNumber = async (): Promise<string> => {
     const currentYear = new Date().getFullYear();
-    const { data: existingQuotes } = await supabase
-      .from("quotes")
-      .select("quote_number")
-      .eq("tenant_id", tenantId)
-      .like("quote_number", `QUO-${currentYear}-%`);
+    let attempts = 0;
+    const maxAttempts = 10;
     
-    const sequenceNumber = (existingQuotes?.length || 0) + 1;
-    return `QUO-${currentYear}-${sequenceNumber.toString().padStart(3, '0')}`;
+    while (attempts < maxAttempts) {
+      try {
+        // Get the highest sequence number for the current year
+        const { data: existingQuotes } = await supabase
+          .from("quotes")
+          .select("quote_number")
+          .eq("tenant_id", tenantId)
+          .like("quote_number", `QUO-${currentYear}-%`)
+          .order("quote_number", { ascending: false })
+          .limit(1);
+        
+        let sequenceNumber = 1;
+        if (existingQuotes && existingQuotes.length > 0) {
+          const lastQuoteNumber = existingQuotes[0].quote_number;
+          const match = lastQuoteNumber.match(/QUO-\d{4}-(\d{3})/);
+          if (match) {
+            sequenceNumber = parseInt(match[1]) + 1;
+          }
+        }
+        
+        const quoteNumber = `QUO-${currentYear}-${sequenceNumber.toString().padStart(3, '0')}`;
+        
+        // Check if this number already exists (double-check for race conditions)
+        const { data: duplicate } = await supabase
+          .from("quotes")
+          .select("id")
+          .eq("tenant_id", tenantId)
+          .eq("quote_number", quoteNumber)
+          .limit(1);
+        
+        if (!duplicate || duplicate.length === 0) {
+          return quoteNumber;
+        }
+        
+        // If duplicate exists, increment and try again
+        attempts++;
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 100)); // Random delay
+      } catch (error) {
+        attempts++;
+        if (attempts >= maxAttempts) throw error;
+        await new Promise(resolve => setTimeout(resolve, Math.random() * 100));
+      }
+    }
+    
+    throw new Error("Failed to generate unique quote number after multiple attempts");
   };
 
   // Create quote mutation
