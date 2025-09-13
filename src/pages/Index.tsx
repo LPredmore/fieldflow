@@ -8,7 +8,7 @@ import {
   CheckCircle,
   AlertTriangle
 } from "lucide-react";
-import Navigation from "@/components/Layout/Navigation";
+
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import MetricCard from "@/components/Dashboard/MetricCard";
 import RecentJobs from "@/components/Dashboard/RecentJobs";
@@ -88,12 +88,7 @@ const Index = () => {
   }, [jobs]);
 
   return (
-    <div className="min-h-screen bg-background">
-      <Navigation />
-      
-      {/* Main Content */}
-      <div className="lg:ml-64">
-        <div className="p-6 lg:p-8">
+    <div className="p-6 lg:p-8">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-4">
@@ -245,9 +240,6 @@ const Index = () => {
               </CardContent>
             </Card>
           </div>
-        </div>
-      </div>
-
       {/* Modals */}
       <QuoteForm
         open={isQuoteModalOpen}

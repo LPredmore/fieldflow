@@ -8,6 +8,7 @@ import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { PermissionProtectedRoute } from "@/components/PermissionProtectedRoute";
 import { BrandColorProvider } from "@/components/BrandColorProvider";
+import { Layout } from "@/components/Layout/Layout";
 import Index from "./pages/Index";
 import Jobs from "./pages/Jobs";
 import Customers from "./pages/Customers";
@@ -36,33 +37,37 @@ const App = () => (
             <Route path="/auth" element={<Auth />} />
           <Route path="/public-quote/:token" element={<PublicQuote />} />
           <Route path="/public-invoice/:token" element={<PublicInvoice />} />
-            <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
-            <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
-            <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />
+            <Route path="/" element={<ProtectedRoute><Layout><Index /></Layout></ProtectedRoute>} />
+            <Route path="/jobs" element={<ProtectedRoute><Layout><Jobs /></Layout></ProtectedRoute>} />
+            <Route path="/customers" element={<ProtectedRoute><Layout><Customers /></Layout></ProtectedRoute>} />
             <Route path="/services" element={
               <ProtectedRoute>
-                <PermissionProtectedRoute 
-                  requiredPermission="access_services"
-                  fallbackMessage="You need Services permission to access this page."
-                >
-                  <Services />
-                </PermissionProtectedRoute>
+                <Layout>
+                  <PermissionProtectedRoute 
+                    requiredPermission="access_services"
+                    fallbackMessage="You need Services permission to access this page."
+                  >
+                    <Services />
+                  </PermissionProtectedRoute>
+                </Layout>
               </ProtectedRoute>
             } />
             <Route path="/invoices" element={
               <ProtectedRoute>
-                <PermissionProtectedRoute 
-                  requiredPermission="access_invoicing"
-                  fallbackMessage="You need Invoicing permission to access this page."
-                >
-                  <Invoices />
-                </PermissionProtectedRoute>
+                <Layout>
+                  <PermissionProtectedRoute 
+                    requiredPermission="access_invoicing"
+                    fallbackMessage="You need Invoicing permission to access this page."
+                  >
+                    <Invoices />
+                  </PermissionProtectedRoute>
+                </Layout>
               </ProtectedRoute>
             } />
-            <Route path="/quotes" element={<ProtectedRoute><Quotes /></ProtectedRoute>} />
-            <Route path="/calendar" element={<ProtectedRoute><Calendar /></ProtectedRoute>} />
-            <Route path="/profile" element={<ProtectedRoute><Profile /></ProtectedRoute>} />
-            <Route path="/settings" element={<ProtectedRoute><AdminProtectedRoute><Settings /></AdminProtectedRoute></ProtectedRoute>} />
+            <Route path="/quotes" element={<ProtectedRoute><Layout><Quotes /></Layout></ProtectedRoute>} />
+            <Route path="/calendar" element={<ProtectedRoute><Layout><Calendar /></Layout></ProtectedRoute>} />
+            <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
+            <Route path="/settings" element={<ProtectedRoute><Layout><AdminProtectedRoute><Settings /></AdminProtectedRoute></Layout></ProtectedRoute>} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

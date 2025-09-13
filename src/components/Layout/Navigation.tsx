@@ -66,7 +66,7 @@ export default function Navigation() {
       )}>
         <div className="flex h-full flex-col">
           {/* Logo */}
-          <div className="flex h-16 items-center justify-start border-b border-border bg-primary px-6 gap-3">
+          <div className="flex h-20 items-center justify-start border-b border-border bg-primary px-6 gap-3 py-4">
             {settings?.logo_url && (
               <img 
                 src={settings.logo_url} 
@@ -75,7 +75,10 @@ export default function Navigation() {
               />
             )}
             <h1 className="text-xl font-bold text-primary-foreground">
-              {settings?.business_name || 'FieldFlow'}
+              {!settings && (
+                <div className="h-6 w-24 bg-primary-foreground/20 rounded animate-pulse"></div>
+              )}
+              {settings?.business_name && settings.business_name}
             </h1>
           </div>
 
