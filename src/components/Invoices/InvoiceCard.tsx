@@ -9,6 +9,7 @@ import {
   Trash2,
   Eye,
   Share2,
+  Send,
   CheckCheck
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -24,7 +25,8 @@ interface InvoiceCardProps {
   onEdit: (invoice: Invoice) => void;
   onDelete: (invoice: Invoice) => void;
   onPreview: (invoice: Invoice) => void;
-  onShare: (invoice: Invoice) => void;
+  onShare: (invoiceId: string) => void;
+  onSendEmail: (invoiceId: string, customerName: string) => void;
   onMarkAsPaid: (invoice: Invoice) => void;
 }
 
@@ -34,7 +36,8 @@ export function InvoiceCard({
   onEdit, 
   onDelete, 
   onPreview, 
-  onShare, 
+  onShare,
+  onSendEmail, 
   onMarkAsPaid 
 }: InvoiceCardProps) {
   const formatCurrency = (amount: number) => {
@@ -122,10 +125,16 @@ export function InvoiceCard({
                   Edit
                 </DropdownMenuItem>
                 {canShare && (
-                  <DropdownMenuItem onClick={() => onShare(invoice)}>
-                    <Share2 className="h-4 w-4 mr-2" />
-                    Share with Customer
-                  </DropdownMenuItem>
+                  <>
+                    <DropdownMenuItem onClick={() => onShare(invoice.id)}>
+                      <Share2 className="h-4 w-4 mr-2" />
+                      Copy Share Link
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={() => onSendEmail(invoice.id, invoice.customer_name)}>
+                      <Send className="h-4 w-4 mr-2" />
+                      Send to Customer
+                    </DropdownMenuItem>
+                  </>
                 )}
                 {canMarkAsPaid && (
                   <DropdownMenuItem onClick={() => onMarkAsPaid(invoice)}>

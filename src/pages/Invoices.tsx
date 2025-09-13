@@ -16,7 +16,20 @@ import { InvoicePreview } from "@/components/Invoices/InvoicePreview";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Invoices() {
-  const { invoices, loading, stats, isOverdue, createInvoice, updateInvoice, deleteInvoice, updateStatus } = useInvoices();
+  const { 
+    invoices, 
+    loading, 
+    stats, 
+    isOverdue, 
+    createInvoice, 
+    updateInvoice, 
+    deleteInvoice, 
+    updateStatus,
+    shareInvoice,
+    sendInvoiceEmail,
+    isSharing,
+    isSending
+  } = useInvoices();
   const { toast } = useToast();
   
   const [searchTerm, setSearchTerm] = useState("");
@@ -69,41 +82,22 @@ export default function Invoices() {
     }
   };
 
-  const handleShareInvoice = async (invoice: Invoice) => {
+  const handleShareInvoice = async (invoiceId: string) => {
     try {
-      // Update status to sent and record sent date
-      await updateStatus({
-        id: invoice.id,
-        status: 'sent',
-        additionalData: { sent_date: new Date().toISOString() }
-      });
-
-      // Generate shareable link
-      const baseUrl = window.location.origin;
-      const shareableLink = `${baseUrl}/public-invoice?id=${invoice.id}`;
-
-      // Copy to clipboard
-      try {
-        await navigator.clipboard.writeText(shareableLink);
-        toast({
-          title: "Link copied!",
-          description: "Invoice link has been copied to your clipboard",
-        });
-      } catch (clipboardError) {
-        // Fallback - show the link in an alert
-        alert(`Invoice link: ${shareableLink}`);
-        toast({
-          title: "Invoice shared",
-          description: "Invoice status updated to sent",
-        });
-      }
+      await shareInvoice(invoiceId);
     } catch (error) {
       console.error("Error sharing invoice:", error);
-      toast({
-        title: "Error",
-        description: "Failed to share invoice",
-        variant: "destructive",
+    }
+  };
+
+  const handleSendInvoiceEmail = async (invoiceId: string, customerName: string) => {
+    try {
+      await sendInvoiceEmail({ 
+        invoiceId, 
+        customerName 
       });
+    } catch (error) {
+      console.error("Error sending invoice email:", error);
     }
   };
 
@@ -235,6 +229,7 @@ export default function Invoices() {
                   onDelete={setDeletingInvoice}
                   onPreview={setPreviewInvoice}
                   onShare={handleShareInvoice}
+                  onSendEmail={handleSendInvoiceEmail}
                   onMarkAsPaid={handleMarkAsPaid}
                 />
               ))}

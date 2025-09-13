@@ -18,6 +18,7 @@ import Settings from "./pages/Settings";
 import Profile from "./pages/Profile";
 import Auth from "./pages/Auth";
 import PublicQuote from "./pages/PublicQuote";
+import PublicInvoice from "./pages/PublicInvoice";
 import Calendar from "./pages/Calendar";
 import NotFound from "./pages/NotFound";
 
@@ -33,7 +34,8 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/auth" element={<Auth />} />
-            <Route path="/public-quote/:token" element={<PublicQuote />} />
+          <Route path="/public-quote/:token" element={<PublicQuote />} />
+          <Route path="/public-invoice/:token" element={<PublicInvoice />} />
             <Route path="/" element={<ProtectedRoute><Index /></ProtectedRoute>} />
             <Route path="/jobs" element={<ProtectedRoute><Jobs /></ProtectedRoute>} />
             <Route path="/customers" element={<ProtectedRoute><Customers /></ProtectedRoute>} />

@@ -305,6 +305,76 @@ export const useInvoices = () => {
     },
   });
 
+  // Share invoice mutation
+  const shareInvoiceMutation = useMutation({
+    mutationFn: async (invoiceId: string) => {
+      const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+        body: {
+          invoiceId,
+          generateTokenOnly: true,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return data;
+    },
+    onSuccess: (data) => {
+      navigator.clipboard.writeText(data.publicUrl);
+      toast({
+        title: "Share Link Copied",
+        description: "Invoice share link has been copied to clipboard",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to generate share link",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Send invoice email mutation
+  const sendInvoiceEmailMutation = useMutation({
+    mutationFn: async ({ invoiceId, customerEmail, customerName }: {
+      invoiceId: string;
+      customerEmail?: string;
+      customerName?: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke('send-invoice-email', {
+        body: {
+          invoiceId,
+          customerEmail,
+          customerName,
+          generateTokenOnly: false,
+        },
+      });
+
+      if (error) {
+        throw new Error(error.message);
+      }
+
+      return data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["invoices"] });
+      toast({
+        title: "Invoice Sent",
+        description: "Invoice has been sent to customer via email",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send invoice",
+        variant: "destructive",
+      });
+    },
+  });
+
   return {
     invoices,
     loading,
@@ -314,5 +384,9 @@ export const useInvoices = () => {
     updateInvoice: updateInvoiceMutation.mutateAsync,
     deleteInvoice: deleteInvoiceMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
+    shareInvoice: shareInvoiceMutation.mutateAsync,
+    sendInvoiceEmail: sendInvoiceEmailMutation.mutateAsync,
+    isSharing: shareInvoiceMutation.isPending,
+    isSending: sendInvoiceEmailMutation.isPending,
   };
 };

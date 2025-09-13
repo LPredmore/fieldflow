@@ -105,6 +105,7 @@ export type Database = {
           payment_terms: string
           paypal_me_link: string | null
           sent_date: string | null
+          share_token: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -131,6 +132,7 @@ export type Database = {
           payment_terms?: string
           paypal_me_link?: string | null
           sent_date?: string | null
+          share_token?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -157,6 +159,7 @@ export type Database = {
           payment_terms?: string
           paypal_me_link?: string | null
           sent_date?: string | null
+          share_token?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
