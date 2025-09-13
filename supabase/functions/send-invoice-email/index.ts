@@ -31,7 +31,13 @@ serve(async (req) => {
 
   try {
     const { invoiceId, customerEmail, customerName, generateTokenOnly }: SendInvoiceEmailRequest = await req.json();
-    console.log('Processing invoice email request:', { invoiceId, customerEmail, generateTokenOnly });
+    console.log('Processing invoice email request:', { 
+      invoiceId, 
+      hasCustomerEmail: !!customerEmail,
+      customerEmail: customerEmail ? `${customerEmail.substring(0, 3)}***` : 'MISSING',
+      customerName,
+      generateTokenOnly 
+    });
 
     // Fetch invoice details
     const { data: invoice, error: invoiceError } = await supabase
@@ -41,17 +47,25 @@ serve(async (req) => {
       .single();
 
     if (invoiceError || !invoice) {
-      console.error('Invoice not found:', invoiceError);
+      console.error('Invoice fetch error:', invoiceError);
       return new Response(
         JSON.stringify({ error: 'Invoice not found' }),
         { status: 404, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
       );
     }
 
+    console.log('Invoice fetched successfully:', { 
+      invoiceNumber: invoice.invoice_number, 
+      customerId: invoice.customer_id,
+      status: invoice.status,
+      tenantId: invoice.tenant_id
+    });
+
     // Generate share token if it doesn't exist
     let shareToken = invoice.share_token;
     if (!shareToken) {
       shareToken = crypto.randomUUID().replace(/-/g, '');
+      console.log('Generated new share token for invoice');
       
       const { error: updateError } = await supabase
         .from('invoices')
@@ -65,6 +79,8 @@ serve(async (req) => {
           { status: 500, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
         );
       }
+    } else {
+      console.log('Using existing share token for invoice');
     }
 
     const publicUrl = `${Deno.env.get('SUPABASE_URL')?.replace('https://', 'https://').replace('.supabase.co', '.lovable.app')}/public-invoice/${shareToken}`;
@@ -86,14 +102,22 @@ serve(async (req) => {
     }
 
     // Fetch business settings for email template
-    const { data: settings } = await supabase
+    const { data: settings, error: settingsError } = await supabase
       .from('settings')
       .select('business_name, business_email, business_phone, logo_url, payment_settings')
       .eq('tenant_id', invoice.tenant_id)
       .single();
 
+    if (settingsError) {
+      console.error('Settings fetch error:', settingsError);
+    }
+
     const businessName = settings?.business_name || 'Your Business';
-    const businessEmail = settings?.business_email || 'noreply@yourbusiness.com';
+    console.log('Business settings fetched:', { 
+      businessName,
+      hasLogo: !!settings?.logo_url,
+      hasPaymentSettings: !!settings?.payment_settings
+    });
 
     // Create email HTML
     const emailHtml = `
@@ -181,15 +205,27 @@ serve(async (req) => {
       );
     }
 
-    // Send email
+    console.log('About to send email to:', customerEmail.substring(0, 3) + '***');
+    console.log('Email details:', {
+      from: `${businessName} <onboarding@resend.dev>`,
+      to: customerEmail,
+      subject: `Invoice ${invoice.invoice_number} - ${businessName}`,
+      htmlLength: emailHtml.length
+    });
+
+    // Send email using verified domain (same as quotes)
     const emailResponse = await resend.emails.send({
-      from: `${businessName} <${businessEmail}>`,
+      from: `${businessName} <onboarding@resend.dev>`,
       to: [customerEmail],
       subject: `Invoice ${invoice.invoice_number} - ${businessName}`,
       html: emailHtml,
     });
 
     console.log('Email sent successfully:', emailResponse);
+    console.log('Resend response details:', {
+      data: emailResponse.data,
+      error: emailResponse.error
+    });
 
     // Update invoice status to 'sent' if it was 'draft'
     if (invoice.status === 'draft') {
@@ -216,6 +252,11 @@ serve(async (req) => {
 
   } catch (error: any) {
     console.error('Error in send-invoice-email function:', error);
+    console.error('Error details:', {
+      message: error.message,
+      stack: error.stack,
+      name: error.name
+    });
     return new Response(
       JSON.stringify({ error: error.message }),
       { 
