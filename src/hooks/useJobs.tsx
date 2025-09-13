@@ -133,18 +133,20 @@ export function useJobs() {
   const createJob = async (jobData: any) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
+    console.log('Creating job with data:', jobData);
+
     // Check if this is a recurring job
     if (jobData.is_recurring) {
       // Create a job series instead of a single job
       const seriesData: CreateJobSeriesData = {
         title: jobData.title,
-        customer_id: jobData.customer_id,
+        customer_id: jobData.customer_id || crypto.randomUUID(), // Generate UUID for customer
         customer_name: jobData.customer_name,
         service_type: jobData.service_type,
         description: jobData.description,
         start_date: jobData.scheduled_date,
-        local_start_time: jobData.scheduled_time || '08:00',
-        duration_minutes: jobData.estimated_duration || 60,
+        local_start_time: '08:00', // Default time
+        duration_minutes: 60, // Default duration
         timezone: jobData.timezone || 'America/New_York',
         rrule: jobData.rrule,
         until_date: jobData.until_date,
@@ -156,23 +158,37 @@ export function useJobs() {
 
       return await createJobSeries(seriesData);
     } else {
-      // Create a traditional single job
+      // Create a traditional single job - only include fields that exist in the table
+      const jobInsertData = {
+        title: jobData.title,
+        customer_name: jobData.customer_name,
+        customer_id: jobData.customer_id || crypto.randomUUID(), // Generate UUID for customer
+        service_type: jobData.service_type,
+        description: jobData.description,
+        scheduled_date: jobData.scheduled_date,
+        status: jobData.status || 'scheduled',
+        priority: jobData.priority || 'medium',
+        assigned_to_user_id: jobData.assigned_to_user_id,
+        estimated_cost: jobData.estimated_cost,
+        actual_cost: jobData.actual_cost,
+        additional_info: jobData.additional_info,
+        completion_notes: jobData.completion_notes,
+        tenant_id: tenantId,
+        created_by_user_id: user.id,
+      };
+
+      console.log('Inserting job data:', jobInsertData);
+
       const { data, error } = await supabase
         .from('jobs')
-        .insert({
-          ...jobData,
-          tenant_id: tenantId,
-          created_by_user_id: user.id,
-          // Remove recurring-specific fields
-          is_recurring: undefined,
-          rrule: undefined,
-          until_date: undefined,
-          timezone: undefined,
-        })
+        .insert(jobInsertData)
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Job creation error:', error);
+        throw error;
+      }
       
       toast({
         title: "Job created",

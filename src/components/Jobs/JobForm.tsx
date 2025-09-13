@@ -92,12 +92,19 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
     try {
       console.log('Form data being submitted:', data);
       
-      // Auto-generate customer_id from customer_name if not provided
-      if (!data.customer_id && data.customer_name) {
-        data.customer_id = data.customer_name.toLowerCase().replace(/\s+/g, '_');
-      }
+      // Clean up data for database submission
+      const cleanedData = {
+        ...data,
+        // Convert empty strings to null for optional UUID fields
+        assigned_to_user_id: data.assigned_to_user_id || null,
+        customer_id: null, // We'll handle customer creation/linking separately
+        // Remove any undefined or empty string values
+        estimated_cost: data.estimated_cost || null,
+        actual_cost: data.actual_cost || null,
+      };
       
-      await onSubmit(data);
+      console.log('Cleaned form data:', cleanedData);
+      await onSubmit(cleanedData);
     } catch (error) {
       console.error('Form submission error:', error);
       throw error;
