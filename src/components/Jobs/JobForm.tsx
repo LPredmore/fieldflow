@@ -9,9 +9,11 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { ContractorSelector } from '@/components/Customers/ContractorSelector';
+import { RRuleBuilder } from './RRuleBuilder';
 
 const jobSchema = z.object({
   title: z.string().min(1, 'Title is required'),
@@ -21,14 +23,20 @@ const jobSchema = z.object({
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   scheduled_date: z.string().min(1, 'Start Date is required'),
+  scheduled_time: z.string().default('08:00'),
   complete_date: z.string().optional(),
-  estimated_duration: z.coerce.number().optional(),
+  estimated_duration: z.coerce.number().default(60),
   assigned_to_user_id: z.string().optional(),
   service_type: z.enum(['plumbing', 'electrical', 'hvac', 'cleaning', 'landscaping', 'general_maintenance', 'other']),
   estimated_cost: z.coerce.number().optional(),
   actual_cost: z.coerce.number().optional(),
   additional_info: z.string().optional(),
   completion_notes: z.string().optional(),
+  // Recurring job fields
+  is_recurring: z.boolean().default(false),
+  rrule: z.string().default('FREQ=WEEKLY;INTERVAL=1;BYDAY=MO'),
+  until_date: z.string().optional(),
+  timezone: z.string().default('America/New_York'),
 });
 
 type JobFormData = z.infer<typeof jobSchema>;
@@ -40,10 +48,19 @@ interface JobFormProps {
   loading?: boolean;
 }
 
+interface ExtendedJob extends Job {
+  is_recurring?: boolean;
+  rrule?: string;
+  until_date?: string;
+  timezone?: string;
+  scheduled_time?: string;
+}
+
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
   const { userRole } = useAuth();
   const { permissions } = usePermissions();
   const canAssignContractors = canSupervise(permissions);
+  const extendedJob = job as ExtendedJob | undefined;
 
   const form = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
@@ -55,16 +72,23 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       status: job?.status || 'scheduled',
       priority: job?.priority || 'medium',
       scheduled_date: job?.scheduled_date || '',
+      scheduled_time: extendedJob?.scheduled_time || '08:00',
       complete_date: job?.complete_date || '',
-      estimated_duration: job?.estimated_duration || undefined,
+      estimated_duration: job?.estimated_duration || 60,
       assigned_to_user_id: job?.assigned_to_user_id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
       additional_info: job?.additional_info || '',
       completion_notes: job?.completion_notes || '',
+      is_recurring: extendedJob?.is_recurring || false,
+      rrule: extendedJob?.rrule || 'FREQ=WEEKLY;INTERVAL=1;BYDAY=MO',
+      until_date: extendedJob?.until_date || '',
+      timezone: extendedJob?.timezone || 'America/New_York',
     },
   });
+
+  const isRecurring = form.watch("is_recurring");
 
   const handleSubmit = async (data: JobFormData) => {
     await onSubmit(data);
@@ -158,13 +182,34 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
             <CardTitle>Scheduling</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <FormField
+              control={form.control}
+              name="is_recurring"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-4">
+                  <div className="space-y-0.5">
+                    <FormLabel>Make this a recurring job</FormLabel>
+                    <div className="text-sm text-muted-foreground">
+                      Create a repeating schedule for this job
+                    </div>
+                  </div>
+                  <FormControl>
+                    <Switch
+                      checked={field.value}
+                      onCheckedChange={field.onChange}
+                    />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <FormField
                 control={form.control}
                 name="scheduled_date"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Start Date</FormLabel>
+                    <FormLabel>{isRecurring ? 'Start Date' : 'Scheduled Date'}</FormLabel>
                     <FormControl>
                       <Input type="date" {...field} />
                     </FormControl>
@@ -175,12 +220,12 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
 
               <FormField
                 control={form.control}
-                name="complete_date"
+                name="scheduled_time"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Completed by</FormLabel>
+                    <FormLabel>Time</FormLabel>
                     <FormControl>
-                      <Input type="date" {...field} />
+                      <Input type="time" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -192,14 +237,30 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                 name="estimated_duration"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Duration (hours)</FormLabel>
+                    <FormLabel>Duration (minutes)</FormLabel>
                     <FormControl>
-                      <Input type="number" step="0.5" placeholder="0" {...field} />
+                      <Input type="number" min="15" step="15" placeholder="60" {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
                 )}
               />
+
+              {!isRecurring && (
+                <FormField
+                  control={form.control}
+                  name="complete_date"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Completed by</FormLabel>
+                      <FormControl>
+                        <Input type="date" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              )}
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -253,6 +314,15 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
             </div>
           </CardContent>
         </Card>
+
+        {/* Recurring Job Options */}
+        {isRecurring && (
+          <RRuleBuilder
+            rrule={form.watch("rrule")}
+            onChange={(rrule) => form.setValue("rrule", rrule)}
+            startDate={form.watch("scheduled_date")}
+          />
+        )}
 
         {/* Assignment */}
         <Card>

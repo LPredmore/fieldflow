@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
+import { useJobSeries, CreateJobSeriesData } from './useJobSeries';
 
 export interface Job {
   id: string;
@@ -27,14 +28,43 @@ export interface Job {
   additional_info?: string;
   completion_notes?: string;
   contractor_name?: string; // Added for display purposes
+  series_id?: string; // For recurring jobs
+  job_type?: 'single' | 'recurring'; // Unified calendar view
+  start_at?: string; // Unified calendar view
+  end_at?: string; // Unified calendar view
+}
+
+export interface UnifiedJob {
+  id: string;
+  tenant_id: string;
+  customer_id: string;
+  customer_name: string;
+  title: string;
+  description?: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
+  priority: 'low' | 'medium' | 'high' | 'urgent';
+  assigned_to_user_id?: string;
+  service_type: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
+  estimated_cost?: number;
+  actual_cost?: number;
+  start_at: string;
+  end_at: string;
+  series_id?: string;
+  job_type: 'single' | 'recurring';
+  completion_notes?: string;
+  additional_info?: string;
+  created_at: string;
+  updated_at?: string;
 }
 
 export function useJobs() {
   const [jobs, setJobs] = useState<Job[]>([]);
+  const [unifiedJobs, setUnifiedJobs] = useState<UnifiedJob[]>([]);
   const [loading, setLoading] = useState(true);
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
+  const { createJobSeries } = useJobSeries();
 
   const fetchJobs = async () => {
     if (!user || !tenantId) return;
@@ -42,7 +72,7 @@ export function useJobs() {
     try {
       setLoading(true);
       
-      // Fetch jobs with contractor names
+      // Fetch traditional jobs with contractor names
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select(`
@@ -70,6 +100,25 @@ export function useJobs() {
       }));
 
       setJobs(processedJobs);
+
+      // Fetch unified calendar view for upcoming jobs
+      const { data: unifiedData, error: unifiedError } = await supabase
+        .from('jobs_calendar_upcoming')
+        .select('*')
+        .gte('start_at', new Date().toISOString())
+        .order('start_at', { ascending: true });
+
+      if (unifiedError) {
+        console.error('Error loading unified jobs:', unifiedError);
+      } else {
+        // Type the unified data properly
+        const typedUnifiedData: UnifiedJob[] = (unifiedData || []).map(job => ({
+          ...job,
+          job_type: job.job_type as 'single' | 'recurring'
+        }));
+        setUnifiedJobs(typedUnifiedData);
+      }
+
     } catch (error: any) {
       toast({
         variant: "destructive",
@@ -81,28 +130,58 @@ export function useJobs() {
     }
   };
 
-  const createJob = async (jobData: Omit<Job, 'id' | 'created_at' | 'updated_at' | 'tenant_id' | 'created_by_user_id' | 'contractor_name'>) => {
+  const createJob = async (jobData: any) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { data, error } = await supabase
-      .from('jobs')
-      .insert({
-        ...jobData,
-        tenant_id: tenantId,
-        created_by_user_id: user.id,
-      })
-      .select()
-      .single();
+    // Check if this is a recurring job
+    if (jobData.is_recurring) {
+      // Create a job series instead of a single job
+      const seriesData: CreateJobSeriesData = {
+        title: jobData.title,
+        customer_id: jobData.customer_id,
+        customer_name: jobData.customer_name,
+        service_type: jobData.service_type,
+        description: jobData.description,
+        start_date: jobData.scheduled_date,
+        local_start_time: jobData.scheduled_time || '08:00',
+        duration_minutes: jobData.estimated_duration || 60,
+        timezone: jobData.timezone || 'America/New_York',
+        rrule: jobData.rrule,
+        until_date: jobData.until_date,
+        priority: jobData.priority,
+        assigned_to_user_id: jobData.assigned_to_user_id,
+        estimated_cost: jobData.estimated_cost,
+        notes: jobData.additional_info,
+      };
 
-    if (error) throw error;
-    
-    toast({
-      title: "Job created",
-      description: "The job has been successfully created.",
-    });
-    
-    await fetchJobs(); // Refresh the list
-    return data;
+      return await createJobSeries(seriesData);
+    } else {
+      // Create a traditional single job
+      const { data, error } = await supabase
+        .from('jobs')
+        .insert({
+          ...jobData,
+          tenant_id: tenantId,
+          created_by_user_id: user.id,
+          // Remove recurring-specific fields
+          is_recurring: undefined,
+          rrule: undefined,
+          until_date: undefined,
+          timezone: undefined,
+        })
+        .select()
+        .single();
+
+      if (error) throw error;
+      
+      toast({
+        title: "Job created",
+        description: "The job has been successfully created.",
+      });
+      
+      await fetchJobs(); // Refresh the list
+      return data;
+    }
   };
 
   const updateJob = async (jobId: string, updates: Partial<Job>) => {
@@ -199,6 +278,7 @@ export function useJobs() {
 
   return {
     jobs,
+    unifiedJobs,
     loading,
     refetchJobs: fetchJobs,
     createJob,
