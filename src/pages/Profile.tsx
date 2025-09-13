@@ -5,20 +5,16 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Loader2, User, Mail, Phone, Lock, Building2, ExternalLink, Info } from 'lucide-react';
+import { Loader2, User, Mail, Phone, Lock } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
-import { useSettings } from '@/hooks/useSettings';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
 import Navigation from '@/components/Layout/Navigation';
-import { useNavigate } from 'react-router-dom';
 
 export default function Profile() {
   const { profile, loading, updatePersonalInfo, updateEmail, updatePassword } = useProfile();
-  const { settings, loading: settingsLoading } = useSettings();
   const { userRole, isAdmin } = useAuth();
   const { toast } = useToast();
-  const navigate = useNavigate();
   const [isUpdating, setIsUpdating] = useState(false);
   const [showPasswordForm, setShowPasswordForm] = useState(false);
 
@@ -127,7 +123,7 @@ export default function Profile() {
     }
   };
 
-  if (loading || settingsLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen bg-background">
         <Navigation />
@@ -262,96 +258,6 @@ export default function Profile() {
         </Card>
       </div>
 
-      {/* Business Information Context */}
-      <Card className="bg-card border-border">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2 text-card-foreground">
-            <Building2 className="h-5 w-5" />
-            Business Information
-          </CardTitle>
-          <CardDescription>
-            Current business contact details used in quotes and invoices
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {settings ? (
-            <div className="space-y-4">
-              <div className="grid gap-4 md:grid-cols-2">
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Business Name</Label>
-                  <Input
-                    value={settings.business_name || 'Not set'}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Business Email</Label>
-                  <Input
-                    value={settings.business_email || 'Not set'}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Business Phone</Label>
-                  <Input
-                    value={settings.business_phone || 'Not set'}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label className="text-sm font-medium">Business Website</Label>
-                  <Input
-                    value={settings.business_website || 'Not set'}
-                    readOnly
-                    className="bg-muted"
-                  />
-                </div>
-              </div>
-              
-              <div className="flex items-start gap-3 p-3 bg-blue-50 dark:bg-blue-950/20 rounded-md border border-blue-200 dark:border-blue-800">
-                <Info className="h-4 w-4 text-blue-600 dark:text-blue-400 mt-0.5 flex-shrink-0" />
-                <div className="text-sm">
-                  <p className="text-blue-800 dark:text-blue-300 font-medium">
-                    Business Information Usage
-                  </p>
-                  <p className="text-blue-700 dark:text-blue-400 mt-1">
-                    This information appears on all quotes and invoices. 
-                    {isAdmin ? ' You can update it in Business Settings.' : ' Only business administrators can modify this information.'}
-                  </p>
-                </div>
-              </div>
-              
-              {isAdmin && (
-                <Button 
-                  onClick={() => navigate('/settings')}
-                  variant="outline"
-                  className="w-full"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Manage Business Settings
-                </Button>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-4">
-              <p className="text-muted-foreground">No business information found</p>
-              {isAdmin && (
-                <Button 
-                  onClick={() => navigate('/settings')}
-                  variant="outline"
-                  className="mt-2"
-                >
-                  <ExternalLink className="mr-2 h-4 w-4" />
-                  Set Up Business Information
-                </Button>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
 
       {/* Password Section */}
       <Card className="bg-card border-border">
