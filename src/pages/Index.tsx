@@ -88,7 +88,8 @@ const Index = () => {
   }, [jobs]);
 
   return (
-    <div className="p-6 lg:p-8">
+    <>
+      <div className="p-6 lg:p-8">
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-4">
@@ -242,8 +243,8 @@ const Index = () => {
           </div>
         </div>
 
-      {/* Modals */}
-      <QuoteForm
+        {/* Modals */}
+        <QuoteForm
         open={isQuoteModalOpen}
         onOpenChange={setIsQuoteModalOpen}
         onSubmit={async (data) => {
@@ -270,7 +271,7 @@ const Index = () => {
         }}
         title="Add New Customer"
       />
-    </div>
+    </>
   );
 };
 
