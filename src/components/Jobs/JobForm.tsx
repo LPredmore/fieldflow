@@ -12,13 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ContractorSelector } from '@/components/Customers/ContractorSelector';
 import { RRuleBuilder } from './RRuleBuilder';
+import { AlertCircle } from 'lucide-react';
 
 const jobSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  customer_id: z.string().min(1, 'Customer is required'),
+  customer_id: z.string().optional(), // Made optional, will be auto-generated from customer_name
   customer_name: z.string().min(1, 'Customer name is required'),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
@@ -87,12 +89,41 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
   const isRecurring = form.watch("is_recurring");
 
   const handleSubmit = async (data: JobFormData) => {
-    await onSubmit(data);
+    try {
+      console.log('Form data being submitted:', data);
+      
+      // Auto-generate customer_id from customer_name if not provided
+      if (!data.customer_id && data.customer_name) {
+        data.customer_id = data.customer_name.toLowerCase().replace(/\s+/g, '_');
+      }
+      
+      await onSubmit(data);
+    } catch (error) {
+      console.error('Form submission error:', error);
+      throw error;
+    }
   };
 
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(handleSubmit)} className="space-y-6">
+        {/* Form Validation Errors */}
+        {Object.keys(form.formState.errors).length > 0 && (
+          <Alert variant="destructive">
+            <AlertCircle className="h-4 w-4" />
+            <AlertDescription>
+              Please fix the following errors:
+              <ul className="list-disc list-inside mt-2">
+                {Object.entries(form.formState.errors).map(([field, error]) => (
+                  <li key={field} className="text-sm">
+                    {field}: {error?.message}
+                  </li>
+                ))}
+              </ul>
+            </AlertDescription>
+          </Alert>
+        )}
+
         {/* Basic Information */}
         <Card>
           <CardHeader>
@@ -142,32 +173,32 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="service_type"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Service Type</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select service type" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="plumbing">Plumbing</SelectItem>
-                        <SelectItem value="electrical">Electrical</SelectItem>
-                        <SelectItem value="hvac">HVAC</SelectItem>
-                        <SelectItem value="cleaning">Cleaning</SelectItem>
-                        <SelectItem value="landscaping">Landscaping</SelectItem>
-                        <SelectItem value="general_maintenance">General Maintenance</SelectItem>
-                        <SelectItem value="other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                <FormField
+                  control={form.control}
+                  name="service_type"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Service Type</FormLabel>
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select service type" />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent>
+                          <SelectItem value="plumbing">Plumbing</SelectItem>
+                          <SelectItem value="electrical">Electrical</SelectItem>
+                          <SelectItem value="hvac">HVAC</SelectItem>
+                          <SelectItem value="cleaning">Cleaning</SelectItem>
+                          <SelectItem value="landscaping">Landscaping</SelectItem>
+                          <SelectItem value="general_maintenance">General Maintenance</SelectItem>
+                          <SelectItem value="other">Other</SelectItem>
+                        </SelectContent>
+                      </Select>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
             </div>
           </CardContent>
         </Card>
@@ -238,7 +269,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Status</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select status" />
@@ -262,7 +293,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Priority</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
+                    <Select onValueChange={field.onChange} value={field.value}>
                       <FormControl>
                         <SelectTrigger>
                           <SelectValue placeholder="Select priority" />
@@ -287,7 +318,10 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
         {isRecurring && (
           <RRuleBuilder
             rrule={form.watch("rrule")}
-            onChange={(rrule) => form.setValue("rrule", rrule)}
+            onChange={(rrule) => {
+              console.log('RRule changed:', rrule);
+              form.setValue("rrule", rrule);
+            }}
             startDate={form.watch("scheduled_date")}
           />
         )}

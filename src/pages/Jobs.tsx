@@ -252,6 +252,9 @@ export default function Jobs() {
           <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New Job</DialogTitle>
+              <div className="sr-only">
+                Fill out the form below to create a new job with all the necessary details.
+              </div>
             </DialogHeader>
             <JobForm
               onSubmit={handleFormSubmit}
