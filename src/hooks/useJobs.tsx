@@ -166,11 +166,12 @@ export function useJobs() {
         service_type: jobData.service_type,
         description: jobData.description,
         scheduled_date: jobData.scheduled_date,
+        complete_date: jobData.complete_date || null, // Ensure null instead of empty string
         status: jobData.status || 'scheduled',
         priority: jobData.priority || 'medium',
-        assigned_to_user_id: jobData.assigned_to_user_id,
-        estimated_cost: jobData.estimated_cost,
-        actual_cost: jobData.actual_cost,
+        assigned_to_user_id: jobData.assigned_to_user_id || null, // Ensure null instead of empty string
+        estimated_cost: jobData.estimated_cost || null,
+        actual_cost: jobData.actual_cost || null,
         additional_info: jobData.additional_info,
         completion_notes: jobData.completion_notes,
         tenant_id: tenantId,

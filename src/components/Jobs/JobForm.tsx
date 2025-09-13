@@ -20,12 +20,12 @@ import { AlertCircle } from 'lucide-react';
 const jobSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  customer_id: z.string().optional(), // Made optional, will be auto-generated from customer_name
+  customer_id: z.string().optional(),
   customer_name: z.string().min(1, 'Customer name is required'),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   scheduled_date: z.string().min(1, 'Start Date is required'),
-  complete_date: z.string().optional(),
+  complete_date: z.string().transform((val) => val === '' ? null : val).optional(),
   assigned_to_user_id: z.string().optional(),
   service_type: z.enum(['plumbing', 'electrical', 'hvac', 'cleaning', 'landscaping', 'general_maintenance', 'other']),
   estimated_cost: z.coerce.number().optional(),
@@ -35,7 +35,7 @@ const jobSchema = z.object({
   // Recurring job fields
   is_recurring: z.boolean().default(false),
   rrule: z.string().default('FREQ=WEEKLY;INTERVAL=1'),
-  until_date: z.string().optional(),
+  until_date: z.string().transform((val) => val === '' ? null : val).optional(),
   timezone: z.string().default('America/New_York'),
 });
 
@@ -71,8 +71,8 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       customer_name: job?.customer_name || '',
       status: job?.status || 'scheduled',
       priority: job?.priority || 'medium',
-      scheduled_date: job?.scheduled_date || '',
-      complete_date: job?.complete_date || '',
+      scheduled_date: job?.scheduled_date || new Date().toISOString().split('T')[0], // Default to today
+      complete_date: job?.complete_date || undefined, // Don't use empty string
       assigned_to_user_id: job?.assigned_to_user_id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
@@ -81,7 +81,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       completion_notes: job?.completion_notes || '',
       is_recurring: extendedJob?.is_recurring || false,
       rrule: extendedJob?.rrule || 'FREQ=WEEKLY;INTERVAL=1',
-      until_date: extendedJob?.until_date || '',
+      until_date: extendedJob?.until_date || undefined, // Don't use empty string
       timezone: extendedJob?.timezone || 'America/New_York',
     },
   });
@@ -95,10 +95,12 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       // Clean up data for database submission
       const cleanedData = {
         ...data,
-        // Convert empty strings to null for optional UUID fields
+        // Convert empty strings to null for optional UUID and date fields
         assigned_to_user_id: data.assigned_to_user_id || null,
         customer_id: null, // We'll handle customer creation/linking separately
-        // Remove any undefined or empty string values
+        complete_date: data.complete_date || null, // Convert empty string to null
+        until_date: data.until_date || null, // Convert empty string to null
+        // Remove any undefined or empty string values for numeric fields
         estimated_cost: data.estimated_cost || null,
         actual_cost: data.actual_cost || null,
       };

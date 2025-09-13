@@ -324,7 +324,7 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
           <Input
             type="date"
             value={config.until || ''}
-            onChange={(e) => updateConfig({ until: e.target.value || undefined })}
+            onChange={(e) => updateConfig({ until: e.target.value === '' ? undefined : e.target.value })}
           />
         </div>
 
