@@ -34,17 +34,15 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
       const rule = RRule.fromString(rruleString);
       const options = rule.options;
       
-      const freqMap = ['DAILY', 'WEEKLY', 'MONTHLY'];
-      const freqIndex = options.freq;
-      
-      // Convert numeric frequency to string, skipping DAILY (default to WEEKLY)
+      // Use proper RRule frequency constants
       let freq: 'WEEKLY' | 'MONTHLY';
-      if (freqIndex === 0) { // DAILY
+      if (options.freq === RRule.WEEKLY) {
         freq = 'WEEKLY';
-      } else if (freqIndex === 1) { // WEEKLY  
-        freq = 'WEEKLY';
-      } else { // MONTHLY
+      } else if (options.freq === RRule.MONTHLY) {
         freq = 'MONTHLY';
+      } else {
+        // Default to WEEKLY for any other frequency (including DAILY)
+        freq = 'WEEKLY';
       }
       
       const config: RRuleConfig = {
@@ -122,8 +120,25 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
           ...newConfig,
           byweekday: undefined,
           monthlyType: 'day',
+          bymonthday: 1, // Set default day of month
         };
       }
+    }
+
+    // Set default values for monthly weekday pattern
+    if (updates.monthlyType === 'weekday' && newConfig.freq === 'MONTHLY') {
+      if (!newConfig.bysetpos) newConfig.bysetpos = 1;
+      if (newConfig.monthlyWeekday === undefined) newConfig.monthlyWeekday = 0;
+      // Clear day-of-month when switching to weekday pattern
+      newConfig.bymonthday = undefined;
+    }
+
+    // Set default day when switching to day pattern
+    if (updates.monthlyType === 'day' && newConfig.freq === 'MONTHLY') {
+      if (!newConfig.bymonthday) newConfig.bymonthday = 1;
+      // Clear weekday pattern fields
+      newConfig.bysetpos = undefined;
+      newConfig.monthlyWeekday = undefined;
     }
     
     onChange(buildRRule(newConfig));
