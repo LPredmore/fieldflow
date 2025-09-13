@@ -200,6 +200,146 @@ export type Database = {
           },
         ]
       }
+      job_occurrences: {
+        Row: {
+          actual_cost: number | null
+          assigned_to_user_id: string | null
+          completion_notes: string | null
+          created_at: string
+          customer_id: string
+          customer_name: string
+          end_at: string
+          id: string
+          override_description: string | null
+          override_estimated_cost: number | null
+          override_title: string | null
+          priority: Database["public"]["Enums"]["job_priority"]
+          series_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["job_status"]
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          actual_cost?: number | null
+          assigned_to_user_id?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          customer_id: string
+          customer_name: string
+          end_at: string
+          id?: string
+          override_description?: string | null
+          override_estimated_cost?: number | null
+          override_title?: string | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          series_id: string
+          start_at: string
+          status?: Database["public"]["Enums"]["job_status"]
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          actual_cost?: number | null
+          assigned_to_user_id?: string | null
+          completion_notes?: string | null
+          created_at?: string
+          customer_id?: string
+          customer_name?: string
+          end_at?: string
+          id?: string
+          override_description?: string | null
+          override_estimated_cost?: number | null
+          override_title?: string | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          series_id?: string
+          start_at?: string
+          status?: Database["public"]["Enums"]["job_status"]
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_occurrences_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "job_series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_series: {
+        Row: {
+          active: boolean
+          assigned_to_user_id: string | null
+          created_at: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          description: string | null
+          duration_minutes: number
+          estimated_cost: number | null
+          id: string
+          local_start_time: string
+          notes: string | null
+          priority: Database["public"]["Enums"]["job_priority"]
+          rrule: string
+          service_type: Database["public"]["Enums"]["job_service_type"]
+          start_date: string
+          tenant_id: string
+          timezone: string
+          title: string
+          until_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          active?: boolean
+          assigned_to_user_id?: string | null
+          created_at?: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          description?: string | null
+          duration_minutes?: number
+          estimated_cost?: number | null
+          id?: string
+          local_start_time?: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          rrule: string
+          service_type?: Database["public"]["Enums"]["job_service_type"]
+          start_date: string
+          tenant_id: string
+          timezone?: string
+          title: string
+          until_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          active?: boolean
+          assigned_to_user_id?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          customer_id?: string
+          customer_name?: string
+          description?: string | null
+          duration_minutes?: number
+          estimated_cost?: number | null
+          id?: string
+          local_start_time?: string
+          notes?: string | null
+          priority?: Database["public"]["Enums"]["job_priority"]
+          rrule?: string
+          service_type?: Database["public"]["Enums"]["job_service_type"]
+          start_date?: string
+          tenant_id?: string
+          timezone?: string
+          title?: string
+          until_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       jobs: {
         Row: {
           actual_cost: number | null
@@ -671,7 +811,31 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      jobs_calendar_upcoming: {
+        Row: {
+          actual_cost: number | null
+          additional_info: string | null
+          assigned_to_user_id: string | null
+          completion_notes: string | null
+          created_at: string | null
+          customer_id: string | null
+          customer_name: string | null
+          description: string | null
+          end_at: string | null
+          estimated_cost: number | null
+          id: string | null
+          job_type: string | null
+          priority: Database["public"]["Enums"]["job_priority"] | null
+          series_id: string | null
+          service_type: Database["public"]["Enums"]["job_service_type"] | null
+          start_at: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          tenant_id: string | null
+          title: string | null
+          updated_at: string | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       generate_quote_share_token: {
