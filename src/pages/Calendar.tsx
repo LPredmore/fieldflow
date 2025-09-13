@@ -9,16 +9,16 @@ import { Button } from '@/components/ui/button';
 import { Calendar as CalendarIcon, Grid, List } from 'lucide-react';
 
 const Calendar = () => {
-  const { jobs } = useJobs();
+  const { unifiedJobs } = useJobs();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
 
-  // Transform jobs into calendar events
+  // Transform unified jobs into calendar events
   const calendarEvents = useMemo(() => {
-    return jobs.map((job) => {
-      let startDate = job.scheduled_date;
-      let endDate = job.complete_date || job.scheduled_date;
+    return unifiedJobs.map((job) => {
+      // UnifiedJob always has start_at and end_at (ISO datetime strings)
+      const startDate = job.start_at;
+      const endDate = job.end_at;
       
-      // If the job spans multiple days, show it as a multi-day event
       const isMultiDay = startDate !== endDate;
       
       // Determine color based on status
@@ -45,7 +45,7 @@ const Calendar = () => {
         title: job.title,
         start: startDate,
         end: isMultiDay ? endDate : undefined,
-        allDay: true,
+        allDay: job.job_type === 'single', // Single jobs are all-day, recurring jobs show time
         backgroundColor,
         borderColor,
         extendedProps: {
@@ -58,7 +58,7 @@ const Calendar = () => {
         }
       };
     });
-  }, [jobs]);
+  }, [unifiedJobs]);
 
   const handleEventClick = (eventInfo: any) => {
     const event = eventInfo.event;

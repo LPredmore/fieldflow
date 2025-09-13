@@ -16,6 +16,9 @@ verify_jwt = false
 [functions.quote-response]
 verify_jwt = false
 
+[functions.generate-job-occurrences]
+verify_jwt = false
+
 [db]
 port = 54322
 shadow_port = 54320

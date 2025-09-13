@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.3';
 import { RRule } from 'https://esm.sh/rrule@2.8.1';
+import { DateTime } from 'https://esm.sh/luxon@3.4.4';
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -61,15 +62,21 @@ serve(async (req) => {
       timezone: series.timezone
     });
 
-    // Create the base datetime in the series timezone
-    const startDateTime = new Date(`${series.start_date}T${series.local_start_time}:00`);
+    // Create the base datetime in the series timezone using Luxon
+    const localStart = DateTime.fromISO(
+      `${series.start_date}T${series.local_start_time}`, 
+      { zone: series.timezone }
+    );
+    
+    // Convert to UTC for RRULE processing
+    const startDateTime = new Date(localStart.toUTC().toISO());
     
     // Parse the RRULE
     let rule: RRule;
     try {
       // Parse RRULE and set the dtstart
       rule = RRule.fromString(series.rrule);
-      // Override the dtstart with our calculated start time
+      // Override the dtstart with our timezone-corrected start time
       rule.options.dtstart = startDateTime;
     } catch (rruleError) {
       console.error('Invalid RRULE:', rruleError);
@@ -112,34 +119,40 @@ serve(async (req) => {
 
     // Insert each occurrence
     for (const occurrence of occurrences) {
-      const startAt = new Date(occurrence);
-      const endAt = new Date(startAt.getTime() + (series.duration_minutes * 60 * 1000));
+      // Convert the occurrence back to UTC timestamps for storage
+      const startUTC = DateTime.fromJSDate(occurrence).toUTC();
+      const endUTC = startUTC.plus({ minutes: series.duration_minutes });
 
       const occurrenceData = {
         tenant_id: series.tenant_id,
         series_id: series.id,
         customer_id: series.customer_id,
         customer_name: series.customer_name,
-        start_at: startAt.toISOString(),
-        end_at: endAt.toISOString(),
+        start_at: startUTC.toISO(),
+        end_at: endUTC.toISO(),
         status: 'scheduled',
         priority: series.priority || 'medium',
         assigned_to_user_id: series.assigned_to_user_id
       };
 
-      // Use upsert to handle duplicates gracefully
-      const { error: insertError } = await supabase
+      // Use upsert with select to get accurate counts
+      const { data: insertedData, error: insertError } = await supabase
         .from('job_occurrences')
         .upsert(occurrenceData, { 
           onConflict: 'series_id,start_at',
           ignoreDuplicates: true
-        });
+        })
+        .select();
 
       if (insertError) {
         console.error('Error inserting occurrence:', insertError);
         generatedCount.skipped++;
       } else {
-        generatedCount.created++;
+        // Count actual insertions (data will be empty for duplicates with ignoreDuplicates)
+        generatedCount.created += (insertedData?.length ?? 0);
+        if (!insertedData?.length) {
+          generatedCount.skipped++;
+        }
       }
     }
 

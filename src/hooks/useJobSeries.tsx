@@ -101,12 +101,22 @@ export function useJobSeries() {
 
     // Generate occurrences for the new series
     try {
-      await supabase.functions.invoke('generate-job-occurrences', {
+      const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
         body: { seriesId: data.id }
       });
-    } catch (generateError) {
+      
+      if (functionError) {
+        throw new Error(functionError.message || 'Failed to generate job occurrences');
+      }
+      
+      console.log('Occurrence generation result:', functionResult);
+    } catch (generateError: any) {
       console.error('Error generating occurrences:', generateError);
-      // Don't fail the series creation if occurrence generation fails
+      toast({
+        variant: "destructive",
+        title: "Warning: Occurrences not generated",
+        description: `Job series created but occurrences failed: ${generateError.message}`,
+      });
     }
     
     toast({
@@ -133,11 +143,22 @@ export function useJobSeries() {
     // Regenerate occurrences if the series is still active
     if (data.active) {
       try {
-        await supabase.functions.invoke('generate-job-occurrences', {
+        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
           body: { seriesId: data.id }
         });
-      } catch (generateError) {
+        
+        if (functionError) {
+          throw new Error(functionError.message || 'Failed to regenerate job occurrences');
+        }
+        
+        console.log('Occurrence regeneration result:', functionResult);
+      } catch (generateError: any) {
         console.error('Error regenerating occurrences:', generateError);
+        toast({
+          variant: "destructive", 
+          title: "Warning: Occurrences not regenerated",
+          description: `Job series updated but occurrences failed: ${generateError.message}`,
+        });
       }
     }
     
