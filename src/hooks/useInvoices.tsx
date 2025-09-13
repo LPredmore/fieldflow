@@ -375,6 +375,35 @@ export const useInvoices = () => {
     },
   });
 
+  // Enhanced send invoice email function that fetches customer email
+  const sendInvoiceWithCustomerEmail = async (invoiceId: string, customerName: string, customerId: string) => {
+    try {
+      // Fetch customer email from database
+      const { data: customer, error: customerError } = await supabase
+        .from('customers')
+        .select('email')
+        .eq('id', customerId)
+        .single();
+
+      if (customerError || !customer?.email) {
+        throw new Error('Customer email not found. Please update customer information first.');
+      }
+
+      // Send the email
+      sendInvoiceEmailMutation.mutate({
+        invoiceId,
+        customerEmail: customer.email,
+        customerName,
+      });
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message,
+        variant: "destructive",
+      });
+    }
+  };
+
   return {
     invoices,
     loading,
@@ -385,7 +414,7 @@ export const useInvoices = () => {
     deleteInvoice: deleteInvoiceMutation.mutateAsync,
     updateStatus: updateStatusMutation.mutateAsync,
     shareInvoice: shareInvoiceMutation.mutateAsync,
-    sendInvoiceEmail: sendInvoiceEmailMutation.mutateAsync,
+    sendInvoiceEmail: sendInvoiceWithCustomerEmail,
     isSharing: shareInvoiceMutation.isPending,
     isSending: sendInvoiceEmailMutation.isPending,
   };

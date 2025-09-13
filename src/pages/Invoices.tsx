@@ -90,12 +90,9 @@ export default function Invoices() {
     }
   };
 
-  const handleSendInvoiceEmail = async (invoiceId: string, customerName: string) => {
+  const handleSendInvoiceEmail = async (invoiceId: string, customerName: string, customerId: string) => {
     try {
-      await sendInvoiceEmail({ 
-        invoiceId, 
-        customerName 
-      });
+      await sendInvoiceEmail(invoiceId, customerName, customerId);
     } catch (error) {
       console.error("Error sending invoice email:", error);
     }
@@ -229,7 +226,7 @@ export default function Invoices() {
                   onDelete={setDeletingInvoice}
                   onPreview={setPreviewInvoice}
                   onShare={handleShareInvoice}
-                  onSendEmail={handleSendInvoiceEmail}
+                  onSendEmail={(invoiceId, customerName) => handleSendInvoiceEmail(invoiceId, customerName, invoice.customer_id)}
                   onMarkAsPaid={handleMarkAsPaid}
                 />
               ))}

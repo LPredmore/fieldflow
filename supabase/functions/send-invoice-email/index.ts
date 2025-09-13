@@ -172,10 +172,19 @@ serve(async (req) => {
       </html>
     `;
 
+    // Validate customer email is provided
+    if (!customerEmail) {
+      console.error('Customer email is required but not provided');
+      return new Response(
+        JSON.stringify({ error: 'Customer email is required' }),
+        { status: 400, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     // Send email
     const emailResponse = await resend.emails.send({
       from: `${businessName} <${businessEmail}>`,
-      to: [customerEmail || invoice.customer_email],
+      to: [customerEmail],
       subject: `Invoice ${invoice.invoice_number} - ${businessName}`,
       html: emailHtml,
     });
