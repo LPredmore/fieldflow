@@ -14,10 +14,13 @@ interface RRuleBuilderProps {
 }
 
 interface RRuleConfig {
-  freq: 'DAILY' | 'WEEKLY' | 'MONTHLY';
+  freq: 'WEEKLY' | 'MONTHLY';
   interval: number;
   byweekday?: number[];
   bymonthday?: number;
+  monthlyType?: 'day' | 'weekday';
+  bysetpos?: number;
+  monthlyWeekday?: number;
   until?: string;
 }
 
@@ -31,13 +34,39 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
       const rule = RRule.fromString(rruleString);
       const options = rule.options;
       
-      return {
-        freq: ['DAILY', 'WEEKLY', 'MONTHLY'][options.freq] as 'DAILY' | 'WEEKLY' | 'MONTHLY',
+      const freqMap = ['DAILY', 'WEEKLY', 'MONTHLY'];
+      const freqIndex = options.freq;
+      
+      // Convert numeric frequency to string, skipping DAILY (default to WEEKLY)
+      let freq: 'WEEKLY' | 'MONTHLY';
+      if (freqIndex === 0) { // DAILY
+        freq = 'WEEKLY';
+      } else if (freqIndex === 1) { // WEEKLY  
+        freq = 'WEEKLY';
+      } else { // MONTHLY
+        freq = 'MONTHLY';
+      }
+      
+      const config: RRuleConfig = {
+        freq,
         interval: options.interval || 1,
         byweekday: options.byweekday as number[] | undefined,
         bymonthday: options.bymonthday?.[0],
         until: options.until?.toISOString().split('T')[0]
       };
+      
+      // Detect monthly pattern type
+      if (config.freq === 'MONTHLY') {
+        if (options.bysetpos && options.byweekday) {
+          config.monthlyType = 'weekday';
+          config.bysetpos = Array.isArray(options.bysetpos) ? options.bysetpos[0] : options.bysetpos;
+          config.monthlyWeekday = Array.isArray(options.byweekday) ? options.byweekday[0] : options.byweekday;
+        } else {
+          config.monthlyType = 'day';
+        }
+      }
+      
+      return config;
     } catch {
       return { freq: 'WEEKLY', interval: 1 };
     }
@@ -46,14 +75,20 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
   const buildRRule = (config: RRuleConfig): string => {
     let rruleParts = [`FREQ=${config.freq}`, `INTERVAL=${config.interval}`];
     
-    if (config.byweekday && config.byweekday.length > 0) {
+    if (config.freq === 'WEEKLY' && config.byweekday && config.byweekday.length > 0) {
       const days = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
       const weekdays = config.byweekday.map(day => days[day]).join(',');
       rruleParts.push(`BYDAY=${weekdays}`);
     }
     
-    if (config.bymonthday) {
-      rruleParts.push(`BYMONTHDAY=${config.bymonthday}`);
+    if (config.freq === 'MONTHLY') {
+      if (config.monthlyType === 'weekday' && config.monthlyWeekday !== undefined && config.bysetpos !== undefined) {
+        const days = ['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'];
+        rruleParts.push(`BYDAY=${days[config.monthlyWeekday]}`);
+        rruleParts.push(`BYSETPOS=${config.bysetpos}`);
+      } else if (config.monthlyType === 'day' && config.bymonthday) {
+        rruleParts.push(`BYMONTHDAY=${config.bymonthday}`);
+      }
     }
     
     if (config.until) {
@@ -68,7 +103,29 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
   const config = parseRRule(rrule);
 
   const updateConfig = (updates: Partial<RRuleConfig>) => {
-    const newConfig = { ...config, ...updates };
+    let newConfig = { ...config, ...updates };
+    
+    // Clear incompatible fields when frequency changes
+    if (updates.freq && updates.freq !== config.freq) {
+      if (updates.freq === 'WEEKLY') {
+        // Clear monthly-specific fields
+        newConfig = {
+          ...newConfig,
+          bymonthday: undefined,
+          monthlyType: undefined,
+          bysetpos: undefined,
+          monthlyWeekday: undefined,
+        };
+      } else if (updates.freq === 'MONTHLY') {
+        // Clear weekly-specific fields and set default monthly type
+        newConfig = {
+          ...newConfig,
+          byweekday: undefined,
+          monthlyType: 'day',
+        };
+      }
+    }
+    
     onChange(buildRRule(newConfig));
   };
 
@@ -123,16 +180,15 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
             <Label>Frequency</Label>
             <Select 
               value={config.freq} 
-              onValueChange={(value: 'DAILY' | 'WEEKLY' | 'MONTHLY') => updateConfig({ freq: value })}
+              onValueChange={(value: 'WEEKLY' | 'MONTHLY') => updateConfig({ freq: value })}
             >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="DAILY">Daily</SelectItem>
-                <SelectItem value="WEEKLY">Weekly</SelectItem>
-                <SelectItem value="MONTHLY">Monthly</SelectItem>
-              </SelectContent>
+                      <SelectContent>
+                        <SelectItem value="WEEKLY">Weekly</SelectItem>
+                        <SelectItem value="MONTHLY">Monthly</SelectItem>
+                      </SelectContent>
             </Select>
           </div>
           
@@ -173,16 +229,78 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
         )}
 
         {config.freq === 'MONTHLY' && (
-          <div className="space-y-2">
-            <Label>Day of month</Label>
-            <Input
-              type="number"
-              min="1"
-              max="31"
-              value={config.bymonthday || ''}
-              onChange={(e) => updateConfig({ bymonthday: parseInt(e.target.value) || undefined })}
-              placeholder="Day of month"
-            />
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Monthly pattern</Label>
+              <Select 
+                value={config.monthlyType || 'day'} 
+                onValueChange={(value: 'day' | 'weekday') => updateConfig({ monthlyType: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="day">Day of month</SelectItem>
+                  <SelectItem value="weekday">Nth weekday of month</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {config.monthlyType === 'day' && (
+              <div className="space-y-2">
+                <Label>Day of month</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="31"
+                  value={config.bymonthday || ''}
+                  onChange={(e) => updateConfig({ bymonthday: parseInt(e.target.value) || undefined })}
+                  placeholder="Day of month"
+                />
+              </div>
+            )}
+
+            {config.monthlyType === 'weekday' && (
+              <div className="grid grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Position</Label>
+                  <Select 
+                    value={config.bysetpos?.toString() || ''} 
+                    onValueChange={(value) => updateConfig({ bysetpos: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select position" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="1">First</SelectItem>
+                      <SelectItem value="2">Second</SelectItem>
+                      <SelectItem value="3">Third</SelectItem>
+                      <SelectItem value="4">Fourth</SelectItem>
+                      <SelectItem value="-1">Last</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Day of week</Label>
+                  <Select 
+                    value={config.monthlyWeekday?.toString() || ''} 
+                    onValueChange={(value) => updateConfig({ monthlyWeekday: parseInt(value) })}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select day" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {weekdayOptions.map((day) => (
+                        <SelectItem key={day.value} value={day.value.toString()}>
+                          {day.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              </div>
+            )}
           </div>
         )}
 
