@@ -240,6 +240,8 @@ const Index = () => {
               </CardContent>
             </Card>
           </div>
+        </div>
+
       {/* Modals */}
       <QuoteForm
         open={isQuoteModalOpen}
