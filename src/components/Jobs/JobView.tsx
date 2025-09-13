@@ -1,10 +1,14 @@
+import { useState } from 'react';
 import { Job } from '@/hooks/useJobs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar, Clock, DollarSign, User, FileText, Wrench } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, Save, X } from 'lucide-react';
+import JobForm from '@/components/Jobs/JobForm';
 
 interface JobViewProps {
   job: Job;
+  onUpdate?: (jobId: string, data: any) => Promise<any>;
 }
 
 const getStatusColor = (status: string) => {
@@ -38,20 +42,63 @@ const getPriorityColor = (priority: string) => {
   }
 };
 
-export default function JobView({ job }: JobViewProps) {
+export default function JobView({ job, onUpdate }: JobViewProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleEdit = () => {
+    setIsEditing(true);
+  };
+
+  const handleCancelEdit = () => {
+    setIsEditing(false);
+  };
+
+  const handleSaveEdit = async (formData: any) => {
+    if (onUpdate) {
+      setIsLoading(true);
+      try {
+        await onUpdate(job.id, formData);
+        setIsEditing(false);
+      } catch (error) {
+        console.error('Failed to update job:', error);
+      } finally {
+        setIsLoading(false);
+      }
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <JobForm
+        job={job}
+        onSubmit={handleSaveEdit}
+        onCancel={handleCancelEdit}
+        loading={isLoading}
+      />
+    );
+  }
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h2 className="text-2xl font-bold text-foreground mb-2">{job.title}</h2>
-        <div className="flex flex-wrap gap-2">
-          <Badge className={getStatusColor(job.status)}>
-            {job.status.replace('_', ' ')}
-          </Badge>
-          <Badge className={getPriorityColor(job.priority)}>
-            {job.priority}
-          </Badge>
+      {/* Header with Edit Button */}
+      <div className="flex justify-between items-start">
+        <div>
+          <h2 className="text-2xl font-bold text-foreground mb-2">{job.title}</h2>
+          <div className="flex flex-wrap gap-2">
+            <Badge className={getStatusColor(job.status)}>
+              {job.status.replace('_', ' ')}
+            </Badge>
+            <Badge className={getPriorityColor(job.priority)}>
+              {job.priority}
+            </Badge>
+          </div>
         </div>
+        {onUpdate && (
+          <Button onClick={handleEdit} variant="outline" className="ml-4">
+            <Edit className="h-4 w-4 mr-2" />
+            Edit Job
+          </Button>
+        )}
       </div>
 
       {/* Basic Info */}
@@ -93,6 +140,12 @@ export default function JobView({ job }: JobViewProps) {
               <div>
                 <span className="text-sm text-muted-foreground">Estimated Duration:</span>
                 <p className="font-medium">{job.estimated_duration} hours</p>
+              </div>
+            )}
+            {job.complete_date && (
+              <div>
+                <span className="text-sm text-muted-foreground">Completion Date:</span>
+                <p className="font-medium">{new Date(job.complete_date).toLocaleDateString()}</p>
               </div>
             )}
           </CardContent>

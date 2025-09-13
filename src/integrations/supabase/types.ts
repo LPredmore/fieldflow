@@ -384,6 +384,8 @@ export type Database = {
           created_by_user_id: string
           customer_id: string
           customer_name: string
+          estimated_completion_date: string | null
+          estimated_start_date: string | null
           id: string
           is_emergency: boolean
           line_items: Json
@@ -407,6 +409,8 @@ export type Database = {
           created_by_user_id: string
           customer_id: string
           customer_name: string
+          estimated_completion_date?: string | null
+          estimated_start_date?: string | null
           id?: string
           is_emergency?: boolean
           line_items: Json
@@ -430,6 +434,8 @@ export type Database = {
           created_by_user_id?: string
           customer_id?: string
           customer_name?: string
+          estimated_completion_date?: string | null
+          estimated_start_date?: string | null
           id?: string
           is_emergency?: boolean
           line_items?: Json

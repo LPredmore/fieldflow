@@ -34,9 +34,10 @@ const formSchema = z.object({
   title: z.string().min(1, "Quote title is required"),
   status: z.enum(['draft', 'sent', 'accepted', 'declined']),
   valid_until: z.date().optional(),
+  estimated_start_date: z.date().optional(),
+  estimated_completion_date: z.date().optional(),
   is_emergency: z.boolean().default(false),
   line_items: z.array(lineItemSchema).min(1, "At least one line item is required"),
-  tax_rate: z.number().min(0, "Tax rate cannot be negative").max(100, "Tax rate cannot exceed 100%"),
   notes: z.string().optional(),
   terms: z.string().min(1, "Terms are required")
 });
@@ -49,9 +50,10 @@ interface Quote {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  estimated_start_date?: string;
+  estimated_completion_date?: string;
   is_emergency?: boolean;
   line_items: any[];
-  tax_rate?: number; // Make optional for backward compatibility
   notes?: string;
   terms: string;
   created_by_user_name?: string;
@@ -61,7 +63,6 @@ interface QuoteFormProps {
   onOpenChange: (open: boolean) => void;
   onSubmit: (data: FormData & {
     id?: string;
-    tax_rate: number;
   }) => void;
   quote?: Quote | null;
   title: string;
@@ -92,6 +93,8 @@ export function QuoteForm({
       title: "",
       status: 'draft',
       valid_until: addDays(new Date(), 30),
+      estimated_start_date: undefined,
+      estimated_completion_date: undefined,
       is_emergency: false,
       line_items: [{
         description: "",
@@ -100,7 +103,6 @@ export function QuoteForm({
         total: 0,
         taxable: true
       }],
-      tax_rate: 8.75,
       notes: "",
       terms: "Payment due within 30 days of acceptance"
     }
@@ -133,6 +135,8 @@ export function QuoteForm({
         title: quote.title,
         status: quote.status,
         valid_until: quote.valid_until ? new Date(quote.valid_until) : undefined,
+        estimated_start_date: quote.estimated_start_date ? new Date(quote.estimated_start_date) : undefined,
+        estimated_completion_date: quote.estimated_completion_date ? new Date(quote.estimated_completion_date) : undefined,
         is_emergency: quote.is_emergency || false,
         line_items: quote.line_items.map(item => ({
           description: item.description,
@@ -141,7 +145,6 @@ export function QuoteForm({
           total: item.total,
           taxable: item.taxable ?? true // Default to true for backward compatibility
         })),
-        tax_rate: quote.tax_rate || 8.75,
         notes: quote.notes || "",
         terms: quote.terms
       });
@@ -153,6 +156,8 @@ export function QuoteForm({
         title: "",
         status: 'draft',
         valid_until: addDays(new Date(), 30),
+        estimated_start_date: undefined,
+        estimated_completion_date: undefined,
         is_emergency: false,
         line_items: [{
           description: "",
@@ -161,7 +166,6 @@ export function QuoteForm({
           total: 0,
           taxable: true
         }],
-        tax_rate: 8.75,
         notes: "",
         terms: "Payment due within 30 days of acceptance"
       });
@@ -212,6 +216,8 @@ export function QuoteForm({
       ...data,
       line_items: updatedLineItems,
       valid_until: data.valid_until?.toISOString(),
+      estimated_start_date: data.estimated_start_date?.toISOString(),
+      estimated_completion_date: data.estimated_completion_date?.toISOString(),
       is_emergency: data.is_emergency || false
     };
     if (quote) {
@@ -264,14 +270,6 @@ export function QuoteForm({
     return sum + total;
   }, 0);
 
-  const taxableSubtotal = watchedLineItems.reduce((sum, item) => {
-    if (item.taxable === true) {
-      const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
-      return sum + total;
-    }
-    return sum;
-  }, 0);
-
   const nonTaxableSubtotal = watchedLineItems.reduce((sum, item) => {
     if (item.taxable === false) {
       const total = calculateLineItemTotal(item.quantity || 0, item.unit_price || 0);
@@ -284,9 +282,8 @@ export function QuoteForm({
   const emergencyAdjustment = isEmergency ? nonTaxableSubtotal * (emergencyMultiplier - 1) : 0;
   const adjustedSubtotal = subtotal + emergencyAdjustment;
   
-  const taxRate = form.watch("tax_rate") || 0;
-  const taxAmount = taxableSubtotal * (taxRate / 100);
-  const totalAmount = adjustedSubtotal + taxAmount;
+  // No tax calculations since we removed tax rate
+  const totalAmount = adjustedSubtotal;
   return <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
@@ -395,6 +392,48 @@ export function QuoteForm({
                         Emergency Service {settings?.service_settings?.emergency_rate_multiplier && `(${settings.service_settings.emergency_rate_multiplier}x rate)`}
                       </label>
                     </div>
+                    <FormMessage />
+                  </FormItem>} />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField control={form.control} name="estimated_start_date" render={({
+              field
+            }) => <FormItem className="flex flex-col">
+                    <FormLabel>Estimated Start Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>} />
+
+              <FormField control={form.control} name="estimated_completion_date" render={({
+              field
+            }) => <FormItem className="flex flex-col">
+                    <FormLabel>Estimated Completion Date</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button variant={"outline"} className={cn("w-full pl-3 text-left font-normal", !field.value && "text-muted-foreground")}>
+                            {field.value ? format(field.value, "PPP") : <span>Pick a date</span>}
+                            <CalendarIcon className="ml-auto h-4 w-4 opacity-50" />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar mode="single" selected={field.value} onSelect={field.onChange} disabled={date => date < new Date()} initialFocus className="pointer-events-auto" />
+                      </PopoverContent>
+                    </Popover>
                     <FormMessage />
                   </FormItem>} />
             </div>
@@ -517,9 +556,9 @@ export function QuoteForm({
                 <span>Subtotal:</span>
                 <span>${subtotal.toFixed(2)}</span>
               </div>
-              {taxableSubtotal > 0 && nonTaxableSubtotal > 0 && (
+              {nonTaxableSubtotal > 0 && (
                 <div className="flex justify-between text-xs text-muted-foreground">
-                  <span className="ml-4">Taxable: ${taxableSubtotal.toFixed(2)} • Non-taxable: ${nonTaxableSubtotal.toFixed(2)}</span>
+                  <span className="ml-4">Non-taxable items: ${nonTaxableSubtotal.toFixed(2)}</span>
                 </div>
               )}
               {isEmergency && emergencyAdjustment > 0 && (
@@ -528,38 +567,11 @@ export function QuoteForm({
                   <span>+${emergencyAdjustment.toFixed(2)}</span>
                 </div>
               )}
-              {taxAmount > 0 && (
-                <div className="flex justify-between text-sm">
-                  <span>Tax ({taxRate}% on taxable items):</span>
-                  <span>${taxAmount.toFixed(2)}</span>
-                </div>
-              )}
               <div className="flex justify-between font-bold text-lg text-green-600 border-t pt-2">
                 <span>Total:</span>
                 <span>${totalAmount.toFixed(2)}</span>
               </div>
             </div>
-
-            {/* Tax Rate Field */}
-            <FormField control={form.control} name="tax_rate" render={({
-            field
-          }) => (
-            <FormItem>
-              <FormLabel>Tax Rate (%)</FormLabel>
-              <FormControl>
-                <Input
-                  type="number"
-                  step="0.01"
-                  min="0"
-                  max="100"
-                  placeholder="8.75"
-                  {...field}
-                  onChange={(e) => field.onChange(parseFloat(e.target.value) || 0)}
-                />
-              </FormControl>
-              <FormMessage />
-            </FormItem>
-          )} />
 
             {/* Notes and Terms */}
             <FormField control={form.control} name="notes" render={({

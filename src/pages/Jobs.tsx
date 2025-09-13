@@ -180,14 +180,12 @@ export default function Jobs() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Job ID</TableHead>
                     <TableHead>Customer</TableHead>
                     <TableHead>Job Title</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Contractor</TableHead>
                     <TableHead>Value</TableHead>
-                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -201,64 +199,35 @@ export default function Jobs() {
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
-                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                       </TableRow>
                     ))
                   ) : filteredJobs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={8} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
                         {searchTerm ? `No jobs found matching "${searchTerm}"` : "No jobs found"}
                       </TableCell>
                     </TableRow>
                   ) : (
-                    filteredJobs.map((job) => (
-                      <TableRow key={job.id}>
-                        <TableCell className="font-medium">{job.id.slice(0, 8)}</TableCell>
-                        <TableCell>{job.customer_name}</TableCell>
-                        <TableCell>{job.title}</TableCell>
-                        <TableCell>
-                          <Badge className={`${getStatusColor(job.status.replace('_', ' '))}`}>
-                            {job.status.replace('_', ' ')}
-                          </Badge>
-                        </TableCell>
-                        <TableCell>{new Date(job.scheduled_date).toLocaleDateString()}</TableCell>
-                        <TableCell>{job.contractor_name || 'Unassigned'}</TableCell>
-                        <TableCell className="font-medium">
-                          {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-2">
-                            <Button 
-                              variant="ghost" 
-                              size="sm"
-                              onClick={() => handleViewJob(job)}
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            {canEditJob(job) && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm"
-                                onClick={() => handleEditJob(job)}
-                              >
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                            )}
-                            {isAdmin && (
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="text-destructive hover:text-destructive"
-                                onClick={() => handleDeleteJob(job.id)}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            )}
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                     filteredJobs.map((job) => (
+                       <TableRow 
+                         key={job.id} 
+                         className="cursor-pointer hover:bg-muted/50"
+                         onClick={() => handleViewJob(job)}
+                       >
+                         <TableCell>{job.customer_name}</TableCell>
+                         <TableCell>{job.title}</TableCell>
+                         <TableCell>
+                           <Badge className={`${getStatusColor(job.status.replace('_', ' '))}`}>
+                             {job.status.replace('_', ' ')}
+                           </Badge>
+                         </TableCell>
+                         <TableCell>{new Date(job.scheduled_date).toLocaleDateString()}</TableCell>
+                         <TableCell>{job.contractor_name || 'Unassigned'}</TableCell>
+                         <TableCell className="font-medium">
+                           {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
+                         </TableCell>
+                       </TableRow>
+                     ))
                   )}
                 </TableBody>
               </Table>
@@ -273,24 +242,25 @@ export default function Jobs() {
           <DialogHeader>
             <DialogTitle>Job Details</DialogTitle>
           </DialogHeader>
-          {viewJob && <JobView job={viewJob} />}
+          {viewJob && <JobView job={viewJob} onUpdate={updateJob} />}
         </DialogContent>
       </Dialog>
 
-      {/* Job Form Modal */}
-      <Dialog open={isFormOpen} onOpenChange={() => setIsFormOpen(false)}>
-        <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editJob ? 'Edit Job' : 'Create New Job'}</DialogTitle>
-          </DialogHeader>
-          <JobForm
-            job={editJob || undefined}
-            onSubmit={handleFormSubmit}
-            onCancel={() => setIsFormOpen(false)}
-            loading={formLoading}
-          />
-        </DialogContent>
-      </Dialog>
+      {/* Job Form Modal - Remove since editing is now in JobView */}
+      {isFormOpen && !viewJob && (
+        <Dialog open={isFormOpen} onOpenChange={() => setIsFormOpen(false)}>
+          <DialogContent className="max-w-4xl max-h-[80vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Create New Job</DialogTitle>
+            </DialogHeader>
+            <JobForm
+              onSubmit={handleFormSubmit}
+              onCancel={() => setIsFormOpen(false)}
+              loading={formLoading}
+            />
+          </DialogContent>
+        </Dialog>
+      )}
 
       {/* Delete Confirmation */}
       <AlertDialog open={!!deleteJobId} onOpenChange={() => setDeleteJobId(null)}>

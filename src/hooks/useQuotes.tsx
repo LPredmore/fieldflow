@@ -14,6 +14,7 @@ interface LineItem {
   taxable?: boolean;
 }
 
+// Update Quote interface to include new date fields
 interface Quote {
   id: string;
   quote_number: string;
@@ -22,6 +23,8 @@ interface Quote {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
   valid_until?: string;
+  estimated_start_date?: string;
+  estimated_completion_date?: string;
   sent_date?: string;
   is_emergency?: boolean;
   line_items: LineItem[];
@@ -44,9 +47,10 @@ interface QuoteFormData {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  estimated_start_date?: string;
+  estimated_completion_date?: string;
   is_emergency?: boolean;
   line_items: LineItem[];
-  tax_rate: number;
   notes?: string;
   terms: string;
 }
@@ -164,9 +168,9 @@ export const useQuotes = () => {
       const emergencyAdjustment = isEmergency ? nonTaxableAmount * (emergencyMultiplier - 1) : 0;
       const adjustedSubtotal = subtotal + emergencyAdjustment;
       
-      // Tax only on taxable items (no tax on emergency adjustment)
-      const taxAmount = taxableAmount * (formData.tax_rate / 100);
-      const totalAmount = adjustedSubtotal + taxAmount;
+      // No tax calculations since we removed tax rate
+      const taxAmount = 0;
+      const totalAmount = adjustedSubtotal;
 
       const quoteData = {
         quote_number: quoteNumber,
@@ -176,10 +180,12 @@ export const useQuotes = () => {
         status: formData.status,
         valid_until: formData.valid_until,
         is_emergency: formData.is_emergency || false,
+        estimated_start_date: formData.estimated_start_date,
+        estimated_completion_date: formData.estimated_completion_date,
         line_items: formData.line_items as any,
         subtotal: adjustedSubtotal,
-        tax_rate: formData.tax_rate,
-        tax_amount: taxAmount,
+        tax_rate: 0, // Set to 0 since we removed tax rate
+        tax_amount: 0, // Set to 0 since we removed tax calculations
         total_amount: totalAmount,
         notes: formData.notes,
         terms: formData.terms,
@@ -242,9 +248,9 @@ export const useQuotes = () => {
       const emergencyAdjustment = isEmergency ? nonTaxableAmount * (emergencyMultiplier - 1) : 0;
       const adjustedSubtotal = subtotal + emergencyAdjustment;
       
-      // Tax only on taxable items
-      const taxAmount = taxableAmount * (formData.tax_rate / 100);
-      const totalAmount = adjustedSubtotal + taxAmount;
+      // No tax calculations since we removed tax rate
+      const taxAmount = 0;
+      const totalAmount = adjustedSubtotal;
 
       const quoteData = {
         customer_id: formData.customer_id,
@@ -253,10 +259,12 @@ export const useQuotes = () => {
         status: formData.status,
         valid_until: formData.valid_until,
         is_emergency: formData.is_emergency || false,
+        estimated_start_date: formData.estimated_start_date,
+        estimated_completion_date: formData.estimated_completion_date,
         line_items: formData.line_items as any,
         subtotal: adjustedSubtotal,
-        tax_rate: formData.tax_rate,
-        tax_amount: taxAmount,
+        tax_rate: 0, // Set to 0 since we removed tax rate  
+        tax_amount: 0, // Set to 0 since we removed tax calculations
         total_amount: totalAmount,
         notes: formData.notes,
         terms: formData.terms,
@@ -478,7 +486,8 @@ export const useQuotes = () => {
         customer_name: quote.customer_name,
         status: 'scheduled' as const,
         priority: 'medium' as const,
-        scheduled_date: format(new Date(), 'yyyy-MM-dd'),
+        scheduled_date: quote.estimated_start_date || format(new Date(), 'yyyy-MM-dd'),
+        complete_date: quote.estimated_completion_date || null,
         service_type: 'general_maintenance' as const,
         description: `Job created from quote ${quote.quote_number}`,
         estimated_cost: quote.total_amount,
