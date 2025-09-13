@@ -32,6 +32,7 @@ interface Invoice {
   payment_instructions?: string;
   paypal_me_link?: string;
   venmo_handle?: string;
+  tenant_id: string;
 }
 
 interface BusinessSettings {
