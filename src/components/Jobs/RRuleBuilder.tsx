@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -72,27 +72,35 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
     onChange(buildRRule(newConfig));
   };
 
-  const getPreviewText = (): string => {
+  // Memoized preview text generation to prevent expensive recalculations
+  const previewText = useMemo((): string => {
     try {
-      if (!rrule) return 'No recurrence pattern set';
+      if (!rrule || !startDate) return 'No recurrence pattern set';
       
       const rule = RRule.fromString(rrule);
-      rule.options.dtstart = new Date(startDate);
+      const start = new Date(startDate);
       
-      const next3 = rule.all().slice(0, 3);
-      if (next3.length === 0) return 'No upcoming occurrences';
+      // Use rule.between() with a limited range instead of rule.all()
+      // This prevents generating infinite occurrences which causes freezing
+      const endRange = new Date(start);
+      endRange.setMonth(endRange.getMonth() + 6); // Look ahead 6 months max
       
-      return `Next occurrences: ${next3.map(date => 
+      const occurrences = rule.between(start, endRange, true).slice(0, 3);
+      
+      if (occurrences.length === 0) return 'No upcoming occurrences';
+      
+      return `Next occurrences: ${occurrences.map(date => 
         date.toLocaleDateString('en-US', { 
           weekday: 'short', 
           month: 'short', 
           day: 'numeric' 
         })
       ).join(', ')}`;
-    } catch {
+    } catch (error) {
+      console.warn('Error generating RRULE preview:', error);
       return 'Invalid recurrence pattern';
     }
-  };
+  }, [rrule, startDate]);
 
   const weekdayOptions = [
     { value: 0, label: 'Monday' },
@@ -189,7 +197,7 @@ export function RRuleBuilder({ rrule, onChange, startDate, className }: RRuleBui
 
         <div className="p-3 bg-muted rounded-md">
           <Label className="text-sm font-medium">Preview</Label>
-          <p className="text-sm text-muted-foreground mt-1">{getPreviewText()}</p>
+          <p className="text-sm text-muted-foreground mt-1">{previewText}</p>
         </div>
       </CardContent>
     </Card>
