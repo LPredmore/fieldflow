@@ -4,6 +4,8 @@ import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useJobs } from '@/hooks/useJobs';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
+import { convertFromUTC, toFullCalendarFormat } from '@/lib/timezoneUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,25 +14,50 @@ import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const Calendar = () => {
   const { unifiedJobs } = useJobs();
+  const userTimezone = useUserTimezone();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
   const [slotMinTime, setSlotMinTime] = useState('06:00:00');
   const [slotMaxTime, setSlotMaxTime] = useState('22:00:00');
 
   // Transform unified jobs into calendar events
   const calendarEvents = useMemo(() => {
+    if (!unifiedJobs || unifiedJobs.length === 0) {
+      console.log('No unified jobs available');
+      return [];
+    }
+    
+    console.log(`Processing ${unifiedJobs.length} jobs for calendar in timezone: ${userTimezone}`);
+    
     return unifiedJobs.map((job) => {
-      // UnifiedJob always has start_at and end_at (ISO datetime strings)
-      const startDate = job.start_at;
-      const endDate = job.end_at;
+      // Convert UTC datetime strings to user's timezone
+      const startDateUTC = new Date(job.start_at);
+      const endDateUTC = new Date(job.end_at);
       
-      // Parse the dates to check if they have time information
-      const startDateTime = new Date(startDate);
-      const endDateTime = new Date(endDate);
+      console.log(`Job ${job.title}:`, {
+        original_start: job.start_at,
+        original_end: job.end_at,
+        utc_start: startDateUTC.toISOString(),
+        utc_end: endDateUTC.toISOString()
+      });
       
-      // Check if the start time is exactly midnight (indicating all-day event)
-      const isAllDay = startDateTime.getHours() === 0 && 
-                      startDateTime.getMinutes() === 0 && 
-                      startDateTime.getSeconds() === 0;
+      // Convert to user's local timezone for display
+      const startInUserTZ = convertFromUTC(startDateUTC, userTimezone);
+      const endInUserTZ = convertFromUTC(endDateUTC, userTimezone);
+      
+      console.log(`Converted to ${userTimezone}:`, {
+        local_start: startInUserTZ.toString(),
+        local_end: endInUserTZ.toString()
+      });
+      
+      // Format for FullCalendar (as ISO strings)
+      const startForCalendar = toFullCalendarFormat(startInUserTZ);
+      const endForCalendar = toFullCalendarFormat(endInUserTZ);
+      
+      // Determine if this should be an all-day event
+      // Only consider it all-day if it's truly a full day event (24 hours or more)
+      const durationMs = endInUserTZ.getTime() - startInUserTZ.getTime();
+      const durationHours = durationMs / (1000 * 60 * 60);
+      const isAllDay = durationHours >= 24;
       
       // Determine color based on status
       let backgroundColor = '#3b82f6'; // blue for scheduled
@@ -51,11 +78,11 @@ const Calendar = () => {
           break;
       }
 
-      return {
+      const event = {
         id: job.id,
         title: job.title,
-        start: startDate,
-        end: endDate,
+        start: startForCalendar,
+        end: endForCalendar,
         allDay: calendarView === 'dayGridMonth' ? isAllDay : false, // In week view, always show timed events
         backgroundColor,
         borderColor,
@@ -68,8 +95,11 @@ const Calendar = () => {
           description: job.description
         }
       };
+      
+      console.log(`Final event for ${job.title}:`, event);
+      return event;
     });
-  }, [unifiedJobs, calendarView]);
+  }, [unifiedJobs, calendarView, userTimezone]);
 
   const handleEventClick = (eventInfo: any) => {
     const event = eventInfo.event;
@@ -175,7 +205,8 @@ const Calendar = () => {
                 height="auto"
                 dayMaxEventRows={3}
                 eventDisplay="block"
-                displayEventTime={calendarView === 'timeGridWeek'}
+                displayEventTime={true}
+                timeZone={userTimezone}
                 slotMinTime={calendarView === 'timeGridWeek' ? slotMinTime : '00:00:00'}
                 slotMaxTime={calendarView === 'timeGridWeek' ? slotMaxTime : '24:00:00'}
                 slotDuration="00:30:00"

@@ -4,6 +4,8 @@ import * as z from 'zod';
 import { Job } from '@/hooks/useJobs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
+import { combineDateTimeToUTC, splitUTCToLocalDateTime } from '@/lib/timezoneUtils';
 import { canSupervise } from '@/utils/permissionUtils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -63,8 +65,25 @@ interface ExtendedJob extends Job {
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
   const { user, userRole } = useAuth();
   const { permissions } = usePermissions();
+  const userTimezone = useUserTimezone();
   const canAssignContractors = canSupervise(permissions);
   const extendedJob = job as ExtendedJob | undefined;
+
+  // Convert existing job times from UTC to user's timezone for display
+  const getInitialTimeValues = () => {
+    if (job?.scheduled_time && job?.scheduled_date) {
+      // Combine scheduled_date and scheduled_time to get local values
+      const utcDateTime = new Date(`${job.scheduled_date}T${job.scheduled_time}`);
+      const { date, time } = splitUTCToLocalDateTime(utcDateTime, userTimezone);
+      return { date, time };
+    }
+    return { 
+      date: new Date().toISOString().split('T')[0], 
+      time: '' 
+    };
+  };
+
+  const initialValues = getInitialTimeValues();
 
   const form = useForm<JobFormData>({
     resolver: zodResolver(jobSchema),
@@ -75,7 +94,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       customer_name: job?.customer_name || '',
       status: job?.status || 'scheduled',
       priority: job?.priority || 'medium',
-      scheduled_date: job?.scheduled_date || new Date().toISOString().split('T')[0], // Default to today
+      scheduled_date: initialValues.date,
       complete_date: job?.complete_date || undefined, // Don't use empty string
       assigned_to_user_id: job?.assigned_to_user_id || user?.id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
@@ -83,12 +102,12 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       actual_cost: job?.actual_cost || undefined,
       additional_info: job?.additional_info || '',
       completion_notes: job?.completion_notes || '',
-      start_time: extendedJob?.scheduled_time || '',
+      start_time: initialValues.time,
       end_time: '',
       is_recurring: extendedJob?.is_recurring || false,
       rrule: extendedJob?.rrule || 'FREQ=WEEKLY;INTERVAL=1',
       until_date: extendedJob?.until_date || undefined, // Don't use empty string
-      timezone: extendedJob?.timezone || 'America/New_York',
+      timezone: userTimezone,
     },
   });
 
@@ -97,6 +116,23 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
   const handleSubmit = async (data: JobFormData) => {
     try {
       console.log('Form data being submitted:', data);
+      console.log('User timezone:', userTimezone);
+      
+      // Convert local date/time to UTC for storage
+      let scheduledTimeUTC = null;
+      let scheduledEndTimeUTC = null;
+      
+      if (data.start_time) {
+        const utcStart = combineDateTimeToUTC(data.scheduled_date, data.start_time, userTimezone);
+        scheduledTimeUTC = utcStart.toISOString();
+        console.log(`Converted start time: ${data.scheduled_date} ${data.start_time} (${userTimezone}) -> ${scheduledTimeUTC}`);
+      }
+      
+      if (data.end_time) {
+        const utcEnd = combineDateTimeToUTC(data.scheduled_date, data.end_time, userTimezone);
+        scheduledEndTimeUTC = utcEnd.toISOString();
+        console.log(`Converted end time: ${data.scheduled_date} ${data.end_time} (${userTimezone}) -> ${scheduledEndTimeUTC}`);
+      }
       
       // Clean up data for database submission
       const cleanedData = {
@@ -109,12 +145,17 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
         // Remove any undefined or empty string values for numeric fields
         estimated_cost: data.estimated_cost || null,
         actual_cost: data.actual_cost || null,
-        // Handle time fields
+        // Handle time fields - store as UTC
+        scheduled_time_utc: scheduledTimeUTC,
+        scheduled_end_time_utc: scheduledEndTimeUTC,
+        // Keep original fields for backward compatibility
         scheduled_time: data.start_time || null,
         scheduled_end_time: data.end_time || null,
+        // Include timezone for recurring jobs
+        timezone: userTimezone,
       };
       
-      console.log('Cleaned form data:', cleanedData);
+      console.log('Cleaned form data with timezone conversion:', cleanedData);
       await onSubmit(cleanedData);
     } catch (error) {
       console.error('Form submission error:', error);

@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
 import { useJobSeries, CreateJobSeriesData } from './useJobSeries';
+import { useUserTimezone } from './useUserTimezone';
 
 export interface Job {
   id: string;
@@ -66,6 +67,7 @@ export function useJobs() {
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
   const { createJobSeries } = useJobSeries();
+  const userTimezone = useUserTimezone(); // Get user's timezone
 
   const fetchJobs = async () => {
     if (!user || !tenantId) return;
@@ -114,7 +116,8 @@ export function useJobs() {
           body: {
             startDate: startDate.toISOString(),
             endDate: endDate.toISOString(),
-            tenantId: tenantId
+            tenantId: tenantId,
+            timezone: userTimezone // Pass user's timezone
           }
         }
       );
@@ -221,8 +224,9 @@ export function useJobs() {
         service_type: jobData.service_type,
         description: jobData.description,
         scheduled_date: jobData.scheduled_date,
-        scheduled_time: jobData.scheduled_time, // Add start time field
-        scheduled_end_time: jobData.scheduled_end_time, // Add end time field
+        // Use UTC times if available, otherwise fall back to local times
+        scheduled_time: jobData.scheduled_time_utc || jobData.scheduled_time, 
+        scheduled_end_time: jobData.scheduled_end_time_utc || jobData.scheduled_end_time,
         complete_date: jobData.complete_date || null, // Ensure null instead of empty string
         status: jobData.status || 'scheduled',
         priority: jobData.priority || 'medium',
