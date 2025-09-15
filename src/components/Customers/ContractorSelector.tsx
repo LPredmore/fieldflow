@@ -65,15 +65,23 @@ export function ContractorSelector({ value, onValueChange, disabled }: Contracto
     );
   }
 
+  const handleValueChange = (newValue: string) => {
+    // Convert "unassigned" to empty string for the parent component
+    onValueChange(newValue === "unassigned" ? "" : newValue);
+  };
+
+  // Convert empty/null value to "unassigned" for the select component
+  const selectValue = value ? value : "unassigned";
+
   return (
-    <Select onValueChange={onValueChange} value={value || ""} disabled={disabled}>
+    <Select onValueChange={handleValueChange} value={selectValue} disabled={disabled}>
       <FormControl>
         <SelectTrigger>
           <SelectValue placeholder="Select assigned contractor" />
         </SelectTrigger>
       </FormControl>
       <SelectContent>
-        <SelectItem value="">
+        <SelectItem value="unassigned">
           <div className="flex items-center gap-2">
             <User className="h-4 w-4 text-muted-foreground" />
             <span>Unassigned</span>
