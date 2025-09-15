@@ -26,7 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useJobs } from "@/hooks/useJobs";
-import { useUnifiedJobs, UnifiedJob } from "@/hooks/useUnifiedJobs";
+import { useJobManagement, ManagedJob } from "@/hooks/useJobManagement";
 import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
@@ -50,20 +50,20 @@ const getStatusColor = (status: string) => {
 
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewJob, setViewJob] = useState<UnifiedJob | null>(null);
-  const [editJob, setEditJob] = useState<UnifiedJob | null>(null);
+  const [viewJob, setViewJob] = useState<ManagedJob | null>(null);
+  const [editJob, setEditJob] = useState<ManagedJob | null>(null);
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   
   const { createJob } = useJobs(); // Keep for creating new jobs
-  const { unifiedJobs, loading, updateJob, deleteJob } = useUnifiedJobs();
+  const { allManagedJobs, loading, updateOneTimeJob, updateJobSeries, deleteOneTimeJob, deleteJobSeries } = useJobManagement();
   const { userRole } = useAuth();
   const { toast } = useToast();
   const isAdmin = userRole === 'business_admin';
 
   // Filter jobs based on search term
-  const filteredJobs = unifiedJobs.filter(job => 
+  const filteredJobs = allManagedJobs.filter(job => 
     job.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     job.service_type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -74,12 +74,12 @@ export default function Jobs() {
     setIsFormOpen(true);
   };
 
-  const handleEditJob = (job: UnifiedJob) => {
+  const handleEditJob = (job: ManagedJob) => {
     setEditJob(job);
     setIsFormOpen(true);
   };
 
-  const handleViewJob = (job: UnifiedJob) => {
+  const handleViewJob = (job: ManagedJob) => {
     setViewJob(job);
   };
 
@@ -90,8 +90,15 @@ export default function Jobs() {
   const confirmDelete = async () => {
     if (!deleteJobId) return;
     
+    const job = allManagedJobs.find(j => j.id === deleteJobId);
+    if (!job) return;
+    
     try {
-      await deleteJob(deleteJobId);
+      if (job.job_type === 'one_time') {
+        await deleteOneTimeJob(deleteJobId);
+      } else {
+        await deleteJobSeries(deleteJobId);
+      }
       setDeleteJobId(null);
     } catch (error: any) {
       toast({
@@ -106,7 +113,11 @@ export default function Jobs() {
     try {
       setFormLoading(true);
       if (editJob) {
-        await updateJob(editJob.id, data);
+        if (editJob.job_type === 'one_time') {
+          await updateOneTimeJob(editJob.id, data);
+        } else {
+          await updateJobSeries(editJob.id, data);
+        }
       } else {
         await createJob(data);
       }
@@ -123,9 +134,41 @@ export default function Jobs() {
     }
   };
 
-  const canEditJob = (job: UnifiedJob) => {
+  const canEditJob = (job: ManagedJob) => {
     if (isAdmin) return true;
-    return job.assigned_to_user_id === unifiedJobs[0]?.tenant_id;
+    return job.assigned_to_user_id === allManagedJobs[0]?.tenant_id;
+  };
+
+  const getJobStatus = (job: ManagedJob) => {
+    if (job.job_type === 'job_series') {
+      return job.active ? 'Active' : 'Inactive';
+    }
+    return job.status.replace('_', ' ');
+  };
+
+  const getJobStatusColor = (job: ManagedJob) => {
+    if (job.job_type === 'job_series') {
+      return job.active 
+        ? 'bg-success text-success-foreground' 
+        : 'bg-muted text-muted-foreground';
+    }
+    return getStatusColor(job.status);
+  };
+
+  const getJobDate = (job: ManagedJob) => {
+    if (job.job_type === 'job_series') {
+      return job.next_occurrence_date 
+        ? new Date(job.next_occurrence_date).toLocaleDateString()
+        : 'No upcoming';
+    }
+    return new Date(job.scheduled_date).toLocaleDateString();
+  };
+
+  const getJobValue = (job: ManagedJob) => {
+    if (job.job_type === 'job_series') {
+      return job.estimated_cost ? `~$${job.estimated_cost}/occurrence` : '-';
+    }
+    return job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-';
   };
 
   return (
@@ -222,33 +265,33 @@ export default function Jobs() {
                          <TableCell>
                            <div className="flex items-center gap-2">
                              {job.title}
-                             {job.job_type === 'recurring_instance' && (
+                             {job.job_type === 'job_series' && (
                                <Badge variant="secondary" className="text-xs">
-                                 Recurring
+                                 Series ({job.total_occurrences} total, {job.completed_occurrences} completed)
                                </Badge>
                              )}
                            </div>
                          </TableCell>
                          <TableCell>
                            <Badge variant="outline" className="text-xs">
-                             {job.job_type === 'one_time' ? 'One-time' : 'Recurring'}
+                             {job.job_type === 'one_time' ? 'One-time' : 'Series'}
                            </Badge>
                          </TableCell>
                          <TableCell>
-                           <Badge className={`${getStatusColor(job.status.replace('_', ' '))}`}>
-                             {job.status.replace('_', ' ')}
+                           <Badge className={`${getJobStatusColor(job)}`}>
+                             {getJobStatus(job)}
                            </Badge>
                          </TableCell>
-                         <TableCell>{new Date(job.start_at).toLocaleDateString()}</TableCell>
+                         <TableCell>{getJobDate(job)}</TableCell>
                          <TableCell>{job.contractor_name || 'Unassigned'}</TableCell>
                          <TableCell className="font-medium">
-                           {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
+                           {getJobValue(job)}
                          </TableCell>
                        </TableRow>
                      ))
-                  )}
-                </TableBody>
-              </Table>
+                   )}
+                 </TableBody>
+               </Table>
             </CardContent>
           </Card>
         </div>
@@ -260,7 +303,12 @@ export default function Jobs() {
           <DialogHeader>
             <DialogTitle>Job Details</DialogTitle>
           </DialogHeader>
-          {viewJob && <JobView job={viewJob} onUpdate={updateJob} />}
+          {viewJob && (
+            <JobView 
+              job={viewJob} 
+              onUpdate={viewJob.job_type === 'one_time' ? updateOneTimeJob : updateJobSeries} 
+            />
+          )}
         </DialogContent>
       </Dialog>
 

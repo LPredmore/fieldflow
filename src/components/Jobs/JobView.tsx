@@ -1,14 +1,16 @@
 import { useState } from 'react';
 import { UnifiedJob } from '@/hooks/useUnifiedJobs';
+import { JobSeries, OneTimeJob } from '@/hooks/useJobManagement';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangle } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
+import JobSeriesView from '@/components/Jobs/JobSeriesView';
 
 interface JobViewProps {
-  job: UnifiedJob;
+  job: UnifiedJob | OneTimeJob | JobSeries;
   onUpdate?: (jobId: string, data: any) => Promise<any>;
 }
 
@@ -47,6 +49,14 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
+  // If it's a job series, use the specialized view
+  if ('job_type' in job && job.job_type === 'job_series') {
+    return <JobSeriesView jobSeries={job as JobSeries} onUpdate={onUpdate} />;
+  }
+
+  // For one-time jobs and unified jobs, use the existing logic
+  const unifiedJob = job as UnifiedJob | OneTimeJob;
+
   const handleEdit = () => {
     setIsEditing(true);
   };
@@ -61,8 +71,10 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
       try {
         // Show warning for recurring job cancellation
         if (formData.status === 'cancelled' && 
-            job.job_type === 'recurring_instance' && 
-            job.status !== 'cancelled') {
+            'job_type' in unifiedJob &&
+            unifiedJob.job_type === 'recurring_instance' && 
+            'status' in unifiedJob &&
+            unifiedJob.status !== 'cancelled') {
           const confirmCancel = window.confirm(
             'Cancelling this recurring job will also cancel all future occurrences in the series. Completed jobs will remain unchanged. Do you want to continue?'
           );
@@ -72,7 +84,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           }
         }
         
-        await onUpdate(job.id, formData);
+        await onUpdate(unifiedJob.id, formData);
         setIsEditing(false);
       } catch (error) {
         console.error('Failed to update job:', error);
@@ -83,19 +95,54 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   };
 
   if (isEditing) {
+    // Convert OneTimeJob to UnifiedJob format if needed
+    const jobForForm = 'start_at' in unifiedJob ? unifiedJob : {
+      ...unifiedJob,
+      start_at: `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_time || '08:00'}:00.000Z`,
+      end_at: unifiedJob.scheduled_end_time 
+        ? `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_end_time}:00.000Z`
+        : `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_time || '09:00'}:00.000Z`,
+      job_type: 'one_time' as const
+    };
+
     return (
       <JobForm
-        job={job}
+        job={jobForForm}
         onSubmit={handleSaveEdit}
         onCancel={handleCancelEdit}
         loading={isLoading}
       />
     );
   }
+
+  // Helper function to safely get start_at for display
+  const getStartDateTime = () => {
+    if ('start_at' in unifiedJob) {
+      return unifiedJob.start_at;
+    }
+    if ('scheduled_date' in unifiedJob) {
+      const time = unifiedJob.scheduled_time || '08:00';
+      return `${unifiedJob.scheduled_date}T${time}:00.000Z`;
+    }
+    return new Date().toISOString();
+  };
+
+  // Helper function to safely get end_at for display
+  const getEndDateTime = () => {
+    if ('end_at' in unifiedJob) {
+      return unifiedJob.end_at;
+    }
+    if ('scheduled_date' in unifiedJob) {
+      const time = unifiedJob.scheduled_end_time || unifiedJob.scheduled_time || '09:00';
+      return `${unifiedJob.scheduled_date}T${time}:00.000Z`;
+    }
+    return new Date().toISOString();
+  };
+
   return (
     <div className="space-y-6">
       {/* Job Type Alert for Recurring Jobs */}
-      {job.job_type === 'recurring_instance' && (
+      {'job_type' in unifiedJob && unifiedJob.job_type === 'recurring_instance' && (
         <Alert>
           <AlertTriangle className="h-4 w-4" />
           <AlertDescription>
@@ -108,17 +155,19 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
       <div className="flex justify-between items-start">
         <div>
           <div className="flex items-center gap-2 mb-2">
-            <h2 className="text-2xl font-bold text-foreground">{job.title}</h2>
-            {job.job_type === 'recurring_instance' && (
+            <h2 className="text-2xl font-bold text-foreground">{unifiedJob.title}</h2>
+            {'job_type' in unifiedJob && unifiedJob.job_type === 'recurring_instance' && (
               <Badge variant="secondary">Recurring</Badge>
             )}
           </div>
           <div className="flex flex-wrap gap-2">
-            <Badge className={getStatusColor(job.status)}>
-              {job.status.replace('_', ' ')}
-            </Badge>
-            <Badge className={getPriorityColor(job.priority)}>
-              {job.priority}
+            {'status' in unifiedJob && (
+              <Badge className={getStatusColor(unifiedJob.status)}>
+                {unifiedJob.status.replace('_', ' ')}
+              </Badge>
+            )}
+            <Badge className={getPriorityColor(unifiedJob.priority)}>
+              {unifiedJob.priority}
             </Badge>
           </div>
         </div>
@@ -142,7 +191,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Customer:</span>
-              <p className="font-medium">{job.customer_name}</p>
+              <p className="font-medium">{unifiedJob.customer_name}</p>
             </div>
           </CardContent>
         </Card>
@@ -157,28 +206,28 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Start Date & Time:</span>
-              <p className="font-medium">{new Date(job.start_at).toLocaleString()}</p>
+              <p className="font-medium">{new Date(getStartDateTime()).toLocaleString()}</p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">End Date & Time:</span>
-              <p className="font-medium">{new Date(job.end_at).toLocaleString()}</p>
+              <p className="font-medium">{new Date(getEndDateTime()).toLocaleString()}</p>
             </div>
-            {job.estimated_duration && (
+            {'estimated_duration' in unifiedJob && unifiedJob.estimated_duration && (
               <div>
                 <span className="text-sm text-muted-foreground">Estimated Duration:</span>
-                <p className="font-medium">{job.estimated_duration} hours</p>
+                <p className="font-medium">{unifiedJob.estimated_duration} hours</p>
               </div>
             )}
-            {job.complete_date && (
+            {'complete_date' in unifiedJob && unifiedJob.complete_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Completion Date:</span>
-                <p className="font-medium">{new Date(job.complete_date).toLocaleDateString()}</p>
+                <p className="font-medium">{new Date(unifiedJob.complete_date).toLocaleDateString()}</p>
               </div>
             )}
-            {job.series_id && (
+            {'series_id' in unifiedJob && unifiedJob.series_id && (
               <div>
                 <span className="text-sm text-muted-foreground">Series ID:</span>
-                <p className="font-medium font-mono text-xs">{job.series_id.slice(0, 8)}...</p>
+                <p className="font-medium font-mono text-xs">{unifiedJob.series_id.slice(0, 8)}...</p>
               </div>
             )}
           </CardContent>
@@ -197,12 +246,12 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Service Type:</span>
-              <p className="font-medium">{job.service_type.replace('_', ' ')}</p>
+              <p className="font-medium">{unifiedJob.service_type.replace('_', ' ')}</p>
             </div>
-            {job.description && (
+            {unifiedJob.description && (
               <div>
                 <span className="text-sm text-muted-foreground">Description:</span>
-                <p className="font-medium">{job.description}</p>
+                <p className="font-medium">{unifiedJob.description}</p>
               </div>
             )}
           </CardContent>
@@ -216,16 +265,16 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
-            {job.estimated_cost && (
+            {unifiedJob.estimated_cost && (
               <div>
                 <span className="text-sm text-muted-foreground">Estimated Cost:</span>
-                <p className="font-medium">${job.estimated_cost}</p>
+                <p className="font-medium">${unifiedJob.estimated_cost}</p>
               </div>
             )}
-            {job.actual_cost && (
+            {'actual_cost' in unifiedJob && unifiedJob.actual_cost && (
               <div>
                 <span className="text-sm text-muted-foreground">Actual Cost:</span>
-                <p className="font-medium">${job.actual_cost}</p>
+                <p className="font-medium">${unifiedJob.actual_cost}</p>
               </div>
             )}
           </CardContent>
@@ -245,13 +294,13 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             <div>
               <span className="text-sm text-muted-foreground">Assigned Contractor:</span>
               <p className="font-medium">
-                {job.contractor_name || 'Unassigned'}
+                {unifiedJob.contractor_name || 'Unassigned'}
               </p>
             </div>
           </CardContent>
         </Card>
 
-        {job.additional_info && (
+        {'additional_info' in unifiedJob && unifiedJob.additional_info && (
           <Card>
             <CardHeader className="pb-3">
               <CardTitle className="text-lg flex items-center gap-2">
@@ -261,7 +310,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             </CardHeader>
             <CardContent>
               <p className="text-sm whitespace-pre-wrap">
-                {job.additional_info}
+                {unifiedJob.additional_info}
               </p>
             </CardContent>
           </Card>
@@ -269,7 +318,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
       </div>
 
       {/* Completion Notes */}
-      {job.completion_notes && (
+      {'completion_notes' in unifiedJob && unifiedJob.completion_notes && (
         <Card>
           <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
@@ -278,7 +327,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <p className="text-sm">{job.completion_notes}</p>
+            <p className="text-sm">{unifiedJob.completion_notes}</p>
           </CardContent>
         </Card>
       )}
@@ -294,17 +343,17 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         <CardContent className="space-y-2">
           <div>
             <span className="text-sm text-muted-foreground">Created:</span>
-            <p className="font-medium">{new Date(job.created_at).toLocaleString()}</p>
+            <p className="font-medium">{new Date(unifiedJob.created_at).toLocaleString()}</p>
           </div>
-          {job.updated_at && (
+          {unifiedJob.updated_at && (
             <div>
               <span className="text-sm text-muted-foreground">Last Updated:</span>
-              <p className="font-medium">{new Date(job.updated_at).toLocaleString()}</p>
+              <p className="font-medium">{new Date(unifiedJob.updated_at).toLocaleString()}</p>
             </div>
           )}
           <div>
             <span className="text-sm text-muted-foreground">Job ID:</span>
-            <p className="font-medium font-mono">{job.id}</p>
+            <p className="font-medium font-mono">{unifiedJob.id}</p>
           </div>
         </CardContent>
       </Card>
