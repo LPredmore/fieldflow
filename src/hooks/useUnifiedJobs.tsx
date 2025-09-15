@@ -91,72 +91,134 @@ export function useUnifiedJobs() {
         return;
       }
 
-      // Transform one-time jobs to unified format
-      const transformedOneTimeJobs: UnifiedJob[] = (oneTimeJobs || []).map(job => ({
-        id: job.id,
-        created_at: job.created_at,
-        updated_at: job.updated_at,
-        tenant_id: job.tenant_id,
-        created_by_user_id: job.created_by_user_id,
-        customer_id: job.customer_id,
-        customer_name: job.customer_name,
-        title: job.title,
-        description: job.description,
-        status: job.status,
-        priority: job.priority,
-        assigned_to_user_id: job.assigned_to_user_id,
-        service_type: job.service_type,
-        estimated_cost: job.estimated_cost,
-        actual_cost: job.actual_cost,
-        start_at: `${job.scheduled_date}T${job.scheduled_time || '08:00'}:00.000Z`,
-        end_at: job.scheduled_end_time 
-          ? `${job.scheduled_date}T${job.scheduled_end_time}:00.000Z`
-          : `${job.scheduled_date}T${job.scheduled_time || '09:00'}:00.000Z`,
-        job_type: 'one_time' as const,
-        completion_notes: job.completion_notes,
-        additional_info: job.additional_info,
-        contractor_name: job.assigned_contractor?.full_name || 
-                         job.assigned_contractor?.email?.split('@')[0] || 
-                         (job.assigned_to_user_id ? 'Unnamed User' : undefined),
-        // Backward compatibility fields
-        scheduled_date: job.scheduled_date,
-        scheduled_time: job.scheduled_time,
-        complete_date: job.complete_date,
-        estimated_duration: job.estimated_duration,
-      }));
+      // Filter out jobs with null/undefined scheduled_date and transform one-time jobs to unified format
+      const transformedOneTimeJobs: UnifiedJob[] = (oneTimeJobs || [])
+        .filter(job => job.scheduled_date && job.scheduled_date.trim() !== '')
+        .map(job => {
+          try {
+            // Handle scheduled_time - it might be a full timestamp or just time
+            let startTime = '08:00';
+            let endTime = '09:00';
+            
+            if (job.scheduled_time) {
+              if (job.scheduled_time.includes('T')) {
+                // scheduled_time is a full timestamp, extract just the time part
+                const timeDate = new Date(job.scheduled_time);
+                if (!isNaN(timeDate.getTime())) {
+                  startTime = timeDate.toTimeString().substring(0, 5); // HH:mm format
+                  // Add 1 hour for end time
+                  const endTimeDate = new Date(timeDate.getTime() + 60 * 60 * 1000);
+                  endTime = endTimeDate.toTimeString().substring(0, 5);
+                }
+              } else {
+                // scheduled_time is just time (HH:mm format)
+                startTime = job.scheduled_time;
+                const [hours, minutes] = startTime.split(':');
+                const endHour = (parseInt(hours) + 1).toString().padStart(2, '0');
+                endTime = `${endHour}:${minutes}`;
+              }
+            }
 
-      // Transform job occurrences to unified format
-      const transformedJobOccurrences: UnifiedJob[] = (jobOccurrences || []).map(occurrence => ({
-        id: occurrence.id,
-        created_at: occurrence.created_at,
-        updated_at: occurrence.updated_at,
-        tenant_id: occurrence.tenant_id,
-        created_by_user_id: user?.id || '', // Use current user as creator for occurrences
-        customer_id: occurrence.customer_id,
-        customer_name: occurrence.customer_name,
-        title: occurrence.override_title || occurrence.job_series?.title || 'Recurring Job',
-        description: occurrence.override_description || occurrence.job_series?.description,
-        status: occurrence.status,
-        priority: occurrence.priority,
-        assigned_to_user_id: occurrence.assigned_to_user_id,
-        service_type: occurrence.job_series?.service_type || 'general_maintenance',
-        estimated_cost: occurrence.override_estimated_cost || occurrence.job_series?.estimated_cost,
-        actual_cost: occurrence.actual_cost,
-        start_at: occurrence.start_at,
-        end_at: occurrence.end_at,
-        series_id: occurrence.series_id,
-        job_type: 'recurring_instance' as const,
-        completion_notes: occurrence.completion_notes,
-        additional_info: occurrence.job_series?.notes,
-        // Backward compatibility fields
-        scheduled_date: occurrence.start_at.split('T')[0],
-        scheduled_time: new Date(occurrence.start_at).toLocaleTimeString('en-US', { 
-          hour12: false, 
-          hour: '2-digit', 
-          minute: '2-digit' 
-        }),
-        complete_date: occurrence.status === 'completed' ? occurrence.start_at.split('T')[0] : undefined
-      }));
+            // Handle scheduled_end_time similarly
+            if (job.scheduled_end_time) {
+              if (job.scheduled_end_time.includes('T')) {
+                const endTimeDate = new Date(job.scheduled_end_time);
+                if (!isNaN(endTimeDate.getTime())) {
+                  endTime = endTimeDate.toTimeString().substring(0, 5);
+                }
+              } else {
+                endTime = job.scheduled_end_time;
+              }
+            }
+
+            return {
+              id: job.id,
+              created_at: job.created_at,
+              updated_at: job.updated_at,
+              tenant_id: job.tenant_id,
+              created_by_user_id: job.created_by_user_id,
+              customer_id: job.customer_id,
+              customer_name: job.customer_name,
+              title: job.title,
+              description: job.description,
+              status: job.status,
+              priority: job.priority,
+              assigned_to_user_id: job.assigned_to_user_id,
+              service_type: job.service_type,
+              estimated_cost: job.estimated_cost,
+              actual_cost: job.actual_cost,
+              start_at: `${job.scheduled_date}T${startTime}:00.000Z`,
+              end_at: `${job.scheduled_date}T${endTime}:00.000Z`,
+              job_type: 'one_time' as const,
+              completion_notes: job.completion_notes,
+              additional_info: job.additional_info,
+              contractor_name: job.assigned_contractor?.full_name || 
+                               job.assigned_contractor?.email?.split('@')[0] || 
+                               (job.assigned_to_user_id ? 'Unnamed User' : undefined),
+              // Backward compatibility fields
+              scheduled_date: job.scheduled_date,
+              scheduled_time: startTime,
+              complete_date: job.complete_date,
+              estimated_duration: job.estimated_duration,
+            };
+          } catch (error) {
+            console.error('Error transforming job:', job.id, error);
+            return null;
+          }
+        })
+        .filter((job): job is NonNullable<typeof job> => job !== null);
+
+      // Filter out job occurrences with invalid dates and transform to unified format
+      const transformedJobOccurrences: UnifiedJob[] = (jobOccurrences || [])
+        .filter(occurrence => occurrence.start_at && occurrence.end_at)
+        .map(occurrence => {
+          try {
+            // Validate that start_at and end_at are valid dates
+            const startDate = new Date(occurrence.start_at);
+            const endDate = new Date(occurrence.end_at);
+            
+            if (isNaN(startDate.getTime()) || isNaN(endDate.getTime())) {
+              console.warn('Invalid date in occurrence:', occurrence.id, occurrence.start_at, occurrence.end_at);
+              return null;
+            }
+
+            return {
+              id: occurrence.id,
+              created_at: occurrence.created_at,
+              updated_at: occurrence.updated_at,
+              tenant_id: occurrence.tenant_id,
+              created_by_user_id: user?.id || '', // Use current user as creator for occurrences
+              customer_id: occurrence.customer_id,
+              customer_name: occurrence.customer_name,
+              title: occurrence.override_title || occurrence.job_series?.title || 'Recurring Job',
+              description: occurrence.override_description || occurrence.job_series?.description,
+              status: occurrence.status,
+              priority: occurrence.priority,
+              assigned_to_user_id: occurrence.assigned_to_user_id,
+              service_type: occurrence.job_series?.service_type || 'general_maintenance',
+              estimated_cost: occurrence.override_estimated_cost || occurrence.job_series?.estimated_cost,
+              actual_cost: occurrence.actual_cost,
+              start_at: occurrence.start_at,
+              end_at: occurrence.end_at,
+              series_id: occurrence.series_id,
+              job_type: 'recurring_instance' as const,
+              completion_notes: occurrence.completion_notes,
+              additional_info: occurrence.job_series?.notes,
+              // Backward compatibility fields
+              scheduled_date: occurrence.start_at.split('T')[0],
+              scheduled_time: startDate.toLocaleTimeString('en-US', { 
+                hour12: false, 
+                hour: '2-digit', 
+                minute: '2-digit' 
+              }),
+              complete_date: occurrence.status === 'completed' ? occurrence.start_at.split('T')[0] : undefined
+            };
+          } catch (error) {
+            console.error('Error transforming occurrence:', occurrence.id, error);
+            return null;
+          }
+        })
+        .filter((occurrence): occurrence is NonNullable<typeof occurrence> => occurrence !== null);
 
       // Combine and sort by start date
       const combined = [...transformedOneTimeJobs, ...transformedJobOccurrences]

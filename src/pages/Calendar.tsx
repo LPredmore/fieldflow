@@ -28,77 +28,96 @@ const Calendar = () => {
     
     console.log(`Processing ${unifiedJobs.length} jobs for calendar in timezone: ${userTimezone}`);
     
-    return unifiedJobs.map((job) => {
-      // Convert UTC datetime strings to user's timezone
-      const startDateUTC = new Date(job.start_at);
-      const endDateUTC = new Date(job.end_at);
-      
-      console.log(`Job ${job.title}:`, {
-        original_start: job.start_at,
-        original_end: job.end_at,
-        utc_start: startDateUTC.toISOString(),
-        utc_end: endDateUTC.toISOString()
-      });
-      
-      // Convert to user's local timezone for display
-      const startInUserTZ = convertFromUTC(startDateUTC, userTimezone);
-      const endInUserTZ = convertFromUTC(endDateUTC, userTimezone);
-      
-      console.log(`Converted to ${userTimezone}:`, {
-        local_start: startInUserTZ.toString(),
-        local_end: endInUserTZ.toString()
-      });
-      
-      // Format for FullCalendar (as ISO strings)
-      const startForCalendar = toFullCalendarFormat(startInUserTZ);
-      const endForCalendar = toFullCalendarFormat(endInUserTZ);
-      
-      // Determine if this should be an all-day event
-      // Only consider it all-day if it's truly a full day event (24 hours or more)
-      const durationMs = endInUserTZ.getTime() - startInUserTZ.getTime();
-      const durationHours = durationMs / (1000 * 60 * 60);
-      const isAllDay = durationHours >= 24;
-      
-      // Determine color based on status
-      let backgroundColor = '#3b82f6'; // blue for scheduled
-      let borderColor = '#3b82f6';
-      
-      switch (job.status) {
-        case 'in_progress':
-          backgroundColor = '#f59e0b'; // amber
-          borderColor = '#f59e0b';
-          break;
-        case 'completed':
-          backgroundColor = '#10b981'; // green
-          borderColor = '#10b981';
-          break;
-        case 'cancelled':
-          backgroundColor = '#ef4444'; // red
-          borderColor = '#ef4444';
-          break;
-      }
+    return unifiedJobs
+      .map((job) => {
+        try {
+          // Validate job dates before processing
+          if (!job.start_at || !job.end_at) {
+            console.warn('Job missing start_at or end_at:', job.id, job.title);
+            return null;
+          }
 
-      const event = {
-        id: job.id,
-        title: job.title,
-        start: startForCalendar,
-        end: endForCalendar,
-        allDay: calendarView === 'dayGridMonth' ? isAllDay : false, // In week view, always show timed events
-        backgroundColor,
-        borderColor,
-        extendedProps: {
-          status: job.status,
-          customerName: job.customer_name,
-          priority: job.priority,
-          estimatedCost: job.estimated_cost,
-          actualCost: job.actual_cost,
-          description: job.description
+          // Convert UTC datetime strings to user's timezone
+          const startDateUTC = new Date(job.start_at);
+          const endDateUTC = new Date(job.end_at);
+          
+          // Validate that dates are valid
+          if (isNaN(startDateUTC.getTime()) || isNaN(endDateUTC.getTime())) {
+            console.warn('Job has invalid dates:', job.id, job.title, job.start_at, job.end_at);
+            return null;
+          }
+          
+          console.log(`Job ${job.title}:`, {
+            original_start: job.start_at,
+            original_end: job.end_at,
+            utc_start: startDateUTC.toISOString(),
+            utc_end: endDateUTC.toISOString()
+          });
+          
+          // Convert to user's local timezone for display
+          const startInUserTZ = convertFromUTC(startDateUTC, userTimezone);
+          const endInUserTZ = convertFromUTC(endDateUTC, userTimezone);
+          
+          console.log(`Converted to ${userTimezone}:`, {
+            local_start: startInUserTZ.toString(),
+            local_end: endInUserTZ.toString()
+          });
+          
+          // Format for FullCalendar (as ISO strings)
+          const startForCalendar = toFullCalendarFormat(startInUserTZ);
+          const endForCalendar = toFullCalendarFormat(endInUserTZ);
+          
+          // Determine if this should be an all-day event
+          // Only consider it all-day if it's truly a full day event (24 hours or more)
+          const durationMs = endInUserTZ.getTime() - startInUserTZ.getTime();
+          const durationHours = durationMs / (1000 * 60 * 60);
+          const isAllDay = durationHours >= 24;
+          
+          // Determine color based on status
+          let backgroundColor = '#3b82f6'; // blue for scheduled
+          let borderColor = '#3b82f6';
+          
+          switch (job.status) {
+            case 'in_progress':
+              backgroundColor = '#f59e0b'; // amber
+              borderColor = '#f59e0b';
+              break;
+            case 'completed':
+              backgroundColor = '#10b981'; // green
+              borderColor = '#10b981';
+              break;
+            case 'cancelled':
+              backgroundColor = '#ef4444'; // red
+              borderColor = '#ef4444';
+              break;
+          }
+
+          const event = {
+            id: job.id,
+            title: job.title,
+            start: startForCalendar,
+            end: endForCalendar,
+            allDay: calendarView === 'dayGridMonth' ? isAllDay : false, // In week view, always show timed events
+            backgroundColor,
+            borderColor,
+            extendedProps: {
+              status: job.status,
+              customerName: job.customer_name,
+              priority: job.priority,
+              estimatedCost: job.estimated_cost,
+              actualCost: job.actual_cost,
+              description: job.description
+            }
+          };
+          
+          console.log(`Final event for ${job.title}:`, event);
+          return event;
+        } catch (error) {
+          console.error('Error processing job for calendar:', job.id, job.title, error);
+          return null;
         }
-      };
-      
-      console.log(`Final event for ${job.title}:`, event);
-      return event;
-    });
+      })
+      .filter(event => event !== null);
   }, [unifiedJobs, calendarView, userTimezone]);
 
   const handleEventClick = (eventInfo: any) => {
