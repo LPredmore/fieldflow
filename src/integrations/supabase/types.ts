@@ -363,6 +363,7 @@ export type Database = {
           id: string
           priority: Database["public"]["Enums"]["job_priority"]
           scheduled_date: string
+          scheduled_end_time: string | null
           scheduled_time: string | null
           service_type: Database["public"]["Enums"]["job_service_type"]
           status: Database["public"]["Enums"]["job_status"]
@@ -386,6 +387,7 @@ export type Database = {
           id?: string
           priority?: Database["public"]["Enums"]["job_priority"]
           scheduled_date: string
+          scheduled_end_time?: string | null
           scheduled_time?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]
           status?: Database["public"]["Enums"]["job_status"]
@@ -409,6 +411,7 @@ export type Database = {
           id?: string
           priority?: Database["public"]["Enums"]["job_priority"]
           scheduled_date?: string
+          scheduled_end_time?: string | null
           scheduled_time?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]
           status?: Database["public"]["Enums"]["job_status"]

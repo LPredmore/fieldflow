@@ -14,13 +14,14 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ContractorSelector } from '@/components/Customers/ContractorSelector';
+import { CustomerSelector } from '@/components/Customers/CustomerSelector';
 import { RRuleBuilder } from './RRuleBuilder';
 import { AlertCircle } from 'lucide-react';
 
 const jobSchema = z.object({
   title: z.string().min(1, 'Title is required'),
   description: z.string().optional(),
-  customer_id: z.string().optional(),
+  customer_id: z.string().min(1, 'Customer is required'),
   customer_name: z.string().min(1, 'Customer name is required'),
   status: z.enum(['scheduled', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
@@ -32,6 +33,9 @@ const jobSchema = z.object({
   actual_cost: z.coerce.number().optional(),
   additional_info: z.string().optional(),
   completion_notes: z.string().optional(),
+  // Time fields
+  start_time: z.string().optional(),
+  end_time: z.string().optional(),
   // Recurring job fields
   is_recurring: z.boolean().default(false),
   rrule: z.string().default('FREQ=WEEKLY;INTERVAL=1'),
@@ -57,7 +61,7 @@ interface ExtendedJob extends Job {
 }
 
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
-  const { userRole } = useAuth();
+  const { user, userRole } = useAuth();
   const { permissions } = usePermissions();
   const canAssignContractors = canSupervise(permissions);
   const extendedJob = job as ExtendedJob | undefined;
@@ -73,12 +77,14 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       priority: job?.priority || 'medium',
       scheduled_date: job?.scheduled_date || new Date().toISOString().split('T')[0], // Default to today
       complete_date: job?.complete_date || undefined, // Don't use empty string
-      assigned_to_user_id: job?.assigned_to_user_id || undefined,
+      assigned_to_user_id: job?.assigned_to_user_id || user?.id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
       additional_info: job?.additional_info || '',
       completion_notes: job?.completion_notes || '',
+      start_time: extendedJob?.scheduled_time || '',
+      end_time: '',
       is_recurring: extendedJob?.is_recurring || false,
       rrule: extendedJob?.rrule || 'FREQ=WEEKLY;INTERVAL=1',
       until_date: extendedJob?.until_date || undefined, // Don't use empty string
@@ -97,12 +103,15 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
         ...data,
         // Convert empty strings to null for optional UUID and date fields
         assigned_to_user_id: data.assigned_to_user_id || null,
-        customer_id: null, // We'll handle customer creation/linking separately
+        customer_id: data.customer_id || null,
         complete_date: data.complete_date || null, // Convert empty string to null
         until_date: data.until_date || null, // Convert empty string to null
         // Remove any undefined or empty string values for numeric fields
         estimated_cost: data.estimated_cost || null,
         actual_cost: data.actual_cost || null,
+        // Handle time fields
+        scheduled_time: data.start_time || null,
+        scheduled_end_time: data.end_time || null,
       };
       
       console.log('Cleaned form data:', cleanedData);
@@ -170,12 +179,18 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <FormField
                 control={form.control}
-                name="customer_name"
+                name="customer_id"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Customer Name</FormLabel>
+                    <FormLabel>Customer</FormLabel>
                     <FormControl>
-                      <Input placeholder="Customer name" {...field} />
+                      <CustomerSelector
+                        value={field.value}
+                        onValueChange={(customerId, customerName) => {
+                          field.onChange(customerId);
+                          form.setValue("customer_name", customerName);
+                        }}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -269,6 +284,37 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   )}
                 />
               )}
+            </div>
+
+            {/* Time Fields */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="start_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Start Time (optional)</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="end_time"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>End Time (optional)</FormLabel>
+                    <FormControl>
+                      <Input type="time" {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

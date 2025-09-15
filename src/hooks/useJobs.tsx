@@ -19,6 +19,7 @@ export interface Job {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   scheduled_date: string;
   scheduled_time?: string;
+  scheduled_end_time?: string;
   complete_date?: string;
   estimated_duration?: number;
   assigned_to_user_id?: string;
@@ -188,8 +189,19 @@ export function useJobs() {
         service_type: jobData.service_type,
         description: jobData.description,
         start_date: jobData.scheduled_date,
-        local_start_time: '08:00', // Default time
-        duration_minutes: 60, // Default duration
+        local_start_time: jobData.start_time || '08:00', // Use provided start time or default
+        duration_minutes: (() => {
+          // Calculate duration in minutes if both start and end times are provided
+          if (jobData.start_time && jobData.end_time) {
+            const [startHour, startMin] = jobData.start_time.split(':').map(Number);
+            const [endHour, endMin] = jobData.end_time.split(':').map(Number);
+            const startMinutes = startHour * 60 + startMin;
+            const endMinutes = endHour * 60 + endMin;
+            const duration = endMinutes - startMinutes;
+            return duration > 0 ? duration : 60; // fallback to 60 if invalid
+          }
+          return 60; // Default duration
+        })(),
         timezone: jobData.timezone || 'America/New_York',
         rrule: jobData.rrule,
         until_date: jobData.until_date,
@@ -209,6 +221,8 @@ export function useJobs() {
         service_type: jobData.service_type,
         description: jobData.description,
         scheduled_date: jobData.scheduled_date,
+        scheduled_time: jobData.scheduled_time, // Add start time field
+        scheduled_end_time: jobData.scheduled_end_time, // Add end time field
         complete_date: jobData.complete_date || null, // Ensure null instead of empty string
         status: jobData.status || 'scheduled',
         priority: jobData.priority || 'medium',
