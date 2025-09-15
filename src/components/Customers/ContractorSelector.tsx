@@ -66,13 +66,19 @@ export function ContractorSelector({ value, onValueChange, disabled }: Contracto
   }
 
   return (
-    <Select onValueChange={onValueChange} value={value} disabled={disabled}>
+    <Select onValueChange={onValueChange} value={value || ""} disabled={disabled}>
       <FormControl>
         <SelectTrigger>
           <SelectValue placeholder="Select assigned contractor" />
         </SelectTrigger>
       </FormControl>
       <SelectContent>
+        <SelectItem value="">
+          <div className="flex items-center gap-2">
+            <User className="h-4 w-4 text-muted-foreground" />
+            <span>Unassigned</span>
+          </div>
+        </SelectItem>
         {contractors.map((contractor) => (
           <SelectItem key={contractor.id} value={contractor.id}>
             <div className="flex items-center gap-2">

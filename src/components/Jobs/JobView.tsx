@@ -84,7 +84,31 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           }
         }
         
-        await onUpdate(unifiedJob.id, formData);
+        // Transform form data for update - remove form-specific fields
+        const {
+          start_time,
+          end_time,
+          is_recurring,
+          rrule,
+          until_date,
+          timezone,
+          scheduled_time_utc,
+          scheduled_end_time_utc,
+          ...updateData
+        } = formData;
+        
+        // For one-time jobs, include time fields
+        if ('scheduled_date' in unifiedJob) {
+          updateData.scheduled_time = start_time;
+          updateData.scheduled_end_time = end_time;
+        }
+        
+        // Ensure assigned_to_user_id is properly handled
+        if (formData.assigned_to_user_id !== undefined) {
+          updateData.assigned_to_user_id = formData.assigned_to_user_id;
+        }
+        
+        await onUpdate(unifiedJob.id, updateData);
         setIsEditing(false);
       } catch (error) {
         console.error('Failed to update job:', error);
@@ -102,7 +126,9 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
       end_at: unifiedJob.scheduled_end_time 
         ? `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_end_time}:00.000Z`
         : `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_time || '09:00'}:00.000Z`,
-      job_type: 'one_time' as const
+      job_type: 'one_time' as const,
+      // Ensure assigned_to_user_id is properly passed for contractor binding
+      assigned_to_user_id: unifiedJob.assigned_to_user_id
     };
 
     return (
@@ -296,6 +322,11 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
               <p className="font-medium">
                 {unifiedJob.contractor_name || 'Unassigned'}
               </p>
+              {unifiedJob.assigned_to_user_id && (
+                <p className="text-xs text-muted-foreground font-mono">
+                  ID: {unifiedJob.assigned_to_user_id.slice(0, 8)}...
+                </p>
+              )}
             </div>
           </CardContent>
         </Card>

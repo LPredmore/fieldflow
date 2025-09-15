@@ -220,9 +220,35 @@ export function useJobManagement() {
         .neq('status', 'completed');
     }
     
+    // Update future occurrences with new assignment, priority, or estimated cost
+    const occurrenceUpdates: any = {};
+    if (updates.assigned_to_user_id !== undefined) {
+      occurrenceUpdates.assigned_to_user_id = updates.assigned_to_user_id;
+    }
+    if (updates.priority) {
+      occurrenceUpdates.priority = updates.priority;
+    }
+    if (updates.estimated_cost !== undefined) {
+      occurrenceUpdates.override_estimated_cost = updates.estimated_cost;
+    }
+    
+    // Only update future scheduled occurrences if there are changes to propagate
+    if (Object.keys(occurrenceUpdates).length > 0) {
+      const { error: occurrenceError } = await supabase
+        .from('job_occurrences')
+        .update(occurrenceUpdates)
+        .eq('series_id', seriesId)
+        .gt('start_at', new Date().toISOString())
+        .eq('status', 'scheduled');
+        
+      if (occurrenceError) {
+        console.error('Error updating future occurrences:', occurrenceError);
+      }
+    }
+    
     toast({
       title: "Job series updated",
-      description: "The job series has been successfully updated.",
+      description: "The job series and all future occurrences have been successfully updated.",
     });
     
     await fetchJobManagementData();
