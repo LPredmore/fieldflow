@@ -1,7 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
-import { Job } from '@/hooks/useJobs';
+import { UnifiedJob } from '@/hooks/useUnifiedJobs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
@@ -48,18 +48,17 @@ const jobSchema = z.object({
 type JobFormData = z.infer<typeof jobSchema>;
 
 interface JobFormProps {
-  job?: Job;
+  job?: UnifiedJob;
   onSubmit: (data: JobFormData) => Promise<void>;
   onCancel: () => void;
   loading?: boolean;
 }
 
-interface ExtendedJob extends Job {
+interface ExtendedJob extends UnifiedJob {
   is_recurring?: boolean;
   rrule?: string;
   until_date?: string;
   timezone?: string;
-  scheduled_time?: string;
 }
 
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
@@ -72,9 +71,14 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
   // Convert existing job times from UTC to user's timezone for display
   const getInitialTimeValues = () => {
     if (job?.scheduled_time && job?.scheduled_date) {
-      // Combine scheduled_date and scheduled_time to get local values
-      const utcDateTime = new Date(`${job.scheduled_date}T${job.scheduled_time}`);
-      const { date, time } = splitUTCToLocalDateTime(utcDateTime, userTimezone);
+      // Use scheduled fields if available
+      return {
+        date: job.scheduled_date,
+        time: job.scheduled_time
+      };
+    } else if (job?.start_at) {
+      // Convert from start_at if available
+      const { date, time } = splitUTCToLocalDateTime(job.start_at, userTimezone);
       return { date, time };
     }
     return { 

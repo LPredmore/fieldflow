@@ -1,13 +1,14 @@
 import { useState } from 'react';
-import { Job } from '@/hooks/useJobs';
+import { UnifiedJob } from '@/hooks/useUnifiedJobs';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, Save, X } from 'lucide-react';
+import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangle } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 
 interface JobViewProps {
-  job: Job;
+  job: UnifiedJob;
   onUpdate?: (jobId: string, data: any) => Promise<any>;
 }
 
@@ -58,6 +59,19 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if (onUpdate) {
       setIsLoading(true);
       try {
+        // Show warning for recurring job cancellation
+        if (formData.status === 'cancelled' && 
+            job.job_type === 'recurring_instance' && 
+            job.status !== 'cancelled') {
+          const confirmCancel = window.confirm(
+            'Cancelling this recurring job will also cancel all future occurrences in the series. Completed jobs will remain unchanged. Do you want to continue?'
+          );
+          if (!confirmCancel) {
+            setIsLoading(false);
+            return;
+          }
+        }
+        
         await onUpdate(job.id, formData);
         setIsEditing(false);
       } catch (error) {
@@ -80,10 +94,25 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   }
   return (
     <div className="space-y-6">
+      {/* Job Type Alert for Recurring Jobs */}
+      {job.job_type === 'recurring_instance' && (
+        <Alert>
+          <AlertTriangle className="h-4 w-4" />
+          <AlertDescription>
+            This is a recurring job instance. Changes to status (especially cancellation) may affect future occurrences in the series.
+          </AlertDescription>
+        </Alert>
+      )}
+
       {/* Header with Edit Button */}
       <div className="flex justify-between items-start">
         <div>
-          <h2 className="text-2xl font-bold text-foreground mb-2">{job.title}</h2>
+          <div className="flex items-center gap-2 mb-2">
+            <h2 className="text-2xl font-bold text-foreground">{job.title}</h2>
+            {job.job_type === 'recurring_instance' && (
+              <Badge variant="secondary">Recurring</Badge>
+            )}
+          </div>
           <div className="flex flex-wrap gap-2">
             <Badge className={getStatusColor(job.status)}>
               {job.status.replace('_', ' ')}
@@ -127,15 +156,13 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           </CardHeader>
           <CardContent className="space-y-2">
             <div>
-              <span className="text-sm text-muted-foreground">Date:</span>
-              <p className="font-medium">{new Date(job.scheduled_date).toLocaleDateString()}</p>
+              <span className="text-sm text-muted-foreground">Start Date & Time:</span>
+              <p className="font-medium">{new Date(job.start_at).toLocaleString()}</p>
             </div>
-            {job.scheduled_time && (
-              <div>
-                <span className="text-sm text-muted-foreground">Time:</span>
-                <p className="font-medium">{job.scheduled_time}</p>
-              </div>
-            )}
+            <div>
+              <span className="text-sm text-muted-foreground">End Date & Time:</span>
+              <p className="font-medium">{new Date(job.end_at).toLocaleString()}</p>
+            </div>
             {job.estimated_duration && (
               <div>
                 <span className="text-sm text-muted-foreground">Estimated Duration:</span>
@@ -146,6 +173,12 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
               <div>
                 <span className="text-sm text-muted-foreground">Completion Date:</span>
                 <p className="font-medium">{new Date(job.complete_date).toLocaleDateString()}</p>
+              </div>
+            )}
+            {job.series_id && (
+              <div>
+                <span className="text-sm text-muted-foreground">Series ID:</span>
+                <p className="font-medium font-mono text-xs">{job.series_id.slice(0, 8)}...</p>
               </div>
             )}
           </CardContent>

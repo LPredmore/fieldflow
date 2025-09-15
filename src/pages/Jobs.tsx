@@ -25,7 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useJobs, Job } from "@/hooks/useJobs";
+import { useJobs } from "@/hooks/useJobs";
+import { useUnifiedJobs, UnifiedJob } from "@/hooks/useUnifiedJobs";
 import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
@@ -49,19 +50,20 @@ const getStatusColor = (status: string) => {
 
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
-  const [viewJob, setViewJob] = useState<Job | null>(null);
-  const [editJob, setEditJob] = useState<Job | null>(null);
+  const [viewJob, setViewJob] = useState<UnifiedJob | null>(null);
+  const [editJob, setEditJob] = useState<UnifiedJob | null>(null);
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   
-  const { jobs, loading, createJob, updateJob, deleteJob } = useJobs();
+  const { createJob } = useJobs(); // Keep for creating new jobs
+  const { unifiedJobs, loading, updateJob, deleteJob } = useUnifiedJobs();
   const { userRole } = useAuth();
   const { toast } = useToast();
   const isAdmin = userRole === 'business_admin';
 
   // Filter jobs based on search term
-  const filteredJobs = jobs.filter(job => 
+  const filteredJobs = unifiedJobs.filter(job => 
     job.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     job.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
     job.service_type.toLowerCase().includes(searchTerm.toLowerCase())
@@ -72,12 +74,12 @@ export default function Jobs() {
     setIsFormOpen(true);
   };
 
-  const handleEditJob = (job: Job) => {
+  const handleEditJob = (job: UnifiedJob) => {
     setEditJob(job);
     setIsFormOpen(true);
   };
 
-  const handleViewJob = (job: Job) => {
+  const handleViewJob = (job: UnifiedJob) => {
     setViewJob(job);
   };
 
@@ -121,9 +123,9 @@ export default function Jobs() {
     }
   };
 
-  const canEditJob = (job: Job) => {
+  const canEditJob = (job: UnifiedJob) => {
     if (isAdmin) return true;
-    return job.assigned_to_user_id === jobs[0]?.created_by_user_id || job.created_by_user_id === jobs[0]?.created_by_user_id;
+    return job.assigned_to_user_id === unifiedJobs[0]?.tenant_id;
   };
 
   return (
@@ -182,6 +184,7 @@ export default function Jobs() {
                   <TableRow>
                     <TableHead>Customer</TableHead>
                     <TableHead>Job Title</TableHead>
+                    <TableHead>Type</TableHead>
                     <TableHead>Status</TableHead>
                     <TableHead>Date</TableHead>
                     <TableHead>Contractor</TableHead>
@@ -199,11 +202,12 @@ export default function Jobs() {
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                         <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
+                        <TableCell><div className="h-4 bg-muted rounded animate-pulse"></div></TableCell>
                       </TableRow>
                     ))
                   ) : filteredJobs.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
+                      <TableCell colSpan={7} className="text-center py-8 text-muted-foreground">
                         {searchTerm ? `No jobs found matching "${searchTerm}"` : "No jobs found"}
                       </TableCell>
                     </TableRow>
@@ -215,13 +219,27 @@ export default function Jobs() {
                          onClick={() => handleViewJob(job)}
                        >
                          <TableCell>{job.customer_name}</TableCell>
-                         <TableCell>{job.title}</TableCell>
+                         <TableCell>
+                           <div className="flex items-center gap-2">
+                             {job.title}
+                             {job.job_type === 'recurring_instance' && (
+                               <Badge variant="secondary" className="text-xs">
+                                 Recurring
+                               </Badge>
+                             )}
+                           </div>
+                         </TableCell>
+                         <TableCell>
+                           <Badge variant="outline" className="text-xs">
+                             {job.job_type === 'one_time' ? 'One-time' : 'Recurring'}
+                           </Badge>
+                         </TableCell>
                          <TableCell>
                            <Badge className={`${getStatusColor(job.status.replace('_', ' '))}`}>
                              {job.status.replace('_', ' ')}
                            </Badge>
                          </TableCell>
-                         <TableCell>{new Date(job.scheduled_date).toLocaleDateString()}</TableCell>
+                         <TableCell>{new Date(job.start_at).toLocaleDateString()}</TableCell>
                          <TableCell>{job.contractor_name || 'Unassigned'}</TableCell>
                          <TableCell className="font-medium">
                            {job.actual_cost ? `$${job.actual_cost}` : job.estimated_cost ? `~$${job.estimated_cost}` : '-'}
