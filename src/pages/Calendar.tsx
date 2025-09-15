@@ -23,7 +23,14 @@ const Calendar = () => {
       const startDate = job.start_at;
       const endDate = job.end_at;
       
-      const isMultiDay = startDate !== endDate;
+      // Parse the dates to check if they have time information
+      const startDateTime = new Date(startDate);
+      const endDateTime = new Date(endDate);
+      
+      // Check if the start time is exactly midnight (indicating all-day event)
+      const isAllDay = startDateTime.getHours() === 0 && 
+                      startDateTime.getMinutes() === 0 && 
+                      startDateTime.getSeconds() === 0;
       
       // Determine color based on status
       let backgroundColor = '#3b82f6'; // blue for scheduled
@@ -48,8 +55,8 @@ const Calendar = () => {
         id: job.id,
         title: job.title,
         start: startDate,
-        end: isMultiDay ? endDate : undefined,
-        allDay: job.job_type === 'single', // Single jobs are all-day, recurring jobs show time
+        end: endDate,
+        allDay: calendarView === 'dayGridMonth' ? isAllDay : false, // In week view, always show timed events
         backgroundColor,
         borderColor,
         extendedProps: {
@@ -62,7 +69,7 @@ const Calendar = () => {
         }
       };
     });
-  }, [unifiedJobs]);
+  }, [unifiedJobs, calendarView]);
 
   const handleEventClick = (eventInfo: any) => {
     const event = eventInfo.event;
