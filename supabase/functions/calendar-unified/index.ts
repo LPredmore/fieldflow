@@ -261,5 +261,4 @@ serve(async (req) => {
       }
     );
   }
-});</content>
-</invoke>
+});
