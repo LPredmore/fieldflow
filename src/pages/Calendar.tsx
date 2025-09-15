@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { useJobs } from '@/hooks/useJobs';
+import { useUnifiedJobs } from '@/hooks/useUnifiedJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 import { convertFromUTC, toFullCalendarFormat } from '@/lib/timezoneUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,7 +13,7 @@ import { Label } from '@/components/ui/label';
 import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const Calendar = () => {
-  const { unifiedJobs } = useJobs();
+  const { unifiedJobs } = useUnifiedJobs();
   const userTimezone = useUserTimezone();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
   const [slotMinTime, setSlotMinTime] = useState('06:00:00');

@@ -140,7 +140,7 @@ export function useJobs() {
         }
       } else {
         // Use the unified calendar data (materialized + virtual occurrences)
-        const calendarEvents = calendarResult?.events || [];
+        const calendarEvents = calendarResult || [];
         const typedCalendarData: UnifiedJob[] = calendarEvents.map((event: any) => ({
           id: event.id,
           tenant_id: tenantId,
@@ -154,8 +154,8 @@ export function useJobs() {
           service_type: event.service_type,
           estimated_cost: event.estimated_cost,
           actual_cost: event.actual_cost,
-          start_at: event.start,
-          end_at: event.end,
+          start_at: event.start_at,
+          end_at: event.end_at,
           series_id: event.series_id,
           job_type: event.job_type,
           completion_notes: event.completion_notes,
