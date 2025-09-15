@@ -102,7 +102,11 @@ export function useJobSeries() {
     // Generate occurrences for the new series
     try {
       const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
-        body: { seriesId: data.id }
+        body: { 
+          seriesId: data.id,
+          monthsAhead: 3,
+          maxOccurrences: 200
+        }
       });
       
       if (functionError) {
@@ -110,6 +114,10 @@ export function useJobSeries() {
       }
       
       console.log('Occurrence generation result:', functionResult);
+      toast({
+        title: "Success",
+        description: `Series created with ${functionResult.generated?.created || 0} initial occurrences`,
+      });
     } catch (generateError: any) {
       console.error('Error generating occurrences:', generateError);
       toast({
@@ -118,7 +126,6 @@ export function useJobSeries() {
         description: `Job series created but occurrences failed: ${generateError.message}`,
       });
     }
-    
     toast({
       title: "Recurring job created",
       description: "The recurring job series has been successfully created.",
@@ -144,7 +151,11 @@ export function useJobSeries() {
     if (data.active) {
       try {
         const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
-          body: { seriesId: data.id }
+          body: { 
+            seriesId: data.id,
+            monthsAhead: 3,
+            maxOccurrences: 200
+          }
         });
         
         if (functionError) {

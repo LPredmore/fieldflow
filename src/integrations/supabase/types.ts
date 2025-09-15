@@ -279,7 +279,9 @@ export type Database = {
           description: string | null
           duration_minutes: number
           estimated_cost: number | null
+          generation_cap_days: number | null
           id: string
+          last_generated_until: string | null
           local_start_time: string
           notes: string | null
           priority: Database["public"]["Enums"]["job_priority"]
@@ -302,7 +304,9 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           estimated_cost?: number | null
+          generation_cap_days?: number | null
           id?: string
+          last_generated_until?: string | null
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
@@ -325,7 +329,9 @@ export type Database = {
           description?: string | null
           duration_minutes?: number
           estimated_cost?: number | null
+          generation_cap_days?: number | null
           id?: string
+          last_generated_until?: string | null
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]

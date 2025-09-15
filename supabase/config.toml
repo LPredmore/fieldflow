@@ -19,6 +19,30 @@ verify_jwt = false
 [functions.generate-job-occurrences]
 verify_jwt = false
 
+[functions.extend-horizon]
+verify_jwt = false
+
+[functions.calendar-unified]
+verify_jwt = false
+
+# Scheduled job to extend horizons daily
+[[db.functions]]
+name = "extend_horizon_scheduler"
+sql = """
+select cron.schedule(
+  'extend-horizon-daily',
+  '0 2 * * *', -- Daily at 2 AM
+  $$
+  select
+    net.http_post(
+        url:='https://zqohnagvnvpczduoizdh.supabase.co/functions/v1/extend-horizon',
+        headers:='{"Content-Type": "application/json", "Authorization": "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inpxb2huYWd2bnZwY3pkdW9pemRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc0MjQwOTgsImV4cCI6MjA3MzAwMDA5OH0.YYMJlLPl2yn8Khk3bTcwIHs2OQdAVUuYgAOgfvYeOqs"}'::jsonb,
+        body:='{"horizonDays": 90, "batchSize": 10}'::jsonb
+    );
+  $$
+);
+"""
+
 [db]
 port = 54322
 shadow_port = 54320

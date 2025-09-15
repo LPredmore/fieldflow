@@ -11,6 +11,8 @@ const corsHeaders = {
 interface GenerateOccurrencesRequest {
   seriesId: string;
   monthsAhead?: number;
+  fromDate?: string; // ISO date string, defaults to now
+  maxOccurrences?: number; // Cap per run, defaults to 400
 }
 
 serve(async (req) => {
@@ -27,7 +29,12 @@ serve(async (req) => {
     
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { seriesId, monthsAhead = 6 }: GenerateOccurrencesRequest = await req.json();
+    const { 
+      seriesId, 
+      monthsAhead = 3, 
+      fromDate,
+      maxOccurrences = 400 
+    }: GenerateOccurrencesRequest = await req.json();
     
     console.log('Generating occurrences for series:', seriesId);
 
@@ -86,13 +93,30 @@ serve(async (req) => {
       );
     }
 
-    // Calculate window for generation (today to X months ahead)
-    const windowStart = new Date();
-    windowStart.setHours(0, 0, 0, 0); // Start of today
+    // Calculate window for generation
+    const windowStart = fromDate ? new Date(fromDate) : new Date();
+    if (!fromDate) {
+      windowStart.setHours(0, 0, 0, 0); // Start of today if no fromDate
+    }
     
-    const windowEnd = new Date();
+    // Use the last_generated_until as starting point if provided and later than windowStart
+    if (series.last_generated_until) {
+      const lastGenerated = new Date(series.last_generated_until);
+      if (lastGenerated > windowStart) {
+        windowStart.setTime(lastGenerated.getTime() + 1000); // Start 1 second after last generated
+      }
+    }
+    
+    const windowEnd = new Date(windowStart);
     windowEnd.setMonth(windowEnd.getMonth() + monthsAhead);
-    windowEnd.setHours(23, 59, 59, 999); // End of the future day
+    windowEnd.setHours(23, 59, 59, 999);
+    
+    // Hard ceiling: never generate beyond 365 days from now
+    const hardCeiling = new Date();
+    hardCeiling.setFullYear(hardCeiling.getFullYear() + 1);
+    if (windowEnd > hardCeiling) {
+      windowEnd.setTime(hardCeiling.getTime());
+    }
 
     // Apply until_date limit if specified
     let effectiveEnd = windowEnd;
@@ -107,8 +131,14 @@ serve(async (req) => {
       end: effectiveEnd.toISOString()
     });
 
-    // Generate occurrences
-    const occurrences = rule.between(windowStart, effectiveEnd, true);
+    // Generate occurrences with cap
+    let occurrences = rule.between(windowStart, effectiveEnd, true);
+    
+    // Apply max occurrences cap
+    if (occurrences.length > maxOccurrences) {
+      console.log(`Capping occurrences from ${occurrences.length} to ${maxOccurrences}`);
+      occurrences = occurrences.slice(0, maxOccurrences);
+    }
     
     console.log(`Generated ${occurrences.length} occurrences`);
 
@@ -158,11 +188,27 @@ serve(async (req) => {
 
     console.log('Generation completed:', generatedCount);
 
+    // Update last_generated_until if we generated any occurrences
+    if (generatedCount.created > 0 && occurrences.length > 0) {
+      const lastOccurrence = occurrences[occurrences.length - 1];
+      const updateResult = await supabase
+        .from('job_series')
+        .update({ last_generated_until: lastOccurrence.toISOString() })
+        .eq('id', seriesId);
+      
+      if (updateResult.error) {
+        console.error('Failed to update last_generated_until:', updateResult.error);
+      } else {
+        console.log('Updated last_generated_until to:', lastOccurrence.toISOString());
+      }
+    }
+
     return new Response(
       JSON.stringify({ 
         success: true,
         message: `Generated ${generatedCount.created} occurrences, skipped ${generatedCount.skipped} duplicates`,
-        generated: generatedCount
+        generated: generatedCount,
+        lastGeneratedUntil: occurrences.length > 0 ? occurrences[occurrences.length - 1].toISOString() : null
       }),
       { headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
     );

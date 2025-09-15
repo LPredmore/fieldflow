@@ -101,22 +101,65 @@ export function useJobs() {
 
       setJobs(processedJobs);
 
-      // Fetch unified calendar view for upcoming jobs
-      const { data: unifiedData, error: unifiedError } = await supabase
-        .from('jobs_calendar_upcoming')
-        .select('*')
-        .gte('start_at', new Date().toISOString())
-        .order('start_at', { ascending: true });
+      // Fetch unified calendar view for upcoming jobs using new calendar-unified API
+      const startDate = new Date();
+      startDate.setMonth(startDate.getMonth() - 1); // 1 month back
+      const endDate = new Date();
+      endDate.setMonth(endDate.getMonth() + 6); // 6 months ahead
+      
+      const { data: calendarResult, error: calendarError } = await supabase.functions.invoke(
+        'calendar-unified',
+        {
+          body: {
+            startDate: startDate.toISOString(),
+            endDate: endDate.toISOString(),
+            tenantId: tenantId
+          }
+        }
+      );
 
-      if (unifiedError) {
-        console.error('Error loading unified jobs:', unifiedError);
+      if (calendarError) {
+        console.error('Error loading unified calendar:', calendarError);
+        // Fallback to basic upcoming jobs if unified API fails
+        const { data: fallbackData, error: fallbackError } = await supabase
+          .from('jobs_calendar_upcoming')
+          .select('*')
+          .gte('start_at', new Date().toISOString())
+          .order('start_at', { ascending: true });
+          
+        if (!fallbackError) {
+          const typedFallbackData: UnifiedJob[] = (fallbackData || []).map(job => ({
+            ...job,
+            job_type: job.job_type as 'single' | 'recurring'
+          }));
+          setUnifiedJobs(typedFallbackData);
+        }
       } else {
-        // Type the unified data properly
-        const typedUnifiedData: UnifiedJob[] = (unifiedData || []).map(job => ({
-          ...job,
-          job_type: job.job_type as 'single' | 'recurring'
+        // Use the unified calendar data (materialized + virtual occurrences)
+        const calendarEvents = calendarResult?.events || [];
+        const typedCalendarData: UnifiedJob[] = calendarEvents.map((event: any) => ({
+          id: event.id,
+          tenant_id: tenantId,
+          customer_id: event.customer_id || '',
+          customer_name: event.customer_name,
+          title: event.title,
+          description: event.description,
+          status: event.status,
+          priority: event.priority,
+          assigned_to_user_id: event.assigned_to_user_id,
+          service_type: event.service_type,
+          estimated_cost: event.estimated_cost,
+          actual_cost: event.actual_cost,
+          start_at: event.start,
+          end_at: event.end,
+          series_id: event.series_id,
+          job_type: event.job_type,
+          completion_notes: event.completion_notes,
+          additional_info: event.additional_info,
+          created_at: event.created_at || new Date().toISOString(),
+          updated_at: event.updated_at
         }));
-        setUnifiedJobs(typedUnifiedData);
+        setUnifiedJobs(typedCalendarData);
       }
 
     } catch (error: any) {

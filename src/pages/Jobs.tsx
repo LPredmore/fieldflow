@@ -30,6 +30,7 @@ import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
 import { useToast } from "@/hooks/use-toast";
+import { HorizonExtensionButton } from "@/components/Jobs/HorizonExtensionButton";
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -141,13 +142,16 @@ export default function Jobs() {
               </div>
               <RoleIndicator />
             </div>
-            <Button 
-              onClick={handleCreateJob}
-              className="mt-4 sm:mt-0 shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
-            >
-              <Plus className="h-4 w-4 mr-2" />
-              New Job
-            </Button>
+            <div className="flex gap-2">
+              <Button 
+                onClick={handleCreateJob}
+                className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                New Job
+              </Button>
+              <HorizonExtensionButton />
+            </div>
           </div>
 
           {/* Filters */}
