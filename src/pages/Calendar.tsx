@@ -6,11 +6,15 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { useJobs } from '@/hooks/useJobs';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar as CalendarIcon, Grid, List } from 'lucide-react';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const Calendar = () => {
   const { unifiedJobs } = useJobs();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
+  const [slotMinTime, setSlotMinTime] = useState('06:00:00');
+  const [slotMaxTime, setSlotMaxTime] = useState('22:00:00');
 
   // Transform unified jobs into calendar events
   const calendarEvents = useMemo(() => {
@@ -103,6 +107,46 @@ const Calendar = () => {
           </div>
         </div>
 
+        {/* Time Controls - Only show for Week view */}
+        {calendarView === 'timeGridWeek' && (
+          <Card className="shadow-material-sm">
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Clock className="h-5 w-5" />
+                Time Range Settings
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <Label htmlFor="start-time" className="text-sm font-medium">
+                    Start Time
+                  </Label>
+                  <Input
+                    id="start-time"
+                    type="time"
+                    value={slotMinTime.slice(0, 5)}
+                    onChange={(e) => setSlotMinTime(e.target.value + ':00')}
+                    className="mt-1"
+                  />
+                </div>
+                <div className="flex-1">
+                  <Label htmlFor="end-time" className="text-sm font-medium">
+                    End Time
+                  </Label>
+                  <Input
+                    id="end-time"
+                    type="time"
+                    value={slotMaxTime.slice(0, 5)}
+                    onChange={(e) => setSlotMaxTime(e.target.value + ':00')}
+                    className="mt-1"
+                  />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
+
         {/* Calendar Card */}
         <Card className="shadow-material-md">
           <CardHeader>
@@ -111,6 +155,7 @@ const Calendar = () => {
           <CardContent className="p-0">
             <div className="p-6">
               <FullCalendar
+                key={calendarView}
                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                 initialView={calendarView}
                 headerToolbar={{
@@ -123,12 +168,29 @@ const Calendar = () => {
                 height="auto"
                 dayMaxEventRows={3}
                 eventDisplay="block"
-                displayEventTime={false}
+                displayEventTime={calendarView === 'timeGridWeek'}
+                slotMinTime={calendarView === 'timeGridWeek' ? slotMinTime : '00:00:00'}
+                slotMaxTime={calendarView === 'timeGridWeek' ? slotMaxTime : '24:00:00'}
+                slotDuration="00:30:00"
+                scrollTime={calendarView === 'timeGridWeek' ? slotMinTime : '06:00:00'}
+                nowIndicator={calendarView === 'timeGridWeek'}
+                slotLabelFormat={{
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  omitZeroMinute: false,
+                  meridiem: 'short'
+                }}
+                eventTimeFormat={{
+                  hour: 'numeric',
+                  minute: '2-digit',
+                  meridiem: 'short'
+                }}
                 eventDidMount={(info) => {
                   // Add tooltip
                   info.el.title = `${info.event.title} - ${info.event.extendedProps.customerName}`;
                 }}
-                aspectRatio={1.8}
+                aspectRatio={calendarView === 'dayGridMonth' ? 1.8 : 1.35}
+                allDaySlot={calendarView === 'dayGridMonth'}
               />
             </div>
           </CardContent>
