@@ -146,10 +146,10 @@ export default function Jobs() {
         if (transformedData.is_recurring && transformedData.rrule) {
           await createJobSeries(transformedData);
         } else {
-          // For single occurrence jobs, remove RRULE to prevent multiple occurrences
+          // For single occurrence jobs, use RRULE with COUNT=1 to satisfy NOT NULL constraint
           const singleJobData = {
             ...transformedData,
-            rrule: null,
+            rrule: 'FREQ=DAILY;COUNT=1',
             is_recurring: false
           };
           await createJobSeries(singleJobData);
