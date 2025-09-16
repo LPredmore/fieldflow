@@ -91,11 +91,11 @@ export function useCalendarJobs() {
         return;
       }
 
-      // Transform data and add timezone conversions
+      // Transform data - keep UTC times for FullCalendar, add local versions for other displays
       const transformedJobs: CalendarJob[] = (data || []).map((job: any) => {
         const series = job.job_series;
         
-        // Convert UTC times to user's local timezone for display
+        // Convert UTC times to user's local timezone for non-calendar displays
         const localStart = convertFromUTC(job.start_at, userTimezone);
         const localEnd = convertFromUTC(job.end_at, userTimezone);
         
@@ -104,8 +104,8 @@ export function useCalendarJobs() {
           series_id: job.series_id,
           title: job.override_title || series?.title || 'Untitled Job',
           description: job.override_description || series?.description,
-          start_at: job.start_at,
-          end_at: job.end_at,
+          start_at: job.start_at, // Keep as UTC for FullCalendar
+          end_at: job.end_at, // Keep as UTC for FullCalendar
           status: job.status,
           priority: job.priority,
           customer_id: job.customer_id,
@@ -117,7 +117,7 @@ export function useCalendarJobs() {
           created_at: job.created_at,
           updated_at: job.updated_at,
           tenant_id: job.tenant_id,
-          // Add local timezone versions for display
+          // Add local timezone versions for non-calendar displays
           local_start: localStart,
           local_end: localEnd,
         };

@@ -31,37 +31,41 @@ const Calendar = () => {
     return calendarJobs
       .map((job) => {
         try {
-          // Use the pre-converted local times from the hook
-          if (!job.local_start || !job.local_end) {
-            console.warn('Job missing local_start or local_end:', job.id, job.title);
+          // Use UTC times directly for FullCalendar - it will handle timezone conversion
+          if (!job.start_at || !job.end_at) {
+            console.warn('Job missing start_at or end_at:', job.id, job.title);
             return null;
           }
           
-          // Format for FullCalendar (as ISO strings)
-          const startForCalendar = toFullCalendarFormat(job.local_start);
-          const endForCalendar = toFullCalendarFormat(job.local_end);
+          // Parse UTC times and format for FullCalendar
+          const startDate = new Date(job.start_at);
+          const endDate = new Date(job.end_at);
+          
+          // Format for FullCalendar (as ISO strings in UTC)
+          const startForCalendar = startDate.toISOString();
+          const endForCalendar = endDate.toISOString();
           
           // Determine if this should be an all-day event
-          const durationMs = job.local_end.getTime() - job.local_start.getTime();
+          const durationMs = endDate.getTime() - startDate.getTime();
           const durationHours = durationMs / (1000 * 60 * 60);
           const isAllDay = durationHours >= 24;
           
-          // Determine color based on status
-          let backgroundColor = '#3b82f6'; // blue for scheduled
-          let borderColor = '#3b82f6';
+          // Determine color based on status using design system colors
+          let backgroundColor = 'hsl(207 90% 54%)'; // primary for scheduled
+          let borderColor = 'hsl(207 90% 54%)';
           
           switch (job.status) {
             case 'in_progress':
-              backgroundColor = '#f59e0b'; // amber
-              borderColor = '#f59e0b';
+              backgroundColor = 'hsl(36 100% 50%)'; // warning
+              borderColor = 'hsl(36 100% 50%)';
               break;
             case 'completed':
-              backgroundColor = '#10b981'; // green
-              borderColor = '#10b981';
+              backgroundColor = 'hsl(122 72% 51%)'; // success
+              borderColor = 'hsl(122 72% 51%)';
               break;
             case 'cancelled':
-              backgroundColor = '#ef4444'; // red
-              borderColor = '#ef4444';
+              backgroundColor = 'hsl(4 90% 58%)'; // destructive
+              borderColor = 'hsl(4 90% 58%)';
               break;
           }
 
@@ -233,19 +237,19 @@ const Calendar = () => {
           <CardContent>
             <div className="flex flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-blue-500 rounded"></div>
+                <div className="w-4 h-4 bg-primary rounded"></div>
                 <span className="text-sm">Scheduled</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-amber-500 rounded"></div>
+                <div className="w-4 h-4 bg-warning rounded"></div>
                 <span className="text-sm">In Progress</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-green-500 rounded"></div>
+                <div className="w-4 h-4 bg-success rounded"></div>
                 <span className="text-sm">Completed</span>
               </div>
               <div className="flex items-center gap-2">
-                <div className="w-4 h-4 bg-red-500 rounded"></div>
+                <div className="w-4 h-4 bg-destructive rounded"></div>
                 <span className="text-sm">Cancelled</span>
               </div>
             </div>
