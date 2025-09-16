@@ -185,13 +185,6 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
-            foreignKeyName: "invoices_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "invoices_tenant_id_fkey"
             columns: ["tenant_id"]
             isOneToOne: false
@@ -281,6 +274,7 @@ export type Database = {
           estimated_cost: number | null
           generation_cap_days: number | null
           id: string
+          is_recurring: boolean
           last_generated_until: string | null
           local_start_time: string
           notes: string | null
@@ -306,6 +300,7 @@ export type Database = {
           estimated_cost?: number | null
           generation_cap_days?: number | null
           id?: string
+          is_recurring?: boolean
           last_generated_until?: string | null
           local_start_time?: string
           notes?: string | null
@@ -331,6 +326,7 @@ export type Database = {
           estimated_cost?: number | null
           generation_cap_days?: number | null
           id?: string
+          is_recurring?: boolean
           last_generated_until?: string | null
           local_start_time?: string
           notes?: string | null
@@ -345,110 +341,6 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
-      }
-      jobs: {
-        Row: {
-          actual_cost: number | null
-          additional_info: string | null
-          assigned_to_user_id: string | null
-          complete_date: string | null
-          completion_notes: string | null
-          created_at: string
-          created_by_user_id: string
-          customer_id: string
-          customer_name: string
-          description: string | null
-          estimated_cost: number | null
-          estimated_duration: number | null
-          id: string
-          priority: Database["public"]["Enums"]["job_priority"]
-          scheduled_date: string
-          scheduled_end_time: string | null
-          scheduled_time: string | null
-          service_type: Database["public"]["Enums"]["job_service_type"]
-          status: Database["public"]["Enums"]["job_status"]
-          tenant_id: string
-          title: string
-          updated_at: string | null
-        }
-        Insert: {
-          actual_cost?: number | null
-          additional_info?: string | null
-          assigned_to_user_id?: string | null
-          complete_date?: string | null
-          completion_notes?: string | null
-          created_at?: string
-          created_by_user_id: string
-          customer_id: string
-          customer_name: string
-          description?: string | null
-          estimated_cost?: number | null
-          estimated_duration?: number | null
-          id?: string
-          priority?: Database["public"]["Enums"]["job_priority"]
-          scheduled_date: string
-          scheduled_end_time?: string | null
-          scheduled_time?: string | null
-          service_type?: Database["public"]["Enums"]["job_service_type"]
-          status?: Database["public"]["Enums"]["job_status"]
-          tenant_id: string
-          title: string
-          updated_at?: string | null
-        }
-        Update: {
-          actual_cost?: number | null
-          additional_info?: string | null
-          assigned_to_user_id?: string | null
-          complete_date?: string | null
-          completion_notes?: string | null
-          created_at?: string
-          created_by_user_id?: string
-          customer_id?: string
-          customer_name?: string
-          description?: string | null
-          estimated_cost?: number | null
-          estimated_duration?: number | null
-          id?: string
-          priority?: Database["public"]["Enums"]["job_priority"]
-          scheduled_date?: string
-          scheduled_end_time?: string | null
-          scheduled_time?: string | null
-          service_type?: Database["public"]["Enums"]["job_service_type"]
-          status?: Database["public"]["Enums"]["job_status"]
-          tenant_id?: string
-          title?: string
-          updated_at?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "jobs_assigned_to_user_id_fkey"
-            columns: ["assigned_to_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "jobs_created_by_user_id_fkey"
-            columns: ["created_by_user_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "jobs_customer_id_fkey"
-            columns: ["customer_id"]
-            isOneToOne: false
-            referencedRelation: "customers"
-            referencedColumns: ["id"]
-          },
-          {
-            foreignKeyName: "jobs_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       profiles: {
         Row: {
@@ -823,7 +715,6 @@ export type Database = {
       jobs_calendar_upcoming: {
         Row: {
           actual_cost: number | null
-          additional_info: string | null
           assigned_to_user_id: string | null
           completion_notes: string | null
           created_at: string | null
@@ -835,8 +726,6 @@ export type Database = {
           id: string | null
           job_type: string | null
           priority: Database["public"]["Enums"]["job_priority"] | null
-          series_id: string | null
-          service_type: Database["public"]["Enums"]["job_service_type"] | null
           start_at: string | null
           status: Database["public"]["Enums"]["job_status"] | null
           tenant_id: string | null
