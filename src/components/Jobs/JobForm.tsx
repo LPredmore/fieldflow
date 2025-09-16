@@ -98,7 +98,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       customer_name: job?.customer_name || '',
       status: job?.status || 'scheduled',
       priority: job?.priority || 'medium',
-      scheduled_date: initialValues.date,
+      scheduled_date: job?.scheduled_date || initialValues.date,
       complete_date: job?.complete_date || undefined, // Don't use empty string
       assigned_to_user_id: job?.assigned_to_user_id || undefined,
       service_type: (job?.service_type as any) || 'general_maintenance',

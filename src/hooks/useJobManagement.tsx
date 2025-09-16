@@ -212,10 +212,24 @@ export function useJobManagement() {
     }
   };
 
-  const updateOneTimeJob = async (jobId: string, updates: Partial<OneTimeJob>) => {
+  const updateOneTimeJob = async (jobId: string, updates: Partial<OneTimeJob> & Record<string, any>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { contractor_name, job_type, ...dbUpdates } = updates;
+    // Clean updates to remove fields that don't exist in database
+    const { 
+      contractor_name, 
+      job_type,
+      additional_info,
+      scheduled_date,
+      start_time,
+      end_time,
+      complete_date,
+      scheduled_time_utc,
+      scheduled_end_time_utc,
+      scheduled_time,
+      scheduled_end_time,
+      ...dbUpdates 
+    } = updates;
     
     // The OneTimeJob interface now matches the job_series table structure
     // No conversion needed
@@ -237,10 +251,27 @@ export function useJobManagement() {
     return data;
   };
 
-  const updateJobSeries = async (seriesId: string, updates: Partial<JobSeries>) => {
+  const updateJobSeries = async (seriesId: string, updates: Partial<JobSeries> & Record<string, any>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { contractor_name, job_type, total_occurrences, completed_occurrences, next_occurrence_date, ...dbUpdates } = updates;
+    // Clean updates to remove fields that don't exist in database
+    const { 
+      contractor_name, 
+      job_type, 
+      total_occurrences, 
+      completed_occurrences, 
+      next_occurrence_date,
+      additional_info,
+      scheduled_date,
+      start_time,
+      end_time,
+      complete_date,
+      scheduled_time_utc,
+      scheduled_end_time_utc,
+      scheduled_time,
+      scheduled_end_time,
+      ...dbUpdates 
+    } = updates;
     const { data, error } = await supabase
       .from('job_series')
       .update(dbUpdates)

@@ -90,13 +90,28 @@ export function useJobSeries() {
     }
   };
 
-  const createJobSeries = async (seriesData: CreateJobSeriesData) => {
+  const createJobSeries = async (seriesData: CreateJobSeriesData & Record<string, any>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
+
+    // Clean the data to only include valid database columns
+    const {
+      // Remove any form-specific fields that don't exist in database
+      additional_info,
+      scheduled_date,
+      start_time,
+      end_time,
+      complete_date,
+      scheduled_time_utc,
+      scheduled_end_time_utc,
+      scheduled_time,
+      scheduled_end_time,
+      ...validSeriesData
+    } = seriesData;
 
     const { data, error } = await supabase
       .from('job_series')
       .insert({
-        ...seriesData,
+        ...validSeriesData,
         tenant_id: tenantId,
         created_by_user_id: user.id,
       })

@@ -112,20 +112,37 @@ export default function Jobs() {
   const handleFormSubmit = async (data: any) => {
     try {
       setFormLoading(true);
+      
+      // Transform form fields to match database schema
+      const transformedData = {
+        ...data,
+        // Map form fields to database fields
+        notes: data.additional_info || null,
+        start_date: data.scheduled_date,
+        local_start_time: data.start_time || '08:00:00',
+        
+        // Calculate duration from start_time and end_time
+        duration_minutes: calculateDurationMinutes(data.start_time, data.end_time),
+        
+        // Remove form-only fields that don't exist in database
+        additional_info: undefined,
+        scheduled_date: undefined,
+        start_time: undefined,
+        end_time: undefined,
+        complete_date: undefined,
+        
+        // Set recurring flag based on form data
+        is_recurring: data.is_recurring || false,
+      };
+
       if (editJob) {
         if (editJob.job_type === 'one_time') {
-          await updateOneTimeJob(editJob.id, data);
+          await updateOneTimeJob(editJob.id, transformedData);
         } else {
-          await updateJobSeries(editJob.id, data);
+          await updateJobSeries(editJob.id, transformedData);
         }
       } else {
-        // For new jobs, we need to determine if it's recurring or one-time
-        // and set the appropriate flags
-        const jobData = {
-          ...data,
-          is_recurring: data.rrule ? true : false
-        };
-        await createJobSeries(jobData);
+        await createJobSeries(transformedData);
       }
       setIsFormOpen(false);
       setEditJob(null);
@@ -138,6 +155,19 @@ export default function Jobs() {
     } finally {
       setFormLoading(false);
     }
+  };
+
+  // Helper function to calculate duration in minutes
+  const calculateDurationMinutes = (startTime?: string, endTime?: string): number => {
+    if (!startTime || !endTime) return 60; // Default 1 hour
+    
+    const [startHour, startMin] = startTime.split(':').map(Number);
+    const [endHour, endMin] = endTime.split(':').map(Number);
+    
+    const startMinutes = startHour * 60 + startMin;
+    const endMinutes = endHour * 60 + endMin;
+    
+    return Math.max(endMinutes - startMinutes, 15); // Minimum 15 minutes
   };
 
   const canEditJob = (job: ManagedJob) => {
