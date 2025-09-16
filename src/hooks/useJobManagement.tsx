@@ -17,6 +17,9 @@ export interface JobSeries {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to_user_id?: string;
   estimated_cost?: number;
+  actual_cost?: number;
+  completion_notes?: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   start_date: string;
   local_start_time: string;
   duration_minutes: number;
@@ -49,13 +52,12 @@ export interface OneTimeJob {
   service_type: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
   estimated_cost?: number;
   actual_cost?: number;
-  scheduled_date: string;
-  scheduled_time?: string;
-  scheduled_end_time?: string;
-  estimated_duration?: number;
-  complete_date?: string;
+  start_date: string;
+  local_start_time: string;
+  duration_minutes: number;
+  timezone: string;
   completion_notes?: string;
-  additional_info?: string;
+  notes?: string;
   contractor_name?: string;
   job_type: 'one_time';
 }
@@ -140,14 +142,13 @@ export function useJobManagement() {
           assigned_to_user_id: job.assigned_to_user_id,
           service_type: job.service_type,
           estimated_cost: job.estimated_cost,
-          actual_cost: null,
-          scheduled_date: job.start_date,
-          scheduled_time: job.local_start_time,
-          scheduled_end_time: undefined,
-          estimated_duration: job.duration_minutes / 60, // Convert to hours
-          complete_date: undefined,
-          completion_notes: undefined,
-          additional_info: job.notes,
+          actual_cost: job.actual_cost,
+          start_date: job.start_date,
+          local_start_time: job.local_start_time,
+          duration_minutes: job.duration_minutes,
+          timezone: job.timezone,
+          completion_notes: job.completion_notes,
+          notes: job.notes,
           contractor_name: contractorName,
           job_type: 'one_time' as const,
         });
@@ -214,18 +215,13 @@ export function useJobManagement() {
   const updateOneTimeJob = async (jobId: string, updates: Partial<OneTimeJob>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { contractor_name, job_type, scheduled_date, scheduled_time, scheduled_end_time, estimated_duration, complete_date, completion_notes, additional_info, actual_cost, status, ...dbUpdates } = updates;
+    const { contractor_name, job_type, ...dbUpdates } = updates;
     
-    // Convert OneTimeJob updates to job_series format
-    const seriesUpdates: any = { ...dbUpdates };
-    if (scheduled_date) seriesUpdates.start_date = scheduled_date;
-    if (scheduled_time) seriesUpdates.local_start_time = scheduled_time;
-    if (estimated_duration) seriesUpdates.duration_minutes = estimated_duration * 60; // Convert hours to minutes
-    if (additional_info !== undefined) seriesUpdates.notes = additional_info;
-    
+    // The OneTimeJob interface now matches the job_series table structure
+    // No conversion needed
     const { data, error } = await supabase
       .from('job_series')
-      .update(seriesUpdates)
+      .update(dbUpdates)
       .eq('id', jobId)
       .select()
       .single();

@@ -122,10 +122,8 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     // Convert OneTimeJob to UnifiedJob format if needed
     const jobForForm = 'start_at' in unifiedJob ? unifiedJob : {
       ...unifiedJob,
-      start_at: `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_time || '08:00'}:00.000Z`,
-      end_at: unifiedJob.scheduled_end_time 
-        ? `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_end_time}:00.000Z`
-        : `${unifiedJob.scheduled_date}T${unifiedJob.scheduled_time || '09:00'}:00.000Z`,
+      start_at: `${unifiedJob.start_date}T${unifiedJob.local_start_time || '08:00'}:00.000Z`,
+      end_at: `${unifiedJob.start_date}T${unifiedJob.local_start_time || '08:00'}:00.000Z`,
       job_type: 'one_time' as const,
       // Ensure assigned_to_user_id is properly passed for contractor binding
       assigned_to_user_id: unifiedJob.assigned_to_user_id
@@ -146,9 +144,9 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('start_at' in unifiedJob) {
       return unifiedJob.start_at;
     }
-    if ('scheduled_date' in unifiedJob) {
-      const time = unifiedJob.scheduled_time || '08:00';
-      return `${unifiedJob.scheduled_date}T${time}:00.000Z`;
+    if ('start_date' in unifiedJob) {
+      const time = unifiedJob.local_start_time || '08:00';
+      return `${unifiedJob.start_date}T${time}:00.000Z`;
     }
     return new Date().toISOString();
   };
@@ -158,9 +156,11 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('end_at' in unifiedJob) {
       return unifiedJob.end_at;
     }
-    if ('scheduled_date' in unifiedJob) {
-      const time = unifiedJob.scheduled_end_time || unifiedJob.scheduled_time || '09:00';
-      return `${unifiedJob.scheduled_date}T${time}:00.000Z`;
+    if ('start_date' in unifiedJob) {
+      const time = unifiedJob.local_start_time || '08:00';
+      const endTime = new Date(`${unifiedJob.start_date}T${time}:00.000Z`);
+      endTime.setMinutes(endTime.getMinutes() + (unifiedJob.duration_minutes || 60));
+      return endTime.toISOString();
     }
     return new Date().toISOString();
   };

@@ -167,7 +167,7 @@ export default function Jobs() {
         ? new Date(job.next_occurrence_date).toLocaleDateString()
         : 'No upcoming';
     }
-    return new Date(job.scheduled_date).toLocaleDateString();
+    return new Date(job.start_date).toLocaleDateString();
   };
 
   const getJobValue = (job: ManagedJob) => {

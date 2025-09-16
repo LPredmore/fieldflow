@@ -23,6 +23,9 @@ export interface JobSeries {
   priority: 'low' | 'medium' | 'high' | 'urgent';
   assigned_to_user_id?: string;
   estimated_cost?: number;
+  actual_cost?: number;
+  completion_notes?: string;
+  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   notes?: string;
   active: boolean;
 }
@@ -42,6 +45,9 @@ export interface CreateJobSeriesData {
   priority: JobSeries['priority'];
   assigned_to_user_id?: string;
   estimated_cost?: number;
+  actual_cost?: number;
+  completion_notes?: string;
+  status?: JobSeries['status'];
   notes?: string;
 }
 
