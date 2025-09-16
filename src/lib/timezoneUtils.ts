@@ -2,6 +2,18 @@ import { format, parseISO } from 'date-fns';
 import { toZonedTime, fromZonedTime, formatInTimeZone } from 'date-fns-tz';
 
 /**
+ * United States time zones enum with plain language names
+ */
+export enum time_zones {
+  'Eastern Time' = 'America/New_York',
+  'Central Time' = 'America/Chicago',
+  'Mountain Time' = 'America/Denver',
+  'Pacific Time' = 'America/Los_Angeles',
+  'Alaska Time' = 'America/Anchorage',
+  'Hawaii Time' = 'America/Adak'
+}
+
+/**
  * Default timezone fallback
  */
 export const DEFAULT_TIMEZONE = 'America/New_York';
