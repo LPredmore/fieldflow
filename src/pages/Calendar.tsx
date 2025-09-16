@@ -3,9 +3,9 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { useUnifiedJobs } from '@/hooks/useUnifiedJobs';
+import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
-import { convertFromUTC, toFullCalendarFormat } from '@/lib/timezoneUtils';
+import { toFullCalendarFormat } from '@/lib/timezoneUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,63 +13,36 @@ import { Label } from '@/components/ui/label';
 import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const Calendar = () => {
-  const { unifiedJobs } = useUnifiedJobs();
+  const { jobs: calendarJobs } = useCalendarJobs();
   const userTimezone = useUserTimezone();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
   const [slotMinTime, setSlotMinTime] = useState('06:00:00');
   const [slotMaxTime, setSlotMaxTime] = useState('22:00:00');
 
-  // Transform unified jobs into calendar events
+  // Transform calendar jobs into FullCalendar events
   const calendarEvents = useMemo(() => {
-    if (!unifiedJobs || unifiedJobs.length === 0) {
-      console.log('No unified jobs available');
+    if (!calendarJobs || calendarJobs.length === 0) {
+      console.log('No calendar jobs available');
       return [];
     }
     
-    console.log(`Processing ${unifiedJobs.length} jobs for calendar in timezone: ${userTimezone}`);
+    console.log(`Processing ${calendarJobs.length} jobs for calendar in timezone: ${userTimezone}`);
     
-    return unifiedJobs
+    return calendarJobs
       .map((job) => {
         try {
-          // Validate job dates before processing
-          if (!job.start_at || !job.end_at) {
-            console.warn('Job missing start_at or end_at:', job.id, job.title);
+          // Use the pre-converted local times from the hook
+          if (!job.local_start || !job.local_end) {
+            console.warn('Job missing local_start or local_end:', job.id, job.title);
             return null;
           }
-
-          // Convert UTC datetime strings to user's timezone
-          const startDateUTC = new Date(job.start_at);
-          const endDateUTC = new Date(job.end_at);
-          
-          // Validate that dates are valid
-          if (isNaN(startDateUTC.getTime()) || isNaN(endDateUTC.getTime())) {
-            console.warn('Job has invalid dates:', job.id, job.title, job.start_at, job.end_at);
-            return null;
-          }
-          
-          console.log(`Job ${job.title}:`, {
-            original_start: job.start_at,
-            original_end: job.end_at,
-            utc_start: startDateUTC.toISOString(),
-            utc_end: endDateUTC.toISOString()
-          });
-          
-          // Convert to user's local timezone for display
-          const startInUserTZ = convertFromUTC(startDateUTC, userTimezone);
-          const endInUserTZ = convertFromUTC(endDateUTC, userTimezone);
-          
-          console.log(`Converted to ${userTimezone}:`, {
-            local_start: startInUserTZ.toString(),
-            local_end: endInUserTZ.toString()
-          });
           
           // Format for FullCalendar (as ISO strings)
-          const startForCalendar = toFullCalendarFormat(startInUserTZ);
-          const endForCalendar = toFullCalendarFormat(endInUserTZ);
+          const startForCalendar = toFullCalendarFormat(job.local_start);
+          const endForCalendar = toFullCalendarFormat(job.local_end);
           
           // Determine if this should be an all-day event
-          // Only consider it all-day if it's truly a full day event (24 hours or more)
-          const durationMs = endInUserTZ.getTime() - startInUserTZ.getTime();
+          const durationMs = job.local_end.getTime() - job.local_start.getTime();
           const durationHours = durationMs / (1000 * 60 * 60);
           const isAllDay = durationHours >= 24;
           
@@ -97,7 +70,7 @@ const Calendar = () => {
             title: job.title,
             start: startForCalendar,
             end: endForCalendar,
-            allDay: calendarView === 'dayGridMonth' ? isAllDay : false, // In week view, always show timed events
+            allDay: calendarView === 'dayGridMonth' ? isAllDay : false,
             backgroundColor,
             borderColor,
             extendedProps: {
@@ -110,7 +83,6 @@ const Calendar = () => {
             }
           };
           
-          console.log(`Final event for ${job.title}:`, event);
           return event;
         } catch (error) {
           console.error('Error processing job for calendar:', job.id, job.title, error);
@@ -118,7 +90,7 @@ const Calendar = () => {
         }
       })
       .filter(event => event !== null);
-  }, [unifiedJobs, calendarView, userTimezone]);
+  }, [calendarJobs, calendarView, userTimezone]);
 
   const handleEventClick = (eventInfo: any) => {
     const event = eventInfo.event;

@@ -93,6 +93,8 @@ export function useJobSeries() {
   const createJobSeries = async (seriesData: CreateJobSeriesData & Record<string, any>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
+    console.log('Creating job series with data:', seriesData);
+
     // Clean the data to only include valid database columns
     const {
       // Remove any form-specific fields that don't exist in database
@@ -120,9 +122,14 @@ export function useJobSeries() {
 
     if (error) throw error;
 
-    // Only generate occurrences for recurring jobs with valid RRULE
+    console.log('Job series created successfully:', data);
+
+    // Always create occurrences for all jobs (recurring and single)
     if (validSeriesData.is_recurring && validSeriesData.rrule) {
+      // For recurring jobs, use the edge function
       try {
+        console.log('Generating occurrences for recurring job series:', data.id);
+        
         const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
           body: { 
             seriesId: data.id,
@@ -137,7 +144,7 @@ export function useJobSeries() {
         
         console.log('Occurrence generation result:', functionResult);
         toast({
-          title: "Success",
+          title: "Recurring job created",
           description: `Series created with ${functionResult.generated?.created || 0} initial occurrences`,
         });
       } catch (occurrenceError: any) {
@@ -149,24 +156,46 @@ export function useJobSeries() {
         });
       }
     } else {
-      // For single occurrence jobs, create one occurrence manually
-      const startDateTime = new Date(`${validSeriesData.start_date}T${validSeriesData.local_start_time || '08:00:00'}`);
-      const endDateTime = new Date(startDateTime);
-      endDateTime.setMinutes(endDateTime.getMinutes() + (validSeriesData.duration_minutes || 60));
+      // For single occurrence jobs, create one occurrence with proper UTC timestamps
+      console.log('Creating single occurrence for one-time job');
+      
+      // Use the provided UTC timestamps if available, otherwise construct from local time
+      let startAtUTC: string;
+      let endAtUTC: string;
+      
+      if (scheduled_time_utc && scheduled_end_time_utc) {
+        // Use the pre-converted UTC timestamps from the form
+        startAtUTC = scheduled_time_utc;
+        endAtUTC = scheduled_end_time_utc;
+        console.log('Using pre-converted UTC timestamps:', { startAtUTC, endAtUTC });
+      } else {
+        // Fallback: construct from date and local_start_time (assumes timezone already handled)
+        const startDateTime = new Date(`${validSeriesData.start_date}T${validSeriesData.local_start_time || '08:00:00'}`);
+        const endDateTime = new Date(startDateTime);
+        endDateTime.setMinutes(endDateTime.getMinutes() + (validSeriesData.duration_minutes || 60));
+        
+        startAtUTC = startDateTime.toISOString();
+        endAtUTC = endDateTime.toISOString();
+        console.log('Constructed timestamps from local time:', { startAtUTC, endAtUTC });
+      }
+      
+      const occurrenceData = {
+        series_id: data.id,
+        customer_id: validSeriesData.customer_id,
+        customer_name: validSeriesData.customer_name,
+        start_at: startAtUTC,
+        end_at: endAtUTC,
+        status: validSeriesData.status || 'scheduled',
+        priority: validSeriesData.priority || 'medium',
+        assigned_to_user_id: validSeriesData.assigned_to_user_id,
+        tenant_id: tenantId,
+      };
+
+      console.log('Creating occurrence with data:', occurrenceData);
       
       const { error: occurrenceError } = await supabase
         .from('job_occurrences')
-        .insert({
-          series_id: data.id,
-          customer_id: validSeriesData.customer_id,
-          customer_name: validSeriesData.customer_name,
-          start_at: startDateTime.toISOString(),
-          end_at: endDateTime.toISOString(),
-          status: validSeriesData.status || 'scheduled',
-          priority: validSeriesData.priority || 'medium',
-          assigned_to_user_id: validSeriesData.assigned_to_user_id,
-          tenant_id: tenantId,
-        });
+        .insert(occurrenceData);
       
       if (occurrenceError) {
         console.error('Error creating single occurrence:', occurrenceError);
@@ -177,8 +206,8 @@ export function useJobSeries() {
         });
       } else {
         toast({
-          title: "Success",
-          description: "Single occurrence job created successfully",
+          title: "Job created",
+          description: "Job created successfully and will appear in the calendar",
         });
       }
     }

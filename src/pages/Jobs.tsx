@@ -112,7 +112,26 @@ export default function Jobs() {
   const handleFormSubmit = async (data: any) => {
     try {
       setFormLoading(true);
+      console.log('Jobs page: handling form submit', data);
       
+      // Calculate duration in minutes if both times are provided
+      const calculateDurationMinutes = (startTime: string, endTime: string): number => {
+        if (!startTime || !endTime) return 60; // Default 1 hour
+        
+        const [startHours, startMinutes] = startTime.split(':').map(Number);
+        const [endHours, endMinutes] = endTime.split(':').map(Number);
+        
+        const startTotalMinutes = startHours * 60 + startMinutes;
+        const endTotalMinutes = endHours * 60 + endMinutes;
+        
+        let duration = endTotalMinutes - startTotalMinutes;
+        if (duration <= 0) duration += 24 * 60; // Handle overnight jobs
+        
+        return duration;
+      };
+
+      const durationMinutes = calculateDurationMinutes(data.start_time || '', data.end_time || '');
+
       // Transform form fields to match database schema
       const transformedData = {
         ...data,
@@ -120,9 +139,7 @@ export default function Jobs() {
         notes: data.additional_info || null,
         start_date: data.scheduled_date,
         local_start_time: data.start_time || '08:00:00',
-        
-        // Calculate duration from start_time and end_time
-        duration_minutes: calculateDurationMinutes(data.start_time, data.end_time),
+        duration_minutes: durationMinutes,
         
         // Remove form-only fields that don't exist in database
         additional_info: undefined,
@@ -133,31 +150,47 @@ export default function Jobs() {
         
         // Set recurring flag based on form data
         is_recurring: data.is_recurring || false,
+        
+        // Include UTC timestamps for proper timezone handling
+        scheduled_time_utc: data.scheduled_time_utc,
+        scheduled_end_time_utc: data.scheduled_end_time_utc,
       };
 
+      console.log('Transformed data for job creation:', transformedData);
+
       if (editJob) {
+        // Update existing job
         if (editJob.job_type === 'one_time') {
           await updateOneTimeJob(editJob.id, transformedData);
         } else {
           await updateJobSeries(editJob.id, transformedData);
         }
+        toast({
+          title: "Job updated",
+          description: "Job has been successfully updated.",
+        });
       } else {
-        // For non-recurring jobs, we still use createJobSeries but ensure no RRULE is set
+        // Create new job - ALL jobs now go through job_series creation
+        // which will create the appropriate job_occurrences
+        
         if (transformedData.is_recurring && transformedData.rrule) {
+          // Recurring job
           await createJobSeries(transformedData);
         } else {
-          // For single occurrence jobs, use RRULE with COUNT=1 to satisfy NOT NULL constraint
+          // Single occurrence job - still create a series but mark as non-recurring
           const singleJobData = {
             ...transformedData,
-            rrule: 'FREQ=DAILY;COUNT=1',
+            rrule: 'FREQ=DAILY;COUNT=1', // Satisfy NOT NULL constraint
             is_recurring: false
           };
           await createJobSeries(singleJobData);
         }
       }
+      
       setIsFormOpen(false);
       setEditJob(null);
     } catch (error: any) {
+      console.error('Error submitting job form:', error);
       toast({
         variant: "destructive",
         title: editJob ? "Error updating job" : "Error creating job",
