@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { useJobs } from "@/hooks/useJobs";
+import { useJobSeries } from "@/hooks/useJobSeries";
 import { useJobManagement, ManagedJob } from "@/hooks/useJobManagement";
 import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
@@ -56,7 +56,7 @@ export default function Jobs() {
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
   
-  const { createJob } = useJobs(); // Keep for creating new jobs
+  const { createJobSeries } = useJobSeries();
   const { allManagedJobs, loading, updateOneTimeJob, updateJobSeries, deleteOneTimeJob, deleteJobSeries } = useJobManagement();
   const { userRole } = useAuth();
   const { toast } = useToast();
@@ -119,7 +119,13 @@ export default function Jobs() {
           await updateJobSeries(editJob.id, data);
         }
       } else {
-        await createJob(data);
+        // For new jobs, we need to determine if it's recurring or one-time
+        // and set the appropriate flags
+        const jobData = {
+          ...data,
+          is_recurring: data.rrule ? true : false
+        };
+        await createJobSeries(jobData);
       }
       setIsFormOpen(false);
       setEditJob(null);
