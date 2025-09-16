@@ -43,8 +43,31 @@ export function combineDateTimeToUTC(
   time: string, // HH:mm format
   userTimezone: string
 ): Date {
+  // Validate inputs
+  if (!date || !time) {
+    throw new Error('Date and time are required');
+  }
+  
+  // Validate date format (YYYY-MM-DD)
+  const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+  if (!dateRegex.test(date)) {
+    throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
+  }
+  
+  // Validate time format (HH:mm)
+  const timeRegex = /^\d{1,2}:\d{2}$/;
+  if (!timeRegex.test(time)) {
+    throw new Error(`Invalid time format: ${time}. Expected HH:mm`);
+  }
+  
   const dateTimeString = `${date} ${time}:00`;
   const localDateTime = parseISO(dateTimeString);
+  
+  // Check if the parsed date is valid
+  if (isNaN(localDateTime.getTime())) {
+    throw new Error(`Invalid date/time combination: ${dateTimeString}`);
+  }
+  
   return fromZonedTime(localDateTime, userTimezone);
 }
 

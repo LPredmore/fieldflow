@@ -18,6 +18,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { ContractorSelector } from '@/components/Customers/ContractorSelector';
 import { CustomerSelector } from '@/components/Customers/CustomerSelector';
 import { RRuleBuilder } from './RRuleBuilder';
+import { useToast } from '@/hooks/use-toast';
 import { AlertCircle } from 'lucide-react';
 
 const jobSchema = z.object({
@@ -65,6 +66,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
   const { user, userRole } = useAuth();
   const { permissions } = usePermissions();
   const userTimezone = useUserTimezone();
+  const { toast } = useToast();
   const canAssignContractors = canSupervise(permissions);
   const extendedJob = job as ExtendedJob | undefined;
 
@@ -127,15 +129,35 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       let scheduledEndTimeUTC = null;
       
       if (data.start_time) {
-        const utcStart = combineDateTimeToUTC(data.scheduled_date, data.start_time, userTimezone);
-        scheduledTimeUTC = utcStart.toISOString();
-        console.log(`Converted start time: ${data.scheduled_date} ${data.start_time} (${userTimezone}) -> ${scheduledTimeUTC}`);
+        try {
+          const utcStart = combineDateTimeToUTC(data.scheduled_date, data.start_time, userTimezone);
+          scheduledTimeUTC = utcStart.toISOString();
+          console.log(`Converted start time: ${data.scheduled_date} ${data.start_time} (${userTimezone}) -> ${scheduledTimeUTC}`);
+        } catch (error) {
+          console.error('Error converting start time:', error);
+          toast({
+            variant: "destructive",
+            title: "Invalid start time",
+            description: `Please check your date and time format: ${error.message}`,
+          });
+          return;
+        }
       }
       
       if (data.end_time) {
-        const utcEnd = combineDateTimeToUTC(data.scheduled_date, data.end_time, userTimezone);
-        scheduledEndTimeUTC = utcEnd.toISOString();
-        console.log(`Converted end time: ${data.scheduled_date} ${data.end_time} (${userTimezone}) -> ${scheduledEndTimeUTC}`);
+        try {
+          const utcEnd = combineDateTimeToUTC(data.scheduled_date, data.end_time, userTimezone);
+          scheduledEndTimeUTC = utcEnd.toISOString();
+          console.log(`Converted end time: ${data.scheduled_date} ${data.end_time} (${userTimezone}) -> ${scheduledEndTimeUTC}`);
+        } catch (error) {
+          console.error('Error converting end time:', error);
+          toast({
+            variant: "destructive",
+            title: "Invalid end time",
+            description: `Please check your date and time format: ${error.message}`,
+          });
+          return;
+        }
       }
       
       // Clean up data for database submission
