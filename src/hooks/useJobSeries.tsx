@@ -120,37 +120,68 @@ export function useJobSeries() {
 
     if (error) throw error;
 
-    // Generate occurrences for the new series
-    try {
-      const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
-        body: { 
-          seriesId: data.id,
-          monthsAhead: 3,
-          maxOccurrences: 200
+    // Only generate occurrences for recurring jobs with valid RRULE
+    if (validSeriesData.is_recurring && validSeriesData.rrule) {
+      try {
+        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
+          body: { 
+            seriesId: data.id,
+            monthsAhead: 3,
+            maxOccurrences: 200
+          }
+        });
+        
+        if (functionError) {
+          throw new Error(functionError.message || 'Failed to generate job occurrences');
         }
-      });
-      
-      if (functionError) {
-        throw new Error(functionError.message || 'Failed to generate job occurrences');
+        
+        console.log('Occurrence generation result:', functionResult);
+        toast({
+          title: "Success",
+          description: `Series created with ${functionResult.generated?.created || 0} initial occurrences`,
+        });
+      } catch (occurrenceError: any) {
+        console.error('Error generating occurrences:', occurrenceError);
+        toast({
+          variant: "destructive",
+          title: "Job created but occurrences failed",
+          description: occurrenceError.message,
+        });
       }
+    } else {
+      // For single occurrence jobs, create one occurrence manually
+      const startDateTime = new Date(`${validSeriesData.start_date}T${validSeriesData.local_start_time || '08:00:00'}`);
+      const endDateTime = new Date(startDateTime);
+      endDateTime.setMinutes(endDateTime.getMinutes() + (validSeriesData.duration_minutes || 60));
       
-      console.log('Occurrence generation result:', functionResult);
-      toast({
-        title: "Success",
-        description: `Series created with ${functionResult.generated?.created || 0} initial occurrences`,
-      });
-    } catch (generateError: any) {
-      console.error('Error generating occurrences:', generateError);
-      toast({
-        variant: "destructive",
-        title: "Warning: Occurrences not generated",
-        description: `Job series created but occurrences failed: ${generateError.message}`,
-      });
+      const { error: occurrenceError } = await supabase
+        .from('job_occurrences')
+        .insert({
+          series_id: data.id,
+          customer_id: validSeriesData.customer_id,
+          customer_name: validSeriesData.customer_name,
+          start_at: startDateTime.toISOString(),
+          end_at: endDateTime.toISOString(),
+          status: validSeriesData.status || 'scheduled',
+          priority: validSeriesData.priority || 'medium',
+          assigned_to_user_id: validSeriesData.assigned_to_user_id,
+          tenant_id: tenantId,
+        });
+      
+      if (occurrenceError) {
+        console.error('Error creating single occurrence:', occurrenceError);
+        toast({
+          variant: "destructive",
+          title: "Job created but occurrence failed",
+          description: occurrenceError.message,
+        });
+      } else {
+        toast({
+          title: "Success",
+          description: "Single occurrence job created successfully",
+        });
+      }
     }
-    toast({
-      title: "Recurring job created",
-      description: "The recurring job series has been successfully created.",
-    });
     
     await fetchJobSeries();
     return data;

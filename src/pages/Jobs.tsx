@@ -142,7 +142,18 @@ export default function Jobs() {
           await updateJobSeries(editJob.id, transformedData);
         }
       } else {
-        await createJobSeries(transformedData);
+        // For non-recurring jobs, we still use createJobSeries but ensure no RRULE is set
+        if (transformedData.is_recurring && transformedData.rrule) {
+          await createJobSeries(transformedData);
+        } else {
+          // For single occurrence jobs, remove RRULE to prevent multiple occurrences
+          const singleJobData = {
+            ...transformedData,
+            rrule: null,
+            is_recurring: false
+          };
+          await createJobSeries(singleJobData);
+        }
       }
       setIsFormOpen(false);
       setEditJob(null);

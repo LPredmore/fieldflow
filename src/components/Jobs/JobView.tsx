@@ -146,7 +146,17 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     }
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
-      return `${unifiedJob.start_date}T${time}:00.000Z`;
+      // Ensure time format is HH:MM before constructing ISO string
+      const normalizedTime = time.length <= 5 ? `${time}:00` : time;
+      const isoString = `${unifiedJob.start_date}T${normalizedTime}.000Z`;
+      
+      // Validate the constructed date
+      const date = new Date(isoString);
+      if (isNaN(date.getTime())) {
+        console.error('Invalid start date constructed:', isoString);
+        return new Date().toISOString();
+      }
+      return isoString;
     }
     return new Date().toISOString();
   };
@@ -158,7 +168,18 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     }
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
-      const endTime = new Date(`${unifiedJob.start_date}T${time}:00.000Z`);
+      // Ensure time format is HH:MM before constructing ISO string
+      const normalizedTime = time.length <= 5 ? `${time}:00` : time;
+      const isoString = `${unifiedJob.start_date}T${normalizedTime}.000Z`;
+      
+      // Validate the constructed date
+      const startDate = new Date(isoString);
+      if (isNaN(startDate.getTime())) {
+        console.error('Invalid end date constructed:', isoString);
+        return new Date().toISOString();
+      }
+      
+      const endTime = new Date(startDate);
       endTime.setMinutes(endTime.getMinutes() + (unifiedJob.duration_minutes || 60));
       return endTime.toISOString();
     }
