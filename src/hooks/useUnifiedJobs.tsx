@@ -50,21 +50,15 @@ export function useUnifiedJobs() {
       setLoading(true);
       
       // Fetch one-time jobs from job_series where is_recurring = false
-      let oneTimeJobSeries: any[] = [];
-      let jobsError: any = null;
-      
-      try {
-        const { data, error } = await supabase
-          .from('job_series')
-          .select('id, title, customer_id, customer_name, start_date, local_start_time, duration_minutes, priority, service_type, estimated_cost, notes, assigned_to_user_id, tenant_id, created_at, updated_at, created_by_user_id, description')
-          .eq('is_recurring', false)
-          .order('created_at', { ascending: false });
+      // Using aggressive type assertion to avoid TypeScript deep instantiation issues
+      const oneTimeResult = await (supabase as any)
+        .from('job_series')
+        .select('*')
+        .eq('is_recurring', false)
+        .order('created_at', { ascending: false });
         
-        oneTimeJobSeries = data || [];
-        jobsError = error;
-      } catch (error) {
-        jobsError = error;
-      }
+      const oneTimeJobSeries = oneTimeResult.data || [];
+      const jobsError = oneTimeResult.error;
 
       if (jobsError) {
         toast({
