@@ -264,7 +264,9 @@ export type Database = {
       job_series: {
         Row: {
           active: boolean
+          actual_cost: number | null
           assigned_to_user_id: string | null
+          completion_notes: string | null
           created_at: string
           created_by_user_id: string
           customer_id: string
@@ -282,6 +284,7 @@ export type Database = {
           rrule: string
           service_type: Database["public"]["Enums"]["job_service_type"]
           start_date: string
+          status: Database["public"]["Enums"]["job_status"] | null
           tenant_id: string
           timezone: string
           title: string
@@ -290,7 +293,9 @@ export type Database = {
         }
         Insert: {
           active?: boolean
+          actual_cost?: number | null
           assigned_to_user_id?: string | null
+          completion_notes?: string | null
           created_at?: string
           created_by_user_id: string
           customer_id: string
@@ -308,6 +313,7 @@ export type Database = {
           rrule: string
           service_type?: Database["public"]["Enums"]["job_service_type"]
           start_date: string
+          status?: Database["public"]["Enums"]["job_status"] | null
           tenant_id: string
           timezone?: string
           title: string
@@ -316,7 +322,9 @@ export type Database = {
         }
         Update: {
           active?: boolean
+          actual_cost?: number | null
           assigned_to_user_id?: string | null
+          completion_notes?: string | null
           created_at?: string
           created_by_user_id?: string
           customer_id?: string
@@ -334,6 +342,7 @@ export type Database = {
           rrule?: string
           service_type?: Database["public"]["Enums"]["job_service_type"]
           start_date?: string
+          status?: Database["public"]["Enums"]["job_status"] | null
           tenant_id?: string
           timezone?: string
           title?: string
