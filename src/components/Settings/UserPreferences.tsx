@@ -13,10 +13,10 @@ const formSchema = z.object({
   user_preferences: z.object({
     time_format: z.string(),
     date_format: z.string(),
-    timezone: z.string(),
     currency_symbol: z.string(),
     default_view: z.string(),
   }),
+  time_zone: z.string(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -33,13 +33,13 @@ const DATE_FORMATS = [
 ];
 
 const TIMEZONES = [
-  { value: "America/New_York", label: "Eastern Time (ET)" },
-  { value: "America/Chicago", label: "Central Time (CT)" },
-  { value: "America/Denver", label: "Mountain Time (MT)" },
-  { value: "America/Los_Angeles", label: "Pacific Time (PT)" },
-  { value: "America/Phoenix", label: "Arizona Time (AZ)" },
-  { value: "America/Anchorage", label: "Alaska Time (AK)" },
-  { value: "Pacific/Honolulu", label: "Hawaii Time (HI)" },
+  { value: "Eastern", label: "Eastern" },
+  { value: "Central", label: "Central" },
+  { value: "Mountain", label: "Mountain" },
+  { value: "Pacific", label: "Pacific" },
+  { value: "Arizona", label: "Arizona" },
+  { value: "Alaska", label: "Alaska" },
+  { value: "Hawaii Aleutian", label: "Hawaii Aleutian" },
 ];
 
 const CURRENCIES = [
@@ -67,10 +67,10 @@ export default function UserPreferences() {
       user_preferences: {
         time_format: "12",
         date_format: "MM/DD/YYYY",
-        timezone: "America/New_York",
         currency_symbol: "USD",
         default_view: "dashboard",
       },
+      time_zone: "Eastern",
     },
   });
 
@@ -82,10 +82,10 @@ export default function UserPreferences() {
         user_preferences: {
           time_format: userPreferences.time_format || "12",
           date_format: userPreferences.date_format || "MM/DD/YYYY",
-          timezone: userPreferences.timezone || "America/New_York",
           currency_symbol: userPreferences.currency_symbol || "USD",
           default_view: userPreferences.default_view || "dashboard",
         },
+        time_zone: settings.time_zone || "Eastern",
       });
     }
   }, [settings, form]);
@@ -96,6 +96,7 @@ export default function UserPreferences() {
     try {
       const updateData = {
         user_preferences: data.user_preferences,
+        time_zone: data.time_zone,
       };
 
       if (settings) {
@@ -182,7 +183,7 @@ export default function UserPreferences() {
 
               <FormField
                 control={form.control}
-                name="user_preferences.timezone"
+                name="time_zone"
                 render={({ field }) => (
                   <FormItem>
                     <FormLabel>Timezone</FormLabel>

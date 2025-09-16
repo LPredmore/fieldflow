@@ -23,6 +23,7 @@ export interface Settings {
   business_hours: any | null;
   system_settings: any | null;
   user_preferences: any | null;
+  time_zone: string | null;
   created_at: string;
   updated_at: string | null;
 }
@@ -49,7 +50,7 @@ export function useSettings() {
         return;
       }
 
-      setSettings(data ? { ...data, text_color: (data as any).text_color || null } : null);
+      setSettings(data ? { ...data, text_color: (data as any).text_color || null, time_zone: (data as any).time_zone || null } : null);
     } catch (error: any) {
       console.error('Error loading settings:', error);
     } finally {
@@ -87,7 +88,7 @@ export function useSettings() {
         return { error };
       }
 
-      setSettings({ ...data, text_color: (data as any).text_color || null });
+      setSettings({ ...data, text_color: (data as any).text_color || null, time_zone: (data as any).time_zone || null });
       toast({
         title: "Settings updated",
         description: "Your settings have been updated successfully.",
@@ -139,7 +140,7 @@ export function useSettings() {
         return { error };
       }
 
-      setSettings({ ...data, text_color: (data as any).text_color || null });
+      setSettings({ ...data, text_color: (data as any).text_color || null, time_zone: (data as any).time_zone || null });
       toast({
         title: "Settings created",
         description: "Your settings have been created successfully.",
