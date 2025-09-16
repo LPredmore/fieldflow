@@ -37,15 +37,15 @@ const Calendar = () => {
             return null;
           }
           
-          // Parse UTC times and format for FullCalendar
+          console.log(`Job "${job.title}": UTC times - start: ${job.start_at}, end: ${job.end_at}`);
+          
+          // Use the UTC ISO strings directly from database - no conversion needed
+          const startForCalendar = job.start_at;
+          const endForCalendar = job.end_at;
+          
+          // Calculate duration for all-day event detection only
           const startDate = new Date(job.start_at);
           const endDate = new Date(job.end_at);
-          
-          // Format for FullCalendar (as ISO strings in UTC)
-          const startForCalendar = startDate.toISOString();
-          const endForCalendar = endDate.toISOString();
-          
-          // Determine if this should be an all-day event
           const durationMs = endDate.getTime() - startDate.getTime();
           const durationHours = durationMs / (1000 * 60 * 60);
           const isAllDay = durationHours >= 24;
@@ -87,6 +87,7 @@ const Calendar = () => {
             }
           };
           
+          console.log(`Event created for "${job.title}": start=${startForCalendar}, timezone will be handled by FullCalendar`);
           return event;
         } catch (error) {
           console.error('Error processing job for calendar:', job.id, job.title, error);
@@ -219,6 +220,7 @@ const Calendar = () => {
                   meridiem: 'short'
                 }}
                 eventDidMount={(info) => {
+                  console.log(`FullCalendar rendered event "${info.event.title}" at ${info.event.start?.toLocaleString()} in ${userTimezone}`);
                   // Add tooltip
                   info.el.title = `${info.event.title} - ${info.event.extendedProps.customerName}`;
                 }}
