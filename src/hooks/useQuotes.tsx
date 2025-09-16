@@ -519,24 +519,28 @@ export const useQuotes = () => {
 
       if (quoteError || !quote) throw new Error("Quote not found");
 
-      // Create job from quote
+      // Create job series from quote (one-time job)
       const jobData = {
         title: quote.title,
         customer_id: quote.customer_id,
         customer_name: quote.customer_name,
-        status: 'scheduled' as const,
         priority: 'medium' as const,
-        scheduled_date: quote.estimated_start_date || format(new Date(), 'yyyy-MM-dd'),
-        complete_date: quote.estimated_completion_date || null,
+        start_date: quote.estimated_start_date || format(new Date(), 'yyyy-MM-dd'),
+        local_start_time: '09:00:00',
+        duration_minutes: 60,
+        timezone: 'America/New_York',
         service_type: 'general_maintenance' as const,
         description: `Job created from quote ${quote.quote_number}`,
         estimated_cost: quote.total_amount,
+        rrule: 'FREQ=DAILY;COUNT=1', // Single occurrence
+        is_recurring: false, // Mark as one-time job
+        active: true,
         tenant_id: tenantId,
         created_by_user_id: user.id,
       };
 
       const { error: jobError } = await supabase
-        .from("jobs")
+        .from("job_series")
         .insert([jobData]);
 
       if (jobError) throw jobError;
@@ -554,7 +558,8 @@ export const useQuotes = () => {
     },
     onSuccess: (quote) => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      queryClient.invalidateQueries({ queryKey: ["jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["unified-jobs"] });
+      queryClient.invalidateQueries({ queryKey: ["job-management"] });
       toast({
         title: "Success",
         description: `Job created from quote ${quote.quote_number}`,

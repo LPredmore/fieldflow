@@ -75,14 +75,12 @@ export function useJobManagement() {
     try {
       setLoading(true);
       
-      // Fetch one-time jobs
+      // Fetch one-time jobs from job_series where is_recurring = false
       const { data: oneTimeJobsData, error: jobsError } = await supabase
-        .from('jobs')
-        .select(`
-          *,
-          assigned_contractor:profiles!assigned_to_user_id(full_name, email)
-        `)
-        .order('created_at', { ascending: false });
+        .from('job_series')
+        .select('*')
+        .eq('is_recurring', false)
+        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
 
       if (jobsError) {
         toast({
@@ -97,7 +95,8 @@ export function useJobManagement() {
       const { data: jobSeriesData, error: seriesError } = await supabase
         .from('job_series')
         .select('*')
-        .order('created_at', { ascending: false });
+        .eq('is_recurring', true)
+        .order('created_at', { ascending: false }) as { data: any[] | null, error: any };
 
       if (seriesError) {
         toast({
@@ -108,14 +107,51 @@ export function useJobManagement() {
         return;
       }
 
-      // Transform one-time jobs
-      const transformedOneTimeJobs: OneTimeJob[] = (oneTimeJobsData || []).map(job => ({
-        ...job,
-        contractor_name: job.assigned_contractor?.full_name || 
-                        job.assigned_contractor?.email?.split('@')[0] || 
-                        (job.assigned_to_user_id ? 'Unnamed User' : undefined),
-        job_type: 'one_time' as const,
-      }));
+      // Transform one-time jobs from job_series
+      const transformedOneTimeJobs: OneTimeJob[] = [];
+      
+      for (const job of oneTimeJobsData || []) {
+        // Get contractor name separately
+        let contractorName;
+        if (job.assigned_to_user_id) {
+          const { data: contractorData } = await supabase
+            .from('profiles')
+            .select('full_name, email')
+            .eq('id', job.assigned_to_user_id)
+            .single();
+          
+          contractorName = contractorData?.full_name || 
+                          contractorData?.email?.split('@')[0] || 
+                          'Unnamed User';
+        }
+
+        transformedOneTimeJobs.push({
+          id: job.id,
+          created_at: job.created_at,
+          updated_at: job.updated_at,
+          tenant_id: job.tenant_id,
+          created_by_user_id: job.created_by_user_id,
+          customer_id: job.customer_id,
+          customer_name: job.customer_name,
+          title: job.title,
+          description: job.description,
+          status: 'scheduled' as const, // One-time jobs are scheduled by default
+          priority: job.priority,
+          assigned_to_user_id: job.assigned_to_user_id,
+          service_type: job.service_type,
+          estimated_cost: job.estimated_cost,
+          actual_cost: null,
+          scheduled_date: job.start_date,
+          scheduled_time: job.local_start_time,
+          scheduled_end_time: undefined,
+          estimated_duration: job.duration_minutes / 60, // Convert to hours
+          complete_date: undefined,
+          completion_notes: undefined,
+          additional_info: job.notes,
+          contractor_name: contractorName,
+          job_type: 'one_time' as const,
+        });
+      }
 
       // Transform job series and get occurrence counts
       const transformedJobSeries: JobSeries[] = [];
@@ -178,10 +214,18 @@ export function useJobManagement() {
   const updateOneTimeJob = async (jobId: string, updates: Partial<OneTimeJob>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { contractor_name, job_type, ...dbUpdates } = updates;
+    const { contractor_name, job_type, scheduled_date, scheduled_time, scheduled_end_time, estimated_duration, complete_date, completion_notes, additional_info, actual_cost, status, ...dbUpdates } = updates;
+    
+    // Convert OneTimeJob updates to job_series format
+    const seriesUpdates: any = { ...dbUpdates };
+    if (scheduled_date) seriesUpdates.start_date = scheduled_date;
+    if (scheduled_time) seriesUpdates.local_start_time = scheduled_time;
+    if (estimated_duration) seriesUpdates.duration_minutes = estimated_duration * 60; // Convert hours to minutes
+    if (additional_info !== undefined) seriesUpdates.notes = additional_info;
+    
     const { data, error } = await supabase
-      .from('jobs')
-      .update(dbUpdates)
+      .from('job_series')
+      .update(seriesUpdates)
       .eq('id', jobId)
       .select()
       .single();
@@ -258,7 +302,7 @@ export function useJobManagement() {
   const deleteOneTimeJob = async (jobId: string) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
-    const { error } = await supabase.from('jobs').delete().eq('id', jobId);
+    const { error } = await supabase.from('job_series').delete().eq('id', jobId);
     if (error) throw error;
     
     toast({

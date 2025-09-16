@@ -15,7 +15,7 @@ import RecentJobs from "@/components/Dashboard/RecentJobs";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCustomers } from "@/hooks/useCustomers";
-import { useJobs } from "@/hooks/useJobs";
+import { useUnifiedJobs } from "@/hooks/useUnifiedJobs";
 import { useInvoices } from "@/hooks/useInvoices";
 import { useQuotes } from "@/hooks/useQuotes";
 import { QuoteForm } from "@/components/Quotes/QuoteForm";
@@ -25,7 +25,7 @@ import { toast } from "sonner";
 
 const Index = () => {
   const { stats: customerStats, createCustomer } = useCustomers();
-  const { jobs } = useJobs();
+  const { unifiedJobs: jobs } = useUnifiedJobs();
   const { stats: invoiceStats } = useInvoices();
   const { stats: quoteStats, createQuote } = useQuotes();
 

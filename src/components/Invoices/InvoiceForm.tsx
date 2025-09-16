@@ -54,18 +54,37 @@ export function InvoiceForm({ open, onOpenChange, onSubmit, invoice, title }: In
   const { customers } = useCustomers();
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  // Fetch jobs for dropdown
+  // Fetch completed job occurrences for dropdown
   const { data: jobs = [] } = useQuery({
-    queryKey: ["jobs"],
+    queryKey: ["completed-jobs"],
     queryFn: async () => {
       const { data, error } = await supabase
-        .from("jobs")
-        .select("id, title, customer_id, customer_name, actual_cost, estimated_cost")
+        .from("job_occurrences")
+        .select(`
+          id,
+          customer_id,
+          customer_name,
+          actual_cost,
+          override_estimated_cost,
+          job_series!job_occurrences_series_id_fkey (
+            title,
+            estimated_cost
+          )
+        `)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
       if (error) throw error;
-      return data;
+      
+      // Transform data to match expected format
+      return (data || []).map(occurrence => ({
+        id: occurrence.id,
+        title: occurrence.job_series?.title || 'Completed Job',
+        customer_id: occurrence.customer_id,
+        customer_name: occurrence.customer_name,
+        actual_cost: occurrence.actual_cost,
+        estimated_cost: occurrence.override_estimated_cost || occurrence.job_series?.estimated_cost || 0
+      }));
     },
   });
 
