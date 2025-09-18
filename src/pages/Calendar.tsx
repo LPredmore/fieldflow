@@ -5,7 +5,7 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
-import { toFullCalendarFormat } from '@/lib/timezoneUtils';
+import { convertFromUTC } from '@/lib/timezoneUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -31,7 +31,7 @@ const Calendar = () => {
     return calendarJobs
       .map((job) => {
         try {
-          // Use UTC times directly for FullCalendar - it will handle timezone conversion
+          // Convert UTC times to user's timezone for FullCalendar display
           if (!job.start_at || !job.end_at) {
             console.warn('Job missing start_at or end_at:', job.id, job.title);
             return null;
@@ -39,9 +39,11 @@ const Calendar = () => {
           
           console.log(`Job "${job.title}": UTC times - start: ${job.start_at}, end: ${job.end_at}`);
           
-          // Use the UTC ISO strings directly from database - no conversion needed
-          const startForCalendar = job.start_at;
-          const endForCalendar = job.end_at;
+          // Convert UTC to user timezone for proper display
+          const localStartDate = convertFromUTC(job.start_at, userTimezone);
+          const localEndDate = convertFromUTC(job.end_at, userTimezone);
+          const startForCalendar = localStartDate.toISOString();
+          const endForCalendar = localEndDate.toISOString();
           
           // Calculate duration for all-day event detection only
           const startDate = new Date(job.start_at);
@@ -87,7 +89,7 @@ const Calendar = () => {
             }
           };
           
-          console.log(`Event created for "${job.title}": start=${startForCalendar}, timezone will be handled by FullCalendar`);
+          console.log(`Event created for "${job.title}": start=${startForCalendar} (converted from UTC to ${userTimezone})`);
           return event;
         } catch (error) {
           console.error('Error processing job for calendar:', job.id, job.title, error);
