@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
+import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 
 export interface JobSeries {
   id: string;
@@ -169,14 +170,21 @@ export function useJobSeries() {
         endAtUTC = scheduled_end_time_utc;
         console.log('Using pre-converted UTC timestamps:', { startAtUTC, endAtUTC });
       } else {
-        // Fallback: construct from date and local_start_time (assumes timezone already handled)
-        const startDateTime = new Date(`${validSeriesData.start_date}T${validSeriesData.local_start_time || '08:00:00'}`);
-        const endDateTime = new Date(startDateTime);
-        endDateTime.setMinutes(endDateTime.getMinutes() + (validSeriesData.duration_minutes || 60));
+        // Fallback: construct from date and local_start_time using proper timezone conversion
+        const timezone = validSeriesData.timezone || DEFAULT_TIMEZONE;
         
-        startAtUTC = startDateTime.toISOString();
-        endAtUTC = endDateTime.toISOString();
-        console.log('Constructed timestamps from local time:', { startAtUTC, endAtUTC });
+        // Normalize time to HH:mm format (remove seconds if present)
+        const startTime = (validSeriesData.local_start_time || '08:00').split(':').slice(0, 2).join(':');
+        
+        // Convert local date/time to UTC using the series timezone
+        const utcStartDate = combineDateTimeToUTC(validSeriesData.start_date, startTime, timezone);
+        
+        // Calculate end time by adding duration minutes
+        const endUtcDate = new Date(utcStartDate.getTime() + (validSeriesData.duration_minutes || 60) * 60000);
+        
+        startAtUTC = utcStartDate.toISOString();
+        endAtUTC = endUtcDate.toISOString();
+        console.log(`Constructed timestamps using timezone ${timezone}:`, { startAtUTC, endAtUTC });
       }
       
       const occurrenceData = {
