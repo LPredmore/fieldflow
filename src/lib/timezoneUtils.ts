@@ -54,21 +54,29 @@ export function combineDateTimeToUTC(
     throw new Error(`Invalid date format: ${date}. Expected YYYY-MM-DD`);
   }
   
-  // Validate time format (HH:mm)
-  const timeRegex = /^\d{1,2}:\d{2}$/;
+  // Validate time format (HH:mm or HH:mm:ss)
+  const timeRegex = /^\d{1,2}:\d{2}(:\d{2})?$/;
   if (!timeRegex.test(time)) {
-    throw new Error(`Invalid time format: ${time}. Expected HH:mm`);
+    throw new Error(`Invalid time format: ${time}. Expected HH:mm or HH:mm:ss`);
   }
   
-  const dateTimeString = `${date} ${time}:00`;
-  const localDateTime = parseISO(dateTimeString);
+  // Normalize time to HH:mm:ss format (append :00 if needed)
+  const normalizedTime = time.includes(':') && time.split(':').length === 2 ? `${time}:00` : time;
   
-  // Check if the parsed date is valid
-  if (isNaN(localDateTime.getTime())) {
-    throw new Error(`Invalid date/time combination: ${dateTimeString}`);
+  // Create ISO-compliant datetime string with T separator
+  const isoDateTimeString = `${date}T${normalizedTime}`;
+  
+  // Use fromZonedTime to interpret the datetime as being IN the user's timezone and convert to UTC
+  const utcDateTime = fromZonedTime(isoDateTimeString, userTimezone);
+  
+  // Check if the conversion result is valid
+  if (isNaN(utcDateTime.getTime())) {
+    throw new Error(`Invalid date/time combination or timezone: ${isoDateTimeString} in ${userTimezone}`);
   }
   
-  return fromZonedTime(localDateTime, userTimezone);
+  console.log(`combineDateTimeToUTC: ${date} ${time} in ${userTimezone} → ${utcDateTime.toISOString()}`);
+  
+  return utcDateTime;
 }
 
 /**
