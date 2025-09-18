@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
 import { useUserTimezone } from './useUserTimezone';
+import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 
 export interface UnifiedJob {
   id: string;
@@ -28,6 +29,7 @@ export interface UnifiedJob {
   completion_notes?: string;
   additional_info?: string;
   contractor_name?: string;
+  timezone?: string;
   // Original job fields for backward compatibility
   scheduled_date?: string;
   scheduled_time?: string;
@@ -114,17 +116,16 @@ export function useUnifiedJobs() {
         }
         
         try {
-          // Convert local_start_time and duration to start/end times
+          // Convert local_start_time and duration to start/end times using proper timezone conversion
           const startTime = job.local_start_time || '08:00:00';
           const startTimeFormatted = startTime.substring(0, 5); // HH:mm format
           
-          // Calculate end time based on duration_minutes
-          const startHours = parseInt(startTime.split(':')[0]);
-          const startMinutes = parseInt(startTime.split(':')[1]);
-          const totalMinutes = startHours * 60 + startMinutes + (job.duration_minutes || 60);
-          const endHours = Math.floor(totalMinutes / 60);
-          const endMinutesRemainder = totalMinutes % 60;
-          const endTime = `${endHours.toString().padStart(2, '0')}:${endMinutesRemainder.toString().padStart(2, '0')}`;
+          // Use the job's timezone or fall back to default
+          const timezone = job.timezone || DEFAULT_TIMEZONE;
+          
+          // Properly convert local time to UTC
+          const utcStart = combineDateTimeToUTC(job.start_date, startTimeFormatted, timezone);
+          const utcEnd = new Date(utcStart.getTime() + (job.duration_minutes || 60) * 60000);
 
           transformedOneTimeJobs.push({
             id: job.id,
@@ -142,12 +143,13 @@ export function useUnifiedJobs() {
             service_type: job.service_type,
             estimated_cost: job.estimated_cost,
             actual_cost: null, // No actual cost until job is completed
-            start_at: `${job.start_date}T${startTimeFormatted}:00.000Z`,
-            end_at: `${job.start_date}T${endTime}:00.000Z`,
+            start_at: utcStart.toISOString(),
+            end_at: utcEnd.toISOString(),
             job_type: 'one_time' as const,
             completion_notes: undefined,
             additional_info: job.notes,
             contractor_name: contractorName,
+            timezone: timezone,
             // Backward compatibility fields
             scheduled_date: job.start_date,
             scheduled_time: startTimeFormatted,

@@ -8,6 +8,7 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
+import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
 
 interface JobViewProps {
   job: UnifiedJob | OneTimeJob | JobSeries;
@@ -120,14 +121,23 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
 
   if (isEditing) {
     // Convert OneTimeJob to UnifiedJob format if needed
-    const jobForForm = 'start_at' in unifiedJob ? unifiedJob : {
-      ...unifiedJob,
-      start_at: `${unifiedJob.start_date}T${unifiedJob.local_start_time || '08:00'}:00.000Z`,
-      end_at: `${unifiedJob.start_date}T${unifiedJob.local_start_time || '08:00'}:00.000Z`,
-      job_type: 'one_time' as const,
-      // Ensure assigned_to_user_id is properly passed for contractor binding
-      assigned_to_user_id: unifiedJob.assigned_to_user_id
-    };
+    const jobForForm = 'start_at' in unifiedJob ? unifiedJob : (() => {
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const localTime = unifiedJob.local_start_time || '08:00';
+      const startTimeFormatted = localTime.substring(0, 5); // HH:mm format
+      const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
+      const utcEnd = new Date(utcStart.getTime() + (unifiedJob.duration_minutes || 60) * 60000);
+      
+      return {
+        ...unifiedJob,
+        start_at: utcStart.toISOString(),
+        end_at: utcEnd.toISOString(),
+        job_type: 'one_time' as const,
+        timezone: timezone,
+        // Ensure assigned_to_user_id is properly passed for contractor binding
+        assigned_to_user_id: unifiedJob.assigned_to_user_id
+      };
+    })();
 
     return (
       <JobForm
@@ -146,17 +156,16 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     }
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
-      // Ensure time format is HH:MM before constructing ISO string
-      const normalizedTime = time.length <= 5 ? `${time}:00` : time;
-      const isoString = `${unifiedJob.start_date}T${normalizedTime}.000Z`;
+      const startTimeFormatted = time.substring(0, 5); // HH:mm format
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
       
-      // Validate the constructed date
-      const date = new Date(isoString);
-      if (isNaN(date.getTime())) {
-        console.error('Invalid start date constructed:', isoString);
+      try {
+        const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
+        return utcStart.toISOString();
+      } catch (error) {
+        console.error('Error converting start date to UTC:', error);
         return new Date().toISOString();
       }
-      return isoString;
     }
     return new Date().toISOString();
   };
@@ -168,20 +177,17 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     }
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
-      // Ensure time format is HH:MM before constructing ISO string
-      const normalizedTime = time.length <= 5 ? `${time}:00` : time;
-      const isoString = `${unifiedJob.start_date}T${normalizedTime}.000Z`;
+      const startTimeFormatted = time.substring(0, 5); // HH:mm format
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
       
-      // Validate the constructed date
-      const startDate = new Date(isoString);
-      if (isNaN(startDate.getTime())) {
-        console.error('Invalid end date constructed:', isoString);
+      try {
+        const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
+        const utcEnd = new Date(utcStart.getTime() + (unifiedJob.duration_minutes || 60) * 60000);
+        return utcEnd.toISOString();
+      } catch (error) {
+        console.error('Error converting end date to UTC:', error);
         return new Date().toISOString();
       }
-      
-      const endTime = new Date(startDate);
-      endTime.setMinutes(endTime.getMinutes() + (unifiedJob.duration_minutes || 60));
-      return endTime.toISOString();
     }
     return new Date().toISOString();
   };
