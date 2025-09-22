@@ -203,7 +203,7 @@ const Calendar = () => {
                 dayMaxEventRows={3}
                 eventDisplay="block"
                 displayEventTime={true}
-                timeZone='UTC'
+                timeZone={userTimezone}
                 slotMinTime={calendarView === 'timeGridWeek' ? slotMinTime : '00:00:00'}
                 slotMaxTime={calendarView === 'timeGridWeek' ? slotMaxTime : '24:00:00'}
                 slotDuration="00:30:00"
