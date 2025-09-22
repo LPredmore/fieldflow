@@ -39,11 +39,10 @@ const Calendar = () => {
           
           console.log(`Job "${job.title}": UTC times - start: ${job.start_at}, end: ${job.end_at}`);
           
-          // Convert UTC to user timezone for proper display
-          const localStartDate = convertFromUTC(job.start_at, userTimezone);
-          const localEndDate = convertFromUTC(job.end_at, userTimezone);
-          const startForCalendar = localStartDate.toISOString();
-          const endForCalendar = localEndDate.toISOString();
+          // Pass UTC timestamps directly to FullCalendar - it handles timezone conversion
+          // Using the original UTC strings avoids double conversion
+          const startForCalendar = job.start_at;
+          const endForCalendar = job.end_at;
           
           // Calculate duration for all-day event detection only
           const startDate = new Date(job.start_at);
@@ -204,7 +203,7 @@ const Calendar = () => {
                 dayMaxEventRows={3}
                 eventDisplay="block"
                 displayEventTime={true}
-                timeZone={userTimezone}
+                timeZone='UTC'
                 slotMinTime={calendarView === 'timeGridWeek' ? slotMinTime : '00:00:00'}
                 slotMaxTime={calendarView === 'timeGridWeek' ? slotMaxTime : '24:00:00'}
                 slotDuration="00:30:00"

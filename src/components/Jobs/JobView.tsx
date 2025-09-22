@@ -92,16 +92,41 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           is_recurring,
           rrule,
           until_date,
-          timezone,
           scheduled_time_utc,
           scheduled_end_time_utc,
           ...updateData
         } = formData;
         
-        // For one-time jobs, include time fields
-        if ('scheduled_date' in unifiedJob) {
-          updateData.scheduled_time = start_time;
-          updateData.scheduled_end_time = end_time;
+        // For one-time jobs, compute and include UTC timestamps when timing changes
+        if ('start_date' in unifiedJob || 'scheduled_date' in unifiedJob) {
+          const jobTimezone = formData.timezone || ('timezone' in unifiedJob ? unifiedJob.timezone : DEFAULT_TIMEZONE);
+          
+          // Check if timing has changed - compare with current values
+          const currentStartDate = 'start_date' in unifiedJob ? unifiedJob.start_date : formData.scheduled_date;
+          const currentStartTime = 'local_start_time' in unifiedJob ? unifiedJob.local_start_time : formData.start_time;
+          
+          const timingChanged = formData.scheduled_date !== currentStartDate || 
+                               formData.start_time !== currentStartTime ||
+                               formData.duration_minutes !== ('duration_minutes' in unifiedJob ? unifiedJob.duration_minutes : unifiedJob.estimated_duration);
+          
+          if (timingChanged && formData.scheduled_date && formData.start_time) {
+            try {
+              // Compute UTC timestamps for the update
+              const durationMinutes = formData.duration_minutes || ('duration_minutes' in unifiedJob ? unifiedJob.duration_minutes : unifiedJob.estimated_duration) || 60;
+              const utcStart = combineDateTimeToUTC(formData.scheduled_date, formData.start_time, jobTimezone);
+              const utcEnd = new Date(utcStart.getTime() + durationMinutes * 60000);
+              
+              // Include computed UTC timestamps
+              updateData.scheduled_time_utc = utcStart.toISOString();
+              updateData.scheduled_end_time_utc = utcEnd.toISOString();
+              updateData.start_date = formData.scheduled_date;
+              updateData.local_start_time = formData.start_time;
+              updateData.duration_minutes = formData.duration_minutes;
+              updateData.timezone = jobTimezone;
+            } catch (error) {
+              console.error('Error computing UTC timestamps:', error);
+            }
+          }
         }
         
         // Ensure assigned_to_user_id is properly handled

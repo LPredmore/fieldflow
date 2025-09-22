@@ -231,8 +231,10 @@ export function useJobManagement() {
       ...dbUpdates 
     } = updates;
     
-    // The OneTimeJob interface now matches the job_series table structure
-    // No conversion needed
+    // Check if timing fields have changed and we have UTC timestamps
+    const hasTimingChanges = updates.scheduled_time_utc && updates.scheduled_end_time_utc;
+    
+    // Update the job_series record
     const { data, error } = await supabase
       .from('job_series')
       .update(dbUpdates)
@@ -241,6 +243,28 @@ export function useJobManagement() {
       .single();
 
     if (error) throw error;
+    
+    // If timing changed, also update any corresponding job_occurrences
+    if (hasTimingChanges) {
+      try {
+        // For one-time jobs, there might be an occurrence in job_occurrences table
+        // Update it to keep the calendar in sync
+        const { error: occurrenceError } = await supabase
+          .from('job_occurrences')
+          .update({
+            start_at: updates.scheduled_time_utc,
+            end_at: updates.scheduled_end_time_utc,
+          })
+          .eq('series_id', jobId);
+          
+        if (occurrenceError) {
+          console.warn('Could not update job_occurrences for one-time job:', occurrenceError);
+          // Don't throw - this is not critical as one-time jobs might not have occurrences
+        }
+      } catch (occError) {
+        console.warn('Error updating job occurrence:', occError);
+      }
+    }
     
     toast({
       title: "Job updated",
