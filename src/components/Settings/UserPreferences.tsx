@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import type { Database } from "@/integrations/supabase/types";
 
 const formSchema = z.object({
   user_preferences: z.object({
@@ -96,7 +97,7 @@ export default function UserPreferences() {
     try {
       const updateData = {
         user_preferences: data.user_preferences,
-        time_zone: data.time_zone,
+        time_zone: data.time_zone as Database["public"]["Enums"]["time_zones"],
       };
 
       if (settings) {

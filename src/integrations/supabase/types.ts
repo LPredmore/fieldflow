@@ -609,6 +609,7 @@ export type Database = {
           tax_settings: Json | null
           tenant_id: string
           text_color: string | null
+          time_zone: Database["public"]["Enums"]["time_zones"] | null
           updated_at: string | null
           user_preferences: Json | null
         }
@@ -632,6 +633,7 @@ export type Database = {
           tax_settings?: Json | null
           tenant_id: string
           text_color?: string | null
+          time_zone?: Database["public"]["Enums"]["time_zones"] | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
@@ -655,6 +657,7 @@ export type Database = {
           tax_settings?: Json | null
           tenant_id?: string
           text_color?: string | null
+          time_zone?: Database["public"]["Enums"]["time_zones"] | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
@@ -781,6 +784,14 @@ export type Database = {
         | "other"
       job_status: "scheduled" | "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
+      time_zones:
+        | "Eastern"
+        | "Central"
+        | "Mountain"
+        | "Pacific"
+        | "Arizona"
+        | "Alaska"
+        | "Hawaii Aleutian"
       user_role: "business_admin" | "contractor"
     }
     CompositeTypes: {
@@ -923,6 +934,15 @@ export const Constants = {
       ],
       job_status: ["scheduled", "in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "declined", "expired"],
+      time_zones: [
+        "Eastern",
+        "Central",
+        "Mountain",
+        "Pacific",
+        "Arizona",
+        "Alaska",
+        "Hawaii Aleutian",
+      ],
       user_role: ["business_admin", "contractor"],
     },
   },
