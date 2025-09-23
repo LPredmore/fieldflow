@@ -102,7 +102,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       priority: job?.priority || 'medium',
       scheduled_date: job?.scheduled_date || initialValues.date,
       complete_date: job?.complete_date || undefined, // Don't use empty string
-      assigned_to_user_id: job?.assigned_to_user_id || user?.id || undefined,
+      assigned_to_user_id: job?.assigned_to_user_id || user?.id,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
