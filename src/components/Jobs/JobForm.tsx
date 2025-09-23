@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useEffect } from 'react';
 import { UnifiedJob } from '@/hooks/useUnifiedJobs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -116,6 +117,16 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       timezone: userTimezone,
     },
   });
+
+  // Auto-assign current user to new jobs once auth context loads
+  useEffect(() => {
+    const currentAssignedTo = form.getValues('assigned_to_user_id');
+    
+    // Only set if: no existing job (new job flow), field is empty, and user is available
+    if (!job && !currentAssignedTo && user?.id) {
+      form.setValue('assigned_to_user_id', user.id);
+    }
+  }, [user?.id, job, form]);
 
   const isRecurring = form.watch("is_recurring");
 
