@@ -239,6 +239,7 @@ export default function OperationsSettings() {
                           <FormControl>
                             <Input
                               type="time"
+                              step={900}
                               {...field}
                               disabled={!form.watch(`business_hours.${day.key}.enabled`)}
                               className="disabled:opacity-50"
@@ -258,6 +259,7 @@ export default function OperationsSettings() {
                           <FormControl>
                             <Input
                               type="time"
+                              step={900}
                               {...field}
                               disabled={!form.watch(`business_hours.${day.key}.enabled`)}
                               className="disabled:opacity-50"

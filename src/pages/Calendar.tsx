@@ -174,6 +174,7 @@ const Calendar = () => {
                   <Input
                     id="start-time"
                     type="time"
+                    step={900}
                     value={slotMinTime.slice(0, 5)}
                     onChange={(e) => setSlotMinTime(e.target.value + ':00')}
                     className="mt-1"
@@ -186,6 +187,7 @@ const Calendar = () => {
                   <Input
                     id="end-time"
                     type="time"
+                    step={900}
                     value={slotMaxTime.slice(0, 5)}
                     onChange={(e) => setSlotMaxTime(e.target.value + ':00')}
                     className="mt-1"
