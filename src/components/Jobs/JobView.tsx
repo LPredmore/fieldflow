@@ -8,7 +8,8 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
-import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC } from '@/lib/timezoneUtils';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface JobViewProps {
   job: UnifiedJob | OneTimeJob | JobSeries;
@@ -49,6 +50,7 @@ const getPriorityColor = (priority: string) => {
 export default function JobView({ job, onUpdate }: JobViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const userTimezone = useUserTimezone();
 
   // For one-time jobs, unified jobs, and job series, use the same editing logic
   const unifiedJob = job as UnifiedJob | OneTimeJob | JobSeries;
@@ -96,7 +98,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         if ('job_type' in job && job.job_type === 'job_series') {
           const jobSeries = job as JobSeries;
           
-          const jobTimezone = formData.timezone || jobSeries.timezone || DEFAULT_TIMEZONE;
+          const jobTimezone = formData.timezone || jobSeries.timezone || userTimezone;
           
           // Check if scheduling fields have changed
           const schedulingFieldsChanged = 
@@ -132,7 +134,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         }
         // For one-time jobs, compute and include UTC timestamps when timing changes
         else if ('start_date' in unifiedJob || 'scheduled_date' in unifiedJob) {
-          const jobTimezone = formData.timezone || ('timezone' in unifiedJob ? unifiedJob.timezone : DEFAULT_TIMEZONE);
+          const jobTimezone = formData.timezone || ('timezone' in unifiedJob ? unifiedJob.timezone : userTimezone);
           
           // Check if timing has changed - compare with current values
           const currentStartDate = 'start_date' in unifiedJob ? unifiedJob.start_date : formData.scheduled_date;
@@ -180,7 +182,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   if (isEditing) {
     // Convert OneTimeJob to UnifiedJob format if needed
     const jobForForm = 'start_at' in unifiedJob ? unifiedJob : (() => {
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       const localTime = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = localTime.substring(0, 5); // HH:mm format
       const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
@@ -215,7 +217,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = time.substring(0, 5); // HH:mm format
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       
       try {
         const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
@@ -236,7 +238,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = time.substring(0, 5); // HH:mm format
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       
       try {
         const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
