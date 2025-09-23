@@ -7,6 +7,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDes
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
+import { TimeSelect } from "@/components/ui/time-select";
 import { Loader2 } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
 
@@ -237,12 +238,10 @@ export default function OperationsSettings() {
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input
-                              type="time"
-                              step={900}
+                            <TimeSelect
                               {...field}
                               disabled={!form.watch(`business_hours.${day.key}.enabled`)}
-                              className="disabled:opacity-50"
+                              placeholder="Start time"
                             />
                           </FormControl>
                         </FormItem>
@@ -257,12 +256,10 @@ export default function OperationsSettings() {
                       render={({ field }) => (
                         <FormItem className="flex-1">
                           <FormControl>
-                            <Input
-                              type="time"
-                              step={900}
+                            <TimeSelect
                               {...field}
                               disabled={!form.watch(`business_hours.${day.key}.enabled`)}
-                              className="disabled:opacity-50"
+                              placeholder="End time"
                             />
                           </FormControl>
                         </FormItem>

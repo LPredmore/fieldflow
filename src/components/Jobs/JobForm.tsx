@@ -13,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { TimeSelect } from '@/components/ui/time-select';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -373,7 +374,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>Start Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" step={900} {...field} />
+                      <TimeSelect {...field} placeholder="Select start time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -387,7 +388,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>End Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" step={900} {...field} />
+                      <TimeSelect {...field} placeholder="Select end time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

@@ -10,6 +10,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { TimeSelect } from '@/components/ui/time-select';
 import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const TimezoneIndicator = () => {
@@ -171,26 +172,20 @@ const Calendar = () => {
                   <Label htmlFor="start-time" className="text-sm font-medium">
                     Start Time
                   </Label>
-                  <Input
-                    id="start-time"
-                    type="time"
-                    step={900}
+                  <TimeSelect
                     value={slotMinTime.slice(0, 5)}
-                    onChange={(e) => setSlotMinTime(e.target.value + ':00')}
-                    className="mt-1"
+                    onChange={(value) => setSlotMinTime(value + ':00')}
+                    placeholder="Start time"
                   />
                 </div>
                 <div className="flex-1">
                   <Label htmlFor="end-time" className="text-sm font-medium">
                     End Time
                   </Label>
-                  <Input
-                    id="end-time"
-                    type="time"
-                    step={900}
+                  <TimeSelect
                     value={slotMaxTime.slice(0, 5)}
-                    onChange={(e) => setSlotMaxTime(e.target.value + ':00')}
-                    className="mt-1"
+                    onChange={(value) => setSlotMaxTime(value + ':00')}
+                    placeholder="End time"
                   />
                 </div>
               </div>
