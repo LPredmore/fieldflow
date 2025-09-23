@@ -373,7 +373,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>Start Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <Input type="time" step={900} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -387,7 +387,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>End Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <Input type="time" step={900} {...field} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
