@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Filter, Eye, Edit, Trash2 } from "lucide-react";
+import { Plus, Search, Filter, Eye, Edit, Trash2, Clock } from "lucide-react";
 import Navigation from "@/components/Layout/Navigation";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
@@ -31,6 +31,21 @@ import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
 import { useToast } from "@/hooks/use-toast";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+
+const TimezoneIndicator = () => {
+  const userTimezone = useUserTimezone();
+  const timezoneName = new Intl.DateTimeFormat('en', {
+    timeZoneName: 'short'
+  }).formatToParts(new Date()).find(part => part.type === 'timeZoneName')?.value;
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Clock className="h-4 w-4" />
+      <span>Times shown in {timezoneName} ({userTimezone})</span>
+    </div>
+  );
+};
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -263,6 +278,7 @@ export default function Jobs() {
               <div>
                 <h1 className="text-3xl font-bold text-foreground mb-2">Jobs</h1>
                 <p className="text-muted-foreground">Manage and track your field service jobs</p>
+                <TimezoneIndicator />
               </div>
               <RoleIndicator />
             </div>

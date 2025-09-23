@@ -17,7 +17,6 @@ const formSchema = z.object({
     currency_symbol: z.string(),
     default_view: z.string(),
   }),
-  time_zone: z.string(),
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -33,15 +32,6 @@ const DATE_FORMATS = [
   { value: "YYYY-MM-DD", label: "YYYY-MM-DD (2023-12-25)" },
 ];
 
-const TIMEZONES = [
-  { value: "Eastern", label: "Eastern" },
-  { value: "Central", label: "Central" },
-  { value: "Mountain", label: "Mountain" },
-  { value: "Pacific", label: "Pacific" },
-  { value: "Arizona", label: "Arizona" },
-  { value: "Alaska", label: "Alaska" },
-  { value: "Hawaii Aleutian", label: "Hawaii Aleutian" },
-];
 
 const CURRENCIES = [
   { value: "USD", label: "$ (US Dollar)" },
@@ -71,7 +61,6 @@ export default function UserPreferences() {
         currency_symbol: "USD",
         default_view: "dashboard",
       },
-      time_zone: "Eastern",
     },
   });
 
@@ -86,7 +75,6 @@ export default function UserPreferences() {
           currency_symbol: userPreferences.currency_symbol || "USD",
           default_view: userPreferences.default_view || "dashboard",
         },
-        time_zone: settings.time_zone || "Eastern",
       });
     }
   }, [settings, form]);
@@ -97,7 +85,6 @@ export default function UserPreferences() {
     try {
       const updateData = {
         user_preferences: data.user_preferences,
-        time_zone: data.time_zone as Database["public"]["Enums"]["time_zones"],
       };
 
       if (settings) {
@@ -182,30 +169,6 @@ export default function UserPreferences() {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="time_zone"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Timezone</FormLabel>
-                    <Select onValueChange={field.onChange} defaultValue={field.value}>
-                      <FormControl>
-                        <SelectTrigger>
-                          <SelectValue placeholder="Select timezone" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        {TIMEZONES.map((tz) => (
-                          <SelectItem key={tz.value} value={tz.value}>
-                            {tz.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
 
               <FormField
                 control={form.control}

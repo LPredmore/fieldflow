@@ -12,6 +12,20 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
+const TimezoneIndicator = () => {
+  const userTimezone = useUserTimezone();
+  const timezoneName = new Intl.DateTimeFormat('en', {
+    timeZoneName: 'short'
+  }).formatToParts(new Date()).find(part => part.type === 'timeZoneName')?.value;
+
+  return (
+    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+      <Clock className="h-4 w-4" />
+      <span>Times shown in {timezoneName} ({userTimezone})</span>
+    </div>
+  );
+};
+
 const Calendar = () => {
   const { jobs: calendarJobs } = useCalendarJobs();
   const userTimezone = useUserTimezone();
@@ -118,6 +132,7 @@ const Calendar = () => {
             <p className="text-muted-foreground">
               View and manage job schedules across time
             </p>
+            <TimezoneIndicator />
           </div>
           
           {/* View Controls */}
