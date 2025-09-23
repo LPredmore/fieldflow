@@ -53,6 +53,17 @@ export function ContractorSelector({ value, onValueChange, disabled }: Contracto
     fetchContractors();
   }, [user, tenantId]);
 
+  // Auto-assign current user when field is empty and user is available in contractors list
+  useEffect(() => {
+    // Only run after contractors have finished loading
+    if (loading) return;
+    
+    // Only set if: field is empty, user is available, and user exists in contractors list
+    if (!value && user?.id && contractors.some(contractor => contractor.id === user.id)) {
+      onValueChange(user.id);
+    }
+  }, [contractors, loading, value, user?.id, onValueChange]);
+
   if (loading) {
     return (
       <Select disabled>
