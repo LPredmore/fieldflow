@@ -2,7 +2,8 @@ import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
-import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC } from '@/lib/timezoneUtils';
+import { useUserTimezone } from './useUserTimezone';
 
 export interface JobSeries {
   id: string;
@@ -57,6 +58,7 @@ export function useJobSeries() {
   const [loading, setLoading] = useState(true);
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
+  const userTimezone = useUserTimezone();
 
   const fetchJobSeries = async () => {
     if (!user || !tenantId) return;
@@ -171,7 +173,7 @@ export function useJobSeries() {
         console.log('Using pre-converted UTC timestamps:', { startAtUTC, endAtUTC });
       } else {
         // Fallback: construct from date and local_start_time using proper timezone conversion
-        const timezone = validSeriesData.timezone || DEFAULT_TIMEZONE;
+        const timezone = validSeriesData.timezone || userTimezone;
         
         // Normalize time to HH:mm format (remove seconds if present)
         const startTime = (validSeriesData.local_start_time || '08:00').split(':').slice(0, 2).join(':');
