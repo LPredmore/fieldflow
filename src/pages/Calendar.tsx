@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { TimePicker } from '@/components/ui/time-picker';
+import { RegenerateOccurrencesButton } from '@/components/Jobs/RegenerateOccurrencesButton';
 import { Calendar as CalendarIcon, Grid, List, Clock } from 'lucide-react';
 
 const TimezoneIndicator = () => {
@@ -28,7 +29,7 @@ const TimezoneIndicator = () => {
 };
 
 const Calendar = () => {
-  const { jobs: calendarJobs } = useCalendarJobs();
+  const { jobs: calendarJobs, refetch } = useCalendarJobs();
   const userTimezone = useUserTimezone();
   const [calendarView, setCalendarView] = useState<'dayGridMonth' | 'timeGridWeek'>('dayGridMonth');
   const [slotMinTime, setSlotMinTime] = useState('06:00:00');
@@ -196,7 +197,18 @@ const Calendar = () => {
         {/* Calendar Card */}
         <Card className="shadow-material-md">
           <CardHeader>
-            <CardTitle>Job Schedule</CardTitle>
+            <CardTitle className="flex items-center justify-between">
+              Job Schedule
+              <div className="flex items-center gap-4">
+                <TimezoneIndicator />
+                {calendarJobs.length > 0 && (
+                  <RegenerateOccurrencesButton 
+                    seriesId={calendarJobs[0]?.series_id} 
+                    onComplete={refetch}
+                  />
+                )}
+              </div>
+            </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
             <div className="p-6">
