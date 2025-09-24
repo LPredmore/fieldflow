@@ -11,6 +11,8 @@ import { Printer, X } from "lucide-react";
 import { format } from "date-fns";
 import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
 
 interface Quote {
   id: string;
@@ -44,6 +46,8 @@ interface QuotePreviewProps {
 }
 
 export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
+  const userTimezone = useUserTimezone();
+  
   // Fetch business settings for display
   const { data: settings } = useQuery({
     queryKey: ["settings"],
@@ -140,7 +144,7 @@ export function QuotePreview({ open, onOpenChange, quote }: QuotePreviewProps) {
                       <span className="font-medium">Title:</span> {quote.title}
                     </div>
                     <div>
-                      <span className="font-medium">Date:</span> {format(new Date(quote.created_at), "MMMM dd, yyyy")}
+                      <span className="font-medium">Date:</span> {formatInUserTimezone(quote.created_at, userTimezone, "MMMM dd, yyyy")}
                     </div>
                     {quote.valid_until && (
                       <div>

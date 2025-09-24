@@ -5,6 +5,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangle, Repeat } from 'lucide-react';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
+import { formatInUserTimezone } from '@/lib/timezoneUtils';
 
 interface JobSeriesViewProps {
   jobSeries: JobSeries;
@@ -28,6 +30,7 @@ const getPriorityColor = (priority: string) => {
 
 export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const userTimezone = useUserTimezone();
 
   const handleToggleActive = async () => {
     if (onUpdate) {
@@ -120,7 +123,7 @@ export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProp
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Start Date:</span>
-              <p className="font-medium">{new Date(jobSeries.start_date).toLocaleDateString()}</p>
+              <p className="font-medium">{formatInUserTimezone(jobSeries.start_date, userTimezone, 'MMM d, yyyy')}</p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">Start Time:</span>
@@ -133,13 +136,13 @@ export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProp
             {jobSeries.until_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Until Date:</span>
-                <p className="font-medium">{new Date(jobSeries.until_date).toLocaleDateString()}</p>
+                <p className="font-medium">{formatInUserTimezone(jobSeries.until_date, userTimezone, 'MMM d, yyyy')}</p>
               </div>
             )}
             {jobSeries.next_occurrence_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Next Occurrence:</span>
-                <p className="font-medium">{new Date(jobSeries.next_occurrence_date).toLocaleString()}</p>
+                <p className="font-medium">{formatInUserTimezone(jobSeries.next_occurrence_date, userTimezone, 'MMM d, yyyy h:mm a')}</p>
               </div>
             )}
           </CardContent>
@@ -254,12 +257,12 @@ export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProp
         <CardContent className="space-y-2">
           <div>
             <span className="text-sm text-muted-foreground">Created:</span>
-            <p className="font-medium">{new Date(jobSeries.created_at).toLocaleString()}</p>
+            <p className="font-medium">{formatInUserTimezone(jobSeries.created_at, userTimezone, 'MMM d, yyyy h:mm a')}</p>
           </div>
           {jobSeries.updated_at && (
             <div>
               <span className="text-sm text-muted-foreground">Last Updated:</span>
-              <p className="font-medium">{new Date(jobSeries.updated_at).toLocaleString()}</p>
+              <p className="font-medium">{formatInUserTimezone(jobSeries.updated_at, userTimezone, 'MMM d, yyyy h:mm a')}</p>
             </div>
           )}
           <div>

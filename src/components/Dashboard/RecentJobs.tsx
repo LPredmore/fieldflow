@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Eye, MapPin, Clock } from "lucide-react";
 import { useUnifiedJobs } from "@/hooks/useUnifiedJobs";
 import { useNavigate } from "react-router-dom";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -39,6 +41,7 @@ const getPriorityColor = (priority: string) => {
 export default function RecentJobs() {
   const { upcomingJobs, loading } = useUnifiedJobs();
   const navigate = useNavigate();
+  const userTimezone = useUserTimezone();
 
   if (loading) {
     return (
@@ -112,16 +115,12 @@ export default function RecentJobs() {
                 </div>
                  <div className="flex items-center gap-1 text-xs text-muted-foreground">
                    <Clock className="h-3 w-3" />
-                   {new Date(job.start_at).toLocaleTimeString('en-US', { 
-                     hour: 'numeric', 
-                     minute: '2-digit',
-                     hour12: true 
-                   })}
+                   {formatInUserTimezone(job.start_at, userTimezone, 'h:mm a')}
                  </div>
               </div>
               
                <div className="mt-2 text-xs text-muted-foreground">
-                 Scheduled: <span className="font-medium">{new Date(job.start_at).toLocaleDateString()}</span>
+                 Scheduled: <span className="font-medium">{formatInUserTimezone(job.start_at, userTimezone, 'MMM d, yyyy')}</span>
                </div>
             </div>
           ))

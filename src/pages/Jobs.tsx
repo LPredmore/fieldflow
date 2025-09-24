@@ -31,6 +31,8 @@ import { useAuth } from "@/hooks/useAuth";
 import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
 import { useToast } from "@/hooks/use-toast";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
 
 const getStatusColor = (status: string) => {
   switch (status.toLowerCase()) {
@@ -60,6 +62,7 @@ export default function Jobs() {
   const { allManagedJobs, loading, updateOneTimeJob, updateJobSeries, deleteOneTimeJob, deleteJobSeries } = useJobManagement();
   const { userRole } = useAuth();
   const { toast } = useToast();
+  const userTimezone = useUserTimezone();
   const isAdmin = userRole === 'business_admin';
 
   // Filter jobs based on search term
@@ -238,10 +241,10 @@ export default function Jobs() {
   const getJobDate = (job: ManagedJob) => {
     if (job.job_type === 'job_series') {
       return job.next_occurrence_date 
-        ? new Date(job.next_occurrence_date).toLocaleDateString()
+        ? formatInUserTimezone(job.next_occurrence_date, userTimezone, 'MMM d, yyyy')
         : 'No upcoming';
     }
-    return new Date(job.start_date).toLocaleDateString();
+    return formatInUserTimezone(job.start_date, userTimezone, 'MMM d, yyyy');
   };
 
   const getJobValue = (job: ManagedJob) => {

@@ -4,7 +4,7 @@ import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
 import { useUserTimezone } from './useUserTimezone';
-import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC, DEFAULT_TIMEZONE, formatInUserTimezone } from '@/lib/timezoneUtils';
 
 export interface UnifiedJob {
   id: string;
@@ -199,11 +199,7 @@ export function useUnifiedJobs() {
               additional_info: occurrence.job_series?.notes,
               // Backward compatibility fields
               scheduled_date: occurrence.start_at.split('T')[0],
-              scheduled_time: startDate.toLocaleTimeString('en-US', { 
-                hour12: false, 
-                hour: '2-digit', 
-                minute: '2-digit' 
-              }),
+              scheduled_time: formatInUserTimezone(occurrence.start_at, userTimezone, 'HH:mm'),
               complete_date: occurrence.status === 'completed' ? occurrence.start_at.split('T')[0] : undefined
             };
           } catch (error) {

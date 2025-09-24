@@ -34,6 +34,8 @@ import {
 import { format } from "date-fns";
 import { useState } from "react";
 import { usePermissions } from "@/hooks/usePermissions";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
 import { canSendQuotes } from "@/utils/permissionUtils";
 
 interface Quote {
@@ -72,6 +74,7 @@ export function QuoteCard({
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const { permissions } = usePermissions();
+  const userTimezone = useUserTimezone();
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat("en-US", {
@@ -184,7 +187,7 @@ export function QuoteCard({
 
             <div className="flex items-center justify-between">
               <span className="text-sm text-muted-foreground">Created</span>
-              <span className="text-sm">{format(new Date(quote.created_at), "MMM dd, yyyy")}</span>
+              <span className="text-sm">{formatInUserTimezone(quote.created_at, userTimezone, "MMM dd, yyyy")}</span>
             </div>
 
             {quote.valid_until && (

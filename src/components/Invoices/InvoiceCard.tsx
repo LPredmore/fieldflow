@@ -18,6 +18,8 @@ import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Invoice } from "@/hooks/useInvoices";
 import { format } from "date-fns";
+import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
 
 interface InvoiceCardProps {
   invoice: Invoice;
@@ -40,6 +42,8 @@ export function InvoiceCard({
   onSendEmail, 
   onMarkAsPaid 
 }: InvoiceCardProps) {
+  const userTimezone = useUserTimezone();
+  
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-US', {
       style: 'currency',

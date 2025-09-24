@@ -8,7 +8,8 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
-import { combineDateTimeToUTC, DEFAULT_TIMEZONE } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC, DEFAULT_TIMEZONE, formatInUserTimezone } from '@/lib/timezoneUtils';
+import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface JobViewProps {
   job: UnifiedJob | OneTimeJob | JobSeries;
@@ -49,6 +50,7 @@ const getPriorityColor = (priority: string) => {
 export default function JobView({ job, onUpdate }: JobViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const userTimezone = useUserTimezone();
 
   // If it's a job series, use the specialized view
   if ('job_type' in job && job.job_type === 'job_series') {
@@ -259,11 +261,11 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Start Date & Time:</span>
-              <p className="font-medium">{new Date(getStartDateTime()).toLocaleString()}</p>
+              <p className="font-medium">{formatInUserTimezone(getStartDateTime(), userTimezone, 'MMM d, yyyy h:mm a')}</p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">End Date & Time:</span>
-              <p className="font-medium">{new Date(getEndDateTime()).toLocaleString()}</p>
+              <p className="font-medium">{formatInUserTimezone(getEndDateTime(), userTimezone, 'MMM d, yyyy h:mm a')}</p>
             </div>
             {'estimated_duration' in unifiedJob && unifiedJob.estimated_duration && (
               <div>
@@ -274,7 +276,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             {'complete_date' in unifiedJob && unifiedJob.complete_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Completion Date:</span>
-                <p className="font-medium">{new Date(unifiedJob.complete_date).toLocaleDateString()}</p>
+                <p className="font-medium">{formatInUserTimezone(unifiedJob.complete_date, userTimezone, 'MMM d, yyyy')}</p>
               </div>
             )}
             {'series_id' in unifiedJob && unifiedJob.series_id && (
@@ -401,12 +403,12 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         <CardContent className="space-y-2">
           <div>
             <span className="text-sm text-muted-foreground">Created:</span>
-            <p className="font-medium">{new Date(unifiedJob.created_at).toLocaleString()}</p>
+            <p className="font-medium">{formatInUserTimezone(unifiedJob.created_at, userTimezone, 'MMM d, yyyy h:mm a')}</p>
           </div>
           {unifiedJob.updated_at && (
             <div>
               <span className="text-sm text-muted-foreground">Last Updated:</span>
-              <p className="font-medium">{new Date(unifiedJob.updated_at).toLocaleString()}</p>
+              <p className="font-medium">{formatInUserTimezone(unifiedJob.updated_at, userTimezone, 'MMM d, yyyy h:mm a')}</p>
             </div>
           )}
           <div>
