@@ -95,13 +95,16 @@ serve(async (req) => {
     } else {
       console.log(`📋 Non-recurring series, single occurrence only`);
       // For one-time jobs, create single occurrence
+      const startTimeUTC = dtstart.toUTC();
+      const endTimeUTC = startTimeUTC.plus({ minutes: series.duration_minutes });
+      
       const occurrence = {
         tenant_id: series.tenant_id,
         series_id: series.id,
         customer_id: series.customer_id,
         assigned_to_user_id: series.assigned_to_user_id,
-        start_at: dtstart.toUTC().toISO(),
-        end_at: dtstart.plus({ minutes: series.duration_minutes }).toUTC().toISO(),
+        start_at: startTimeUTC.toISO(),
+        end_at: endTimeUTC.toISO(),
         status: 'scheduled',
         priority: series.priority,
         series_timezone: series.timezone,
@@ -168,16 +171,23 @@ serve(async (req) => {
 
     for (let i = 0; i < occurrences.length; i += batchSize) {
       const batch = occurrences.slice(i, i + batchSize).map(date => {
-        const startTime = DateTime.fromJSDate(date).toUTC();
-        const endTime = startTime.plus({ minutes: series.duration_minutes });
+        // CRITICAL FIX: Combine RRULE date with original local_start_time and timezone
+        const rruleDate = DateTime.fromJSDate(date); // This gives us the date part
+        const dateStr = rruleDate.toISODate(); // YYYY-MM-DD
+        
+        // Combine with original local_start_time and timezone
+        const localDateTime = `${dateStr}T${series.local_start_time}`;
+        const zonedDateTime = DateTime.fromISO(localDateTime, { zone: series.timezone });
+        const startTimeUTC = zonedDateTime.toUTC();
+        const endTimeUTC = startTimeUTC.plus({ minutes: series.duration_minutes });
         
         return {
           tenant_id: series.tenant_id,
           series_id: series.id,
           customer_id: series.customer_id,
           assigned_to_user_id: series.assigned_to_user_id,
-          start_at: startTime.toISO(),
-          end_at: endTime.toISO(),
+          start_at: startTimeUTC.toISO(),
+          end_at: endTimeUTC.toISO(),
           status: 'scheduled' as const,
           priority: series.priority,
           series_timezone: series.timezone,
