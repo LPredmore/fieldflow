@@ -3,7 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useUserTimezone } from './useUserTimezone';
 import { useToast } from '@/hooks/use-toast';
-import { combineDateTimeToUTC, splitUTCToLocalDateTime } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC, splitUTCToLocalDateTime, convertFromUTC } from '@/lib/timezoneUtils';
 
 export interface ScheduledJob {
   id: string;
@@ -81,8 +81,8 @@ export function useJobScheduler() {
       const transformedJobs: ScheduledJob[] = (data || []).map(job => ({
         ...job,
         job_type: job.job_type as 'one_time' | 'recurring_instance',
-        local_start: new Date(job.start_at),
-        local_end: new Date(job.end_at),
+        local_start: convertFromUTC(job.start_at, userTimezone),
+        local_end: convertFromUTC(job.end_at, userTimezone),
       }));
 
       setJobs(transformedJobs);
