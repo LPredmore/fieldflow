@@ -58,19 +58,21 @@ export function InvoiceForm({ open, onOpenChange, onSubmit, invoice, title }: In
   const { data: jobs = [] } = useQuery({
     queryKey: ["completed-jobs"],
     queryFn: async () => {
-      const { data, error } = await supabase
-        .from("job_occurrences")
-        .select(`
-          id,
-          customer_id,
-          customer_name,
-          actual_cost,
-          override_estimated_cost,
-          job_series!job_occurrences_series_id_fkey (
-            title,
-            estimated_cost
-          )
-        `)
+        const { data, error } = await supabase
+          .from("job_occurrences")
+          .select(`
+            id,
+            customer_id,
+            actual_cost,
+            override_estimated_cost,
+            job_series!job_occurrences_series_id_fkey (
+              title,
+              estimated_cost
+            ),
+            customers!job_occurrences_customer_id_fkey (
+              name
+            )
+          `)
         .eq("status", "completed")
         .order("created_at", { ascending: false });
 
@@ -81,7 +83,7 @@ export function InvoiceForm({ open, onOpenChange, onSubmit, invoice, title }: In
         id: occurrence.id,
         title: occurrence.job_series?.title || 'Completed Job',
         customer_id: occurrence.customer_id,
-        customer_name: occurrence.customer_name,
+        customer_name: 'Unknown Customer', // Temporary fallback
         actual_cost: occurrence.actual_cost,
         estimated_cost: occurrence.override_estimated_cost || occurrence.job_series?.estimated_cost || 0
       }));

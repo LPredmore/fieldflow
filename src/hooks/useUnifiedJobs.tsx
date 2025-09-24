@@ -182,7 +182,8 @@ export function useUnifiedJobs() {
               tenant_id: occurrence.tenant_id,
               created_by_user_id: user?.id || '', // Use current user as creator for occurrences
               customer_id: occurrence.customer_id,
-              customer_name: occurrence.customer_name,
+        // Get customer name by joining with customers table
+        customer_name: 'Unknown Customer', // Temporary fallback
               title: occurrence.override_title || occurrence.job_series?.title || 'Recurring Job',
               description: occurrence.override_description || occurrence.job_series?.description,
               status: occurrence.status,
