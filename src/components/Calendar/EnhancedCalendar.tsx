@@ -17,8 +17,23 @@ export function EnhancedCalendar() {
 
   // Get calendar events with proper timezone handling
   const calendarEvents = useMemo(() => {
-    return getCalendarEvents();
-  }, [getCalendarEvents]);
+    const events = getCalendarEvents();
+    
+    console.log('🖥️ EnhancedCalendar received events:', {
+      total_events: events.length,
+      user_timezone: userTimezone,
+      browser_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      sample_events: events.slice(0, 2).map(event => ({
+        title: event.title,
+        start: event.start,
+        end: event.end,
+        start_as_date: new Date(event.start).toLocaleString(),
+        end_as_date: new Date(event.end).toLocaleString()
+      }))
+    });
+    
+    return events;
+  }, [getCalendarEvents, userTimezone]);
 
   // Handle event click
   const handleEventClick = useCallback((clickInfo: any) => {
@@ -176,6 +191,18 @@ export function EnhancedCalendar() {
             }}
             eventDidMount={(info) => {
               const job = info.event.extendedProps;
+              
+              // Log what FullCalendar received and how it's interpreting times
+              console.log('🎨 FullCalendar mounted event:', {
+                title: info.event.title,
+                fullcalendar_start: info.event.start?.toISOString(),
+                fullcalendar_end: info.event.end?.toISOString(),
+                fullcalendar_start_display: info.event.start?.toLocaleString(),
+                fullcalendar_end_display: info.event.end?.toLocaleString(),
+                timezone_setting: userTimezone,
+                original_local_start: job.localStart?.toLocaleString(),
+                original_local_end: job.localEnd?.toLocaleString()
+              });
               
               // Add tooltip with job details
               info.el.setAttribute('title', 

@@ -78,12 +78,30 @@ export function useJobScheduler() {
       console.log(`✅ Loaded ${data?.length || 0} jobs from database`);
 
       // Transform data and add local timezone fields
-      const transformedJobs: ScheduledJob[] = (data || []).map(job => ({
-        ...job,
-        job_type: job.job_type as 'one_time' | 'recurring_instance',
-        local_start: convertFromUTC(job.start_at, userTimezone),
-        local_end: convertFromUTC(job.end_at, userTimezone),
-      }));
+      const transformedJobs: ScheduledJob[] = (data || []).map((job, index) => {
+        const localStart = convertFromUTC(job.start_at, userTimezone);
+        const localEnd = convertFromUTC(job.end_at, userTimezone);
+        
+        // Log first 3 jobs for debugging
+        if (index < 3) {
+          console.log(`🔄 Job ${index + 1} timezone conversion:`, {
+            title: job.title,
+            raw_utc_start: job.start_at,
+            raw_utc_end: job.end_at,
+            user_timezone: userTimezone,
+            converted_local_start: localStart.toISOString(),
+            converted_local_end: localEnd.toISOString(),
+            local_display: `${localStart.toLocaleString()} → ${localEnd.toLocaleString()}`
+          });
+        }
+        
+        return {
+          ...job,
+          job_type: job.job_type as 'one_time' | 'recurring_instance',
+          local_start: localStart,
+          local_end: localEnd,
+        };
+      });
 
       setJobs(transformedJobs);
       console.log('🎯 Jobs ready for calendar display:', transformedJobs.length);
@@ -290,21 +308,44 @@ export function useJobScheduler() {
 
   // Get jobs for calendar display (with timezone conversion)
   const getCalendarEvents = useCallback(() => {
-    return jobs.map(job => ({
-      id: job.id,
-      title: job.title,
-      start: job.start_at, // Keep UTC for FullCalendar
-      end: job.end_at,     // Keep UTC for FullCalendar
-      backgroundColor: job.status === 'completed' ? '#10b981' : 
-                      job.status === 'cancelled' ? '#ef4444' :
-                      job.priority === 'urgent' ? '#f59e0b' : '#3b82f6',
-      borderColor: 'transparent',
-      extendedProps: {
-        ...job,
-        localStart: job.local_start,
-        localEnd: job.local_end,
+    const events = jobs.map((job, index) => {
+      // Use the already converted local Date objects for FullCalendar
+      const startISO = job.local_start.toISOString();
+      const endISO = job.local_end.toISOString();
+      
+      // Log first 3 events for debugging
+      if (index < 3) {
+        console.log(`📅 Creating calendar event ${index + 1}:`, {
+          title: job.title,
+          original_utc_start: job.start_at,
+          original_utc_end: job.end_at,  
+          local_date_obj_start: job.local_start.toISOString(),
+          local_date_obj_end: job.local_end.toISOString(),
+          passing_to_fullcalendar_start: startISO,
+          passing_to_fullcalendar_end: endISO,
+          local_display: `${job.local_start.toLocaleString()} → ${job.local_end.toLocaleString()}`
+        });
       }
-    }));
+      
+      return {
+        id: job.id,
+        title: job.title,
+        start: startISO, // Use converted local time as ISO string
+        end: endISO,     // Use converted local time as ISO string
+        backgroundColor: job.status === 'completed' ? '#10b981' : 
+                        job.status === 'cancelled' ? '#ef4444' :
+                        job.priority === 'urgent' ? '#f59e0b' : '#3b82f6',
+        borderColor: 'transparent',
+        extendedProps: {
+          ...job,
+          localStart: job.local_start,
+          localEnd: job.local_end,
+        }
+      };
+    });
+    
+    console.log(`📊 Generated ${events.length} calendar events for FullCalendar`);
+    return events;
   }, [jobs]);
 
   // Initialize
