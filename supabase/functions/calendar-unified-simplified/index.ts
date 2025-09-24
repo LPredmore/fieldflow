@@ -122,7 +122,7 @@ serve(async (req) => {
       },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Calendar fetch error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),

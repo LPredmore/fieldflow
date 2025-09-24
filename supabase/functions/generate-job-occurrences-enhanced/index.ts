@@ -197,7 +197,7 @@ serve(async (req) => {
 
       console.log(`📦 Inserting batch ${Math.floor(i/batchSize) + 1}: ${batch.length} occurrences`);
 
-      const { data, error: insertError } = await supabase
+      const { count, error: insertError } = await supabase
         .from('job_occurrences')
         .upsert(batch, { 
           onConflict: 'series_id,start_at',
@@ -209,7 +209,7 @@ serve(async (req) => {
         throw insertError;
       }
 
-      const batchGenerated = data?.length || batch.length;
+      const batchGenerated = count || 0;
       totalGenerated += batchGenerated;
       totalSkipped += batch.length - batchGenerated;
       
@@ -243,7 +243,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('💥 Error in generate-job-occurrences-enhanced:', error);
     return new Response(JSON.stringify({ 
       success: false, 

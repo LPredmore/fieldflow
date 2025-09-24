@@ -200,10 +200,10 @@ serve(async (req) => {
           // Check if this occurrence already exists in materialized jobs
           const existsInMaterialized = materializedJobs?.some(job => 
             job.series_id === series.id &&
-            Math.abs(new Date(job.start_at).getTime() - new Date(startUTC).getTime()) < 60000 // 1 minute tolerance
+            startUTC && Math.abs(new Date(job.start_at).getTime() - new Date(startUTC).getTime()) < 60000 // 1 minute tolerance
           );
 
-          if (!existsInMaterialized) {
+          if (!existsInMaterialized && startUTC && endUTC) {
             virtualEvents.push({
               id: `virtual-${series.id}-${startUTC}`,
               title: series.title,
@@ -214,12 +214,12 @@ serve(async (req) => {
               customer_name: series.customer_name,
               service_type: series.service_type || 'general_maintenance',
               estimated_cost: series.estimated_cost,
-              actual_cost: null,
+              actual_cost: undefined,
               series_id: series.id,
               job_type: 'occurrence',
               description: series.description,
               additional_info: series.notes,
-              completion_notes: null,
+              completion_notes: undefined,
               customer_id: series.customer_id,
               assigned_to_user_id: series.assigned_to_user_id,
               created_at: series.created_at,
@@ -248,7 +248,7 @@ serve(async (req) => {
       },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error('Calendar fetch error:', error);
     return new Response(
       JSON.stringify({ error: error.message }),

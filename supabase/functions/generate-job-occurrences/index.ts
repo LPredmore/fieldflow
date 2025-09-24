@@ -82,7 +82,11 @@ serve(async (req) => {
     });
     
     // Convert to UTC for RRULE processing
-    const startDateTime = new Date(localStart.toUTC().toISO());
+    const startDateTimeISO = localStart.toUTC().toISO();
+    if (!startDateTimeISO) {
+      throw new Error('Failed to convert start date to UTC');
+    }
+    const startDateTime = new Date(startDateTimeISO);
     
     console.log('StartDateTime for RRule:', startDateTime.toISOString());
     
@@ -180,7 +184,6 @@ serve(async (req) => {
         series_local_start_time: series.local_start_time
       };
 
-      // Use upsert with select to get accurate counts
       const { data: insertedData, error: insertError } = await supabase
         .from('job_occurrences')
         .upsert(occurrenceData, { 
@@ -194,8 +197,9 @@ serve(async (req) => {
         generatedCount.skipped++;
       } else {
         // Count actual insertions (data will be empty for duplicates with ignoreDuplicates)
-        generatedCount.created += (insertedData?.length ?? 0);
-        if (!insertedData?.length) {
+        const insertCount = insertedData?.length ?? 0;
+        generatedCount.created += insertCount;
+        if (insertCount === 0) {
           generatedCount.skipped++;
         }
       }
