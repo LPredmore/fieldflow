@@ -171,12 +171,13 @@ serve(async (req) => {
         tenant_id: series.tenant_id,
         series_id: series.id,
         customer_id: series.customer_id,
-        customer_name: series.customer_name,
         start_at: startUTC.toISO(),
         end_at: endUTC.toISO(),
         status: 'scheduled',
         priority: series.priority || 'medium',
-        assigned_to_user_id: series.assigned_to_user_id
+        assigned_to_user_id: series.assigned_to_user_id,
+        series_timezone: series.timezone,
+        series_local_start_time: series.local_start_time
       };
 
       // Use upsert with select to get accurate counts

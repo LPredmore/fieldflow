@@ -334,8 +334,8 @@ export function useJobManagement() {
     // If rescheduling, regenerate occurrences with new settings
     if (shouldRescheduleOccurrences) {
       try {
-        console.log('Invoking generate-job-occurrences for rescheduled series');
-        const { error: generateError } = await supabase.functions.invoke('generate-job-occurrences', {
+        console.log('Invoking generate-job-occurrences-enhanced for rescheduled series');
+        const { error: generateError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
           body: { 
             seriesId: seriesId,
             fromDate: data.start_date, // Start from the series start date
