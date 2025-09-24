@@ -32,6 +32,8 @@ import JobView from "@/components/Jobs/JobView";
 import JobForm from "@/components/Jobs/JobForm";
 import { useToast } from "@/hooks/use-toast";
 import { useUserTimezone } from "@/hooks/useUserTimezone";
+import { formatInUserTimezone } from "@/lib/timezoneUtils";
+import { format } from "date-fns";
 
 const TimezoneIndicator = () => {
   const userTimezone = useUserTimezone();
@@ -257,7 +259,8 @@ export default function Jobs() {
         ? formatInUserTimezone(job.next_occurrence_date, userTimezone, 'MMM d, yyyy')
         : 'No upcoming';
     }
-    return formatInUserTimezone(job.start_date, userTimezone, 'MMM d, yyyy');
+    // start_date is a date field (no time), so format directly without timezone conversion
+    return format(new Date(job.start_date), 'MMM d, yyyy');
   };
 
   const getJobValue = (job: ManagedJob) => {

@@ -8,7 +8,8 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
-import { combineDateTimeToUTC } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC, formatInUserTimezone } from '@/lib/timezoneUtils';
+import { format } from 'date-fns';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface JobViewProps {
@@ -334,7 +335,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             {'complete_date' in unifiedJob && unifiedJob.complete_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Completion Date:</span>
-                <p className="font-medium">{formatInUserTimezone(unifiedJob.complete_date, userTimezone, 'MMM d, yyyy')}</p>
+                <p className="font-medium">{format(new Date(unifiedJob.complete_date), 'MMM d, yyyy')}</p>
               </div>
             )}
             {'series_id' in unifiedJob && unifiedJob.series_id && (

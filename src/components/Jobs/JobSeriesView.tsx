@@ -7,6 +7,7 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 import { formatInUserTimezone } from '@/lib/timezoneUtils';
+import { format } from 'date-fns';
 
 interface JobSeriesViewProps {
   jobSeries: JobSeries;
@@ -123,7 +124,7 @@ export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProp
           <CardContent className="space-y-2">
             <div>
               <span className="text-sm text-muted-foreground">Start Date:</span>
-              <p className="font-medium">{formatInUserTimezone(jobSeries.start_date, userTimezone, 'MMM d, yyyy')}</p>
+              <p className="font-medium">{format(new Date(jobSeries.start_date), 'MMM d, yyyy')}</p>
             </div>
             <div>
               <span className="text-sm text-muted-foreground">Start Time:</span>
@@ -136,7 +137,7 @@ export default function JobSeriesView({ jobSeries, onUpdate }: JobSeriesViewProp
             {jobSeries.until_date && (
               <div>
                 <span className="text-sm text-muted-foreground">Until Date:</span>
-                <p className="font-medium">{formatInUserTimezone(jobSeries.until_date, userTimezone, 'MMM d, yyyy')}</p>
+                <p className="font-medium">{format(new Date(jobSeries.until_date), 'MMM d, yyyy')}</p>
               </div>
             )}
             {jobSeries.next_occurrence_date && (
