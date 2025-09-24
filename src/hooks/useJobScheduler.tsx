@@ -1,305 +1,442 @@
-import { useState, useEffect, useCallback } from 'react';
-import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './useAuth';
-import { useUserTimezone } from './useUserTimezone';
-import { useToast } from '@/hooks/use-toast';
-import { combineDateTimeToUTC, splitUTCToLocalDateTime, convertFromUTC } from '@/lib/timezoneUtils';
+import { useState, useEffect, useCallback } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { useAuth } from "./useAuth";
+import { useUserTimezone } from "./useUserTimezone";
+import { useToast } from "@/hooks/use-toast";
+import {
+  combineDateTimeToUTC,
+  convertFromUTC,
+} from "@/lib/timezoneUtils";
+
+/**
+ * Unified scheduler hook:
+ * - Source of truth for the calendar is `job_occurrences` (one-off + recurring instances)
+ * - Creates a `job_series` for every job (is_recurring controls RRULE)
+ * - For one-off jobs: also inserts exactly one row in `job_occurrences`
+ * - For recurring jobs: calls the `generate-job-occurrences` Edge Function to (re)materialize a horizon
+ *
+ * NOTE: This replaces any dependency on the `jobs_calendar_upcoming` view.
+ */
+
+export type JobStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
+export type JobPriority = "low" | "medium" | "high" | "urgent";
 
 export interface ScheduledJob {
-  id: string;
+  id: string; // occurrence id
+  series_id: string;
   tenant_id: string;
   customer_id: string;
   customer_name: string;
-  assigned_to_user_id?: string;
+  assigned_to_user_id?: string | null;
   title: string;
-  description?: string;
-  start_at: string; // UTC timestamp
-  end_at: string; // UTC timestamp  
-  status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  estimated_cost?: number;
-  actual_cost?: number;
-  completion_notes?: string;
-  job_type: 'one_time' | 'recurring_instance';
-  created_at: string;
+  description?: string | null;
+  start_at: string; // UTC ISO
+  end_at: string;   // UTC ISO
+  status: JobStatus;
+  priority: JobPriority;
+  estimated_cost?: number | null;
+  actual_cost?: number | null;
+  completion_notes?: string | null;
+  job_type: "one_time" | "recurring_instance";
+  created_at?: string;
   updated_at?: string;
-  // Local display fields (computed)
-  local_start: Date;
-  local_end: Date;
+  // convenience for non-calendar displays:
+  local_start?: string;
+  local_end?: string;
+  service_type?: string | null;
 }
 
-export interface CreateJobData {
+export interface CreateJobInput {
+  // shared
+  title: string;
   customer_id: string;
   customer_name: string;
-  assigned_to_user_id?: string;
-  title: string;
   description?: string;
-  service_type: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
-  date: string; // YYYY-MM-DD
-  time: string; // HH:mm
-  duration_minutes: number;
-  estimated_cost?: number;
-  priority: 'low' | 'medium' | 'high' | 'urgent';
-  is_recurring: boolean;
-  rrule?: string;
-  until_date?: string;
+  priority?: JobPriority;
+  duration_minutes?: number;
+  assigned_to_user_id?: string | null;
+
+  // times supplied from UI (local)
+  // we accept either (date,time) or (scheduled_date,start_time)
+  date?: string;           // "YYYY-MM-DD"
+  time?: string;           // "HH:mm"
+  scheduled_date?: string; // alias of date
+  start_time?: string;     // alias of time
+
+  // non-recurring
+  is_recurring?: boolean;
+  // recurring
+  rrule?: string | null;
+  until_date?: string | null; // optional end date in UI schema
 }
 
 export function useJobScheduler() {
   const [jobs, setJobs] = useState<ScheduledJob[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
   const { user, tenantId } = useAuth();
   const userTimezone = useUserTimezone();
   const { toast } = useToast();
 
-  // Fetch all jobs from the unified view
+  /**
+   * Internal helper to map DB rows (occurrence + series) -> ScheduledJob
+   */
+  const mapRowToJob = useCallback(
+    (row: any): ScheduledJob => {
+      const title = row.job_series?.title ?? "Untitled Job";
+      const description = row.job_series?.description ?? null;
+      const job_type = row.job_series?.is_recurring ? "recurring_instance" : "one_time";
+
+      const local_start = convertFromUTC(row.start_at, userTimezone);
+      const local_end = convertFromUTC(row.end_at, userTimezone);
+
+      return {
+        id: row.id,
+        series_id: row.series_id,
+        tenant_id: row.tenant_id,
+        customer_id: row.customer_id,
+        customer_name: row.customer_name,
+        assigned_to_user_id: row.assigned_to_user_id,
+        title,
+        description,
+        start_at: row.start_at,
+        end_at: row.end_at,
+        status: row.status as JobStatus,
+        priority: (row.priority ?? "medium") as JobPriority,
+        estimated_cost: row.job_series?.estimated_cost ?? null,
+        actual_cost: row.actual_cost ?? null,
+        completion_notes: row.completion_notes ?? null,
+        job_type,
+        created_at: row.created_at,
+        updated_at: row.updated_at,
+        local_start,
+        local_end,
+        service_type: row.job_series?.service_type ?? null,
+      };
+    },
+    [userTimezone]
+  );
+
+  /**
+   * Fetch jobs for the default rolling window:
+   * past 7 days .. next 90 days
+   * (Calendar components should prefer useCalendarJobs with explicit range)
+   */
   const fetchJobs = useCallback(async () => {
     if (!user || !tenantId) return;
+    setLoading(true);
+    setError(null);
 
     try {
-      setLoading(true);
-      
-      const { data, error } = await supabase
-        .from('jobs_calendar_upcoming')
-        .select('*')
-        .order('start_at', { ascending: true });
+      const now = new Date();
+      const from = new Date(now);
+      from.setDate(from.getDate() - 7);
+      const to = new Date(now);
+      to.setDate(to.getDate() + 90);
 
-      if (error) {
-        console.error('Error fetching jobs:', error);
-        toast({
-          variant: "destructive",
-          title: "Error loading jobs",
-          description: error.message,
-        });
-        return;
-      }
+      const fromISO = from.toISOString();
+      const toISO = to.toISOString();
 
-      // Transform data and add local timezone fields
-      const transformedJobs: ScheduledJob[] = (data || []).map((job) => {
-        const localStart = convertFromUTC(job.start_at, userTimezone);
-        const localEnd = convertFromUTC(job.end_at, userTimezone);
-        
-        return {
-          ...job,
-          job_type: job.job_type as 'one_time' | 'recurring_instance',
-          local_start: localStart,
-          local_end: localEnd,
-        };
-      });
+      const { data, error: qErr } = await supabase
+        .from("job_occurrences")
+        .select(
+          `
+          id,
+          series_id,
+          tenant_id,
+          customer_id,
+          customer_name,
+          assigned_to_user_id,
+          start_at,
+          end_at,
+          status,
+          priority,
+          actual_cost,
+          completion_notes,
+          created_at,
+          updated_at,
+          job_series!inner(
+            is_recurring,
+            title,
+            description,
+            estimated_cost,
+            service_type
+          )
+        `
+        )
+        .eq("tenant_id", tenantId)
+        .gte("start_at", fromISO)
+        .lt("start_at", toISO)
+        .order("start_at", { ascending: true });
 
-      setJobs(transformedJobs);
-      
-    } catch (error: any) {
-      console.error('Unexpected error fetching jobs:', error);
+      if (qErr) throw qErr;
+
+      setJobs((data ?? []).map(mapRowToJob));
+    } catch (e: any) {
+      console.error("fetchJobs error", e);
+      setError(e.message ?? "Failed to load jobs");
       toast({
-        variant: "destructive",
         title: "Error loading jobs",
-        description: error.message,
+        description: e.message ?? String(e),
+        variant: "destructive",
       });
     } finally {
       setLoading(false);
     }
-  }, [user, tenantId, userTimezone, toast]);
+  }, [user, tenantId, toast, mapRowToJob]);
 
-  // Create a new job (one-time or recurring)
-  const createJob = useCallback(async (jobData: CreateJobData) => {
-    if (!user || !tenantId) throw new Error('User not authenticated');
+  /**
+   * Create a job (one-off or recurring).
+   * Always creates a series row; then creates either one occurrence (one-off)
+   * or invokes the generator to materialize a horizon (recurring).
+   */
+  const createJob = useCallback(
+    async (jobData: CreateJobInput) => {
+      if (!user || !tenantId) {
+        toast({
+          title: "Not signed in",
+          description: "Please sign in to create jobs.",
+          variant: "destructive",
+        });
+        return { ok: false, error: "Not authenticated" as const };
+      }
 
-    try {
-      // Convert local date/time to UTC for storage
-      const scheduledTimeUTC = combineDateTimeToUTC(jobData.date, jobData.time, userTimezone);
-      const scheduledEndTimeUTC = new Date(scheduledTimeUTC.getTime() + (jobData.duration_minutes * 60 * 1000));
+      // Normalize time inputs
+      const uiDate = jobData.scheduled_date ?? jobData.date;
+      const uiTime = jobData.start_time ?? jobData.time;
 
-      // Create job series
-      const seriesPayload = {
+      if (!uiDate || !uiTime) {
+        return {
+          ok: false as const,
+          error: "Missing date/time for job creation",
+        };
+      }
+
+      const duration = jobData.duration_minutes ?? 60;
+      let utcStart: Date;
+      try {
+        utcStart = combineDateTimeToUTC(uiDate, uiTime, userTimezone);
+      } catch (e: any) {
+        toast({
+          title: "Invalid date/time",
+          description: e.message ?? "Please check the values",
+          variant: "destructive",
+        });
+        return { ok: false as const, error: "Invalid date/time" as const };
+      }
+      const utcEnd = new Date(utcStart.getTime() + duration * 60 * 1000);
+
+      const isRecurring = !!jobData.is_recurring && !!jobData.rrule;
+
+      // Prepare series payload
+      const seriesPayload: Record<string, any> = {
         tenant_id: tenantId,
         created_by_user_id: user.id,
         customer_id: jobData.customer_id,
         customer_name: jobData.customer_name,
-        assigned_to_user_id: jobData.assigned_to_user_id,
         title: jobData.title,
-        description: jobData.description,
-        service_type: jobData.service_type,
-        start_date: jobData.date,
-        local_start_time: jobData.time,
-        duration_minutes: jobData.duration_minutes,
+        description: jobData.description ?? null,
+        priority: jobData.priority ?? "medium",
+        duration_minutes: duration,
+        // local / tz / rrule fields (support existing schema)
+        start_date: uiDate,
+        local_start_time: uiTime.length === 5 ? `${uiTime}:00` : uiTime, // HH:mm -> HH:mm:ss
         timezone: userTimezone,
-        estimated_cost: jobData.estimated_cost,
-        priority: jobData.priority,
-        is_recurring: jobData.is_recurring,
-        rrule: jobData.is_recurring ? jobData.rrule : null, // Explicitly set null for non-recurring jobs
-        until_date: jobData.until_date,
-        // NEW: Store pre-calculated UTC times
-        scheduled_time_utc: scheduledTimeUTC.toISOString(),
-        scheduled_end_time_utc: scheduledEndTimeUTC.toISOString(),
-        generation_status: 'pending'
+        is_recurring: isRecurring,
+        rrule: isRecurring ? jobData.rrule : null,
+        until_date: jobData.until_date ?? null,
+        // precomputed UTC for convenience/perf
+        scheduled_time_utc: utcStart.toISOString(),
+        scheduled_end_time_utc: utcEnd.toISOString(),
+        status: "scheduled",
+        active: true,
       };
 
-      const { data: series, error: seriesError } = await supabase
-        .from('job_series')
+      // Insert series
+      const { data: series, error: sErr } = await supabase
+        .from("job_series")
         .insert(seriesPayload)
         .select()
         .single();
 
-      if (seriesError) throw seriesError;
-
-      // Generate occurrences
-      if (jobData.is_recurring && jobData.rrule) {
-        const { error: generateError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
-          body: { seriesId: series.id }
+      if (sErr) {
+        console.error("create series error", sErr);
+        toast({
+          title: "Failed to create job",
+          description: sErr.message ?? String(sErr),
+          variant: "destructive",
         });
-        
-        if (generateError) {
-          console.error('Error generating occurrences:', generateError);
-          throw generateError;
-        }
-      } else {
-        // Create single occurrence for one-time job
-        const { error: occurrenceError } = await supabase
-          .from('job_occurrences')
-          .insert({
-            tenant_id: tenantId,
-            series_id: series.id,
-            customer_id: jobData.customer_id,
-            assigned_to_user_id: jobData.assigned_to_user_id,
-            start_at: scheduledTimeUTC.toISOString(),
-            end_at: scheduledEndTimeUTC.toISOString(),
-            status: 'scheduled',
-            priority: jobData.priority,
-            series_timezone: userTimezone,
-            series_local_start_time: jobData.time
+        return { ok: false as const, error: sErr.message ?? "Insert failed" };
+      }
+
+      if (isRecurring) {
+        // Recurring: invoke generator to materialize occurrences
+        const { data: fnRes, error: fnErr } = await supabase.functions.invoke(
+          "generate-job-occurrences",
+          {
+            body: {
+              seriesId: series.id,
+              monthsAhead: 3,
+              maxOccurrences: 200,
+            },
+          }
+        );
+
+        if (fnErr) {
+          console.error("generator error", fnErr, fnRes);
+          toast({
+            title: "Job created, but failed to generate occurrences",
+            description: fnErr.message ?? String(fnErr),
+            variant: "destructive",
           });
-
-        if (occurrenceError) throw occurrenceError;
-      }
-
-      toast({
-        title: "Job created successfully",
-        description: `${jobData.is_recurring ? 'Recurring' : 'One-time'} job "${jobData.title}" has been scheduled.`,
-      });
-
-      // Refresh jobs
-      await fetchJobs();
-      return series;
-
-    } catch (error: any) {
-      console.error('Error creating job:', error);
-      toast({
-        variant: "destructive",
-        title: "Failed to create job",
-        description: error.message,
-      });
-      throw error;
-    }
-  }, [user, tenantId, userTimezone, toast, fetchJobs]);
-
-  // Update a job
-  const updateJob = useCallback(async (jobId: string, updates: Partial<ScheduledJob>) => {
-    if (!user || !tenantId) throw new Error('User not authenticated');
-
-    try {
-      const job = jobs.find(j => j.id === jobId);
-      if (!job) throw new Error('Job not found');
-
-      // Update in appropriate table based on job type
-      if (job.job_type === 'one_time') {
-        const { error } = await supabase
-          .from('job_series')
-          .update(updates)
-          .eq('id', jobId);
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('job_occurrences')
-          .update(updates)
-          .eq('id', jobId);
-        if (error) throw error;
-      }
-
-      toast({
-        title: "Job updated",
-        description: "The job has been successfully updated.",
-      });
-
-      await fetchJobs();
-    } catch (error: any) {
-      console.error('Error updating job:', error);
-      toast({
-        variant: "destructive",
-        title: "Failed to update job",
-        description: error.message,
-      });
-      throw error;
-    }
-  }, [user, tenantId, jobs, toast, fetchJobs]);
-
-  // Delete a job
-  const deleteJob = useCallback(async (jobId: string) => {
-    if (!user || !tenantId) throw new Error('User not authenticated');
-
-    try {
-      const job = jobs.find(j => j.id === jobId);
-      if (!job) throw new Error('Job not found');
-
-      if (job.job_type === 'one_time') {
-        // Delete series (will cascade to occurrences)
-        const { error } = await supabase
-          .from('job_series')
-          .delete()
-          .eq('id', jobId);
-        if (error) throw error;
-      } else {
-        // Delete single occurrence
-        const { error } = await supabase
-          .from('job_occurrences')
-          .delete()
-          .eq('id', jobId);
-        if (error) throw error;
-      }
-
-      toast({
-        title: "Job deleted",
-        description: "The job has been successfully deleted.",
-      });
-
-      await fetchJobs();
-    } catch (error: any) {
-      console.error('Error deleting job:', error);
-      toast({
-        variant: "destructive",
-        title: "Failed to delete job",
-        description: error.message,
-      });
-      throw error;
-    }
-  }, [user, tenantId, jobs, toast, fetchJobs]);
-
-  // Get jobs for calendar display (with timezone conversion)
-  const getCalendarEvents = useCallback(() => {
-    return jobs.map((job) => {
-      // Use the already converted local Date objects for FullCalendar
-      const startISO = job.local_start.toISOString();
-      const endISO = job.local_end.toISOString();
-      
-      return {
-        id: job.id,
-        title: job.title,
-        start: startISO, // Use converted local time as ISO string
-        end: endISO,     // Use converted local time as ISO string
-        backgroundColor: job.status === 'completed' ? '#10b981' : 
-                        job.status === 'cancelled' ? '#ef4444' :
-                        job.priority === 'urgent' ? '#f59e0b' : '#3b82f6',
-        borderColor: 'transparent',
-        extendedProps: {
-          ...job,
-          localStart: job.local_start,
-          localEnd: job.local_end,
+          // still return ok because the series exists; a follow-up horizon task can repair
+          await fetchJobs();
+          return { ok: true as const, seriesId: series.id };
         }
-      };
-    });
+
+        toast({
+          title: "Recurring job created",
+          description: `Generated ${fnRes?.generated?.created ?? 0} occurrences`,
+        });
+        await fetchJobs();
+        return { ok: true as const, seriesId: series.id };
+      } else {
+        // One-off: insert exactly one occurrence
+        const occurrencePayload: Record<string, any> = {
+          tenant_id: tenantId,
+          series_id: series.id,
+          customer_id: jobData.customer_id,
+          customer_name: jobData.customer_name,
+          start_at: utcStart.toISOString(),
+          end_at: utcEnd.toISOString(),
+          status: "scheduled",
+          priority: jobData.priority ?? "medium",
+          assigned_to_user_id: jobData.assigned_to_user_id ?? null,
+          series_timezone: userTimezone,
+          series_local_start_time:
+            uiTime.length === 5 ? `${uiTime}:00` : uiTime,
+        };
+
+        const { error: oErr } = await supabase
+          .from("job_occurrences")
+          .insert(occurrencePayload);
+
+        if (oErr) {
+          console.error("insert occurrence error", oErr);
+          toast({
+            title: "Failed to create job occurrence",
+            description: oErr.message ?? String(oErr),
+            variant: "destructive",
+          });
+          return { ok: false as const, error: oErr.message ?? "Insert failed" };
+        }
+
+        toast({ title: "Job created" });
+        await fetchJobs();
+        return { ok: true as const, seriesId: series.id };
+      }
+    },
+    [user, tenantId, userTimezone, toast, fetchJobs]
+  );
+
+  /**
+   * Update a single occurrence row (calendar-level edit).
+   * To update the SERIES template, use the dedicated series hook/screen.
+   */
+  const updateJob = useCallback(
+    async (occurrenceId: string, updates: Partial<ScheduledJob> & Record<string, any>) => {
+      if (!user || !tenantId) return { ok: false as const, error: "Not authenticated" };
+
+      const payload: Record<string, any> = { ...updates };
+
+      // If UI passes local date/time updates, convert to UTC
+      if (updates?.local_start && updates?.local_end) {
+        // assume ISO-like strings in user's tz, but for safety the UI should pass (date,time)
+        // here we prefer start_at/end_at updates directly; keeping for compatibility
+        // No-op: convertFromUTC is the reverse. We'll rely on start_at/end_at when provided.
+      }
+
+      if (updates?.start_at && updates?.end_at) {
+        // Ensure ISO strings
+        payload.start_at = new Date(updates.start_at).toISOString();
+        payload.end_at = new Date(updates.end_at).toISOString();
+      }
+
+      const { error: uErr } = await supabase
+        .from("job_occurrences")
+        .update(payload)
+        .eq("id", occurrenceId)
+        .eq("tenant_id", tenantId);
+
+      if (uErr) {
+        console.error("update occurrence error", uErr);
+        toast({
+          title: "Failed to update job",
+          description: uErr.message ?? String(uErr),
+          variant: "destructive",
+        });
+        return { ok: false as const, error: uErr.message ?? "Update failed" };
+      }
+
+      toast({ title: "Job updated" });
+      await fetchJobs();
+      return { ok: true as const };
+    },
+    [user, tenantId, toast, fetchJobs]
+  );
+
+  /**
+   * Delete a single occurrence row (calendar-level delete).
+   * Series-level deletion should be done via series screens.
+   */
+  const deleteJob = useCallback(
+    async (occurrenceId: string) => {
+      if (!user || !tenantId) return { ok: false as const, error: "Not authenticated" };
+
+      const { error: dErr } = await supabase
+        .from("job_occurrences")
+        .delete()
+        .eq("id", occurrenceId)
+        .eq("tenant_id", tenantId);
+
+      if (dErr) {
+        console.error("delete occurrence error", dErr);
+        toast({
+          title: "Failed to delete job",
+          description: dErr.message ?? String(dErr),
+          variant: "destructive",
+        });
+        return { ok: false as const, error: dErr.message ?? "Delete failed" };
+      }
+
+      toast({ title: "Job deleted" });
+      await fetchJobs();
+      return { ok: true as const };
+    },
+    [user, tenantId, toast, fetchJobs]
+  );
+
+  /**
+   * Convenience mapper for FullCalendar-like components.
+   * Returns events with UTC start/end; rendering layer can convert if desired.
+   */
+  const getCalendarEvents = useCallback(() => {
+    return jobs.map((j) => ({
+      id: j.id,
+      title: j.title,
+      start: j.start_at, // UTC ISO
+      end: j.end_at,     // UTC ISO
+      extendedProps: {
+        status: j.status,
+        priority: j.priority,
+        customer_name: j.customer_name,
+        series_id: j.series_id,
+        job_type: j.job_type,
+      },
+    }));
   }, [jobs]);
 
-  // Initialize
   useEffect(() => {
     fetchJobs();
   }, [fetchJobs]);
@@ -307,16 +444,17 @@ export function useJobScheduler() {
   return {
     jobs,
     loading,
+    error,
     createJob,
     updateJob,
     deleteJob,
     refreshJobs: fetchJobs,
     getCalendarEvents,
-    // Derived data
-    upcomingJobs: jobs.filter(job => 
-      new Date(job.start_at) > new Date() && job.status === 'scheduled'
-    ).slice(0, 5),
-    todaysJobs: jobs.filter(job => {
+    // convenience derived data
+    upcomingJobs: jobs
+      .filter((job) => new Date(job.start_at) > new Date() && job.status === "scheduled")
+      .slice(0, 5),
+    todaysJobs: jobs.filter((job) => {
       const today = new Date();
       const jobDate = new Date(job.start_at);
       return jobDate.toDateString() === today.toDateString();
