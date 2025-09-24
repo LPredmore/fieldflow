@@ -17,53 +17,23 @@ export function EnhancedCalendar() {
 
   // Get calendar events with proper timezone handling
   const calendarEvents = useMemo(() => {
-    const events = getCalendarEvents();
-    
-    console.log('🖥️ EnhancedCalendar received events:', {
-      total_events: events.length,
-      user_timezone: userTimezone,
-      browser_timezone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-      sample_events: events.slice(0, 2).map(event => ({
-        title: event.title,
-        start: event.start,
-        end: event.end,
-        start_as_date: new Date(event.start).toLocaleString(),
-        end_as_date: new Date(event.end).toLocaleString()
-      }))
-    });
-    
-    return events;
-  }, [getCalendarEvents, userTimezone]);
+    return getCalendarEvents();
+  }, [getCalendarEvents]);
 
   // Handle event click
   const handleEventClick = useCallback((clickInfo: any) => {
     const event = clickInfo.event;
     const job = event.extendedProps;
-    
-    console.log('📅 Calendar event clicked:', {
-      title: event.title,
-      utc_start: event.start,
-      utc_end: event.end,
-      local_start: job.localStart,
-      local_end: job.localEnd,
-      timezone: userTimezone
-    });
 
     // TODO: Open job details modal
     alert(`Job: ${event.title}\nLocal Time: ${format(new Date(job.localStart), 'PPp')}`);
-  }, [userTimezone]);
+  }, []);
 
   // Handle date selection
   const handleDateSelect = useCallback((selectInfo: any) => {
-    console.log('📅 Date selected:', {
-      start: selectInfo.start,
-      end: selectInfo.end,
-      timezone: userTimezone
-    });
-    
     // TODO: Open create job modal with pre-filled date
     alert(`Create job for ${format(selectInfo.start, 'PPP')}`);
-  }, [userTimezone]);
+  }, []);
 
   if (loading) {
     return (
@@ -180,29 +150,8 @@ export function EnhancedCalendar() {
             slotMaxTime="20:00:00"
             allDaySlot={false}
             eventDisplay="block"
-            eventMouseEnter={(mouseInfo) => {
-              const job = mouseInfo.event.extendedProps;
-              console.log('🎯 Event hover:', {
-                title: mouseInfo.event.title,
-                customer: job.customer_name,
-                status: job.status,
-                priority: job.priority
-              });
-            }}
             eventDidMount={(info) => {
               const job = info.event.extendedProps;
-              
-              // Log what FullCalendar received and how it's interpreting times
-              console.log('🎨 FullCalendar mounted event:', {
-                title: info.event.title,
-                fullcalendar_start: info.event.start?.toISOString(),
-                fullcalendar_end: info.event.end?.toISOString(),
-                fullcalendar_start_display: info.event.start?.toLocaleString(),
-                fullcalendar_end_display: info.event.end?.toLocaleString(),
-                timezone_setting: userTimezone,
-                original_local_start: job.localStart?.toLocaleString(),
-                original_local_end: job.localEnd?.toLocaleString()
-              });
               
               // Add tooltip with job details
               info.el.setAttribute('title', 

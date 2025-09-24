@@ -285,7 +285,7 @@ export type Database = {
           local_start_time: string
           notes: string | null
           priority: Database["public"]["Enums"]["job_priority"]
-          rrule: string
+          rrule: string | null
           scheduled_end_time_utc: string | null
           scheduled_time_utc: string | null
           service_type: Database["public"]["Enums"]["job_service_type"]
@@ -317,7 +317,7 @@ export type Database = {
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
-          rrule: string
+          rrule?: string | null
           scheduled_end_time_utc?: string | null
           scheduled_time_utc?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]
@@ -349,7 +349,7 @@ export type Database = {
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
-          rrule?: string
+          rrule?: string | null
           scheduled_end_time_utc?: string | null
           scheduled_time_utc?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]

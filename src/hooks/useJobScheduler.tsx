@@ -58,7 +58,6 @@ export function useJobScheduler() {
 
     try {
       setLoading(true);
-      console.log('🗓️ Fetching jobs for tenant:', tenantId, 'timezone:', userTimezone);
       
       const { data, error } = await supabase
         .from('jobs_calendar_upcoming')
@@ -66,7 +65,7 @@ export function useJobScheduler() {
         .order('start_at', { ascending: true });
 
       if (error) {
-        console.error('❌ Error fetching jobs:', error);
+        console.error('Error fetching jobs:', error);
         toast({
           variant: "destructive",
           title: "Error loading jobs",
@@ -75,25 +74,10 @@ export function useJobScheduler() {
         return;
       }
 
-      console.log(`✅ Loaded ${data?.length || 0} jobs from database`);
-
       // Transform data and add local timezone fields
-      const transformedJobs: ScheduledJob[] = (data || []).map((job, index) => {
+      const transformedJobs: ScheduledJob[] = (data || []).map((job) => {
         const localStart = convertFromUTC(job.start_at, userTimezone);
         const localEnd = convertFromUTC(job.end_at, userTimezone);
-        
-        // Log first 3 jobs for debugging
-        if (index < 3) {
-          console.log(`🔄 Job ${index + 1} timezone conversion:`, {
-            title: job.title,
-            raw_utc_start: job.start_at,
-            raw_utc_end: job.end_at,
-            user_timezone: userTimezone,
-            converted_local_start: localStart.toISOString(),
-            converted_local_end: localEnd.toISOString(),
-            local_display: `${localStart.toLocaleString()} → ${localEnd.toLocaleString()}`
-          });
-        }
         
         return {
           ...job,
@@ -104,10 +88,9 @@ export function useJobScheduler() {
       });
 
       setJobs(transformedJobs);
-      console.log('🎯 Jobs ready for calendar display:', transformedJobs.length);
       
     } catch (error: any) {
-      console.error('❌ Unexpected error fetching jobs:', error);
+      console.error('Unexpected error fetching jobs:', error);
       toast({
         variant: "destructive",
         title: "Error loading jobs",
@@ -123,18 +106,9 @@ export function useJobScheduler() {
     if (!user || !tenantId) throw new Error('User not authenticated');
 
     try {
-      console.log('🚀 Creating job:', jobData);
-      
       // Convert local date/time to UTC for storage
       const scheduledTimeUTC = combineDateTimeToUTC(jobData.date, jobData.time, userTimezone);
       const scheduledEndTimeUTC = new Date(scheduledTimeUTC.getTime() + (jobData.duration_minutes * 60 * 1000));
-      
-      console.log('⏰ Timezone conversion:', {
-        local: `${jobData.date} ${jobData.time}`,
-        timezone: userTimezone,
-        utc_start: scheduledTimeUTC.toISOString(),
-        utc_end: scheduledEndTimeUTC.toISOString()
-      });
 
       // Create job series
       const seriesPayload = {
@@ -153,7 +127,7 @@ export function useJobScheduler() {
         estimated_cost: jobData.estimated_cost,
         priority: jobData.priority,
         is_recurring: jobData.is_recurring,
-        rrule: jobData.rrule,
+        rrule: jobData.is_recurring ? jobData.rrule : null, // Explicitly set null for non-recurring jobs
         until_date: jobData.until_date,
         // NEW: Store pre-calculated UTC times
         scheduled_time_utc: scheduledTimeUTC.toISOString(),
@@ -168,24 +142,19 @@ export function useJobScheduler() {
         .single();
 
       if (seriesError) throw seriesError;
-      console.log('✅ Job series created:', series.id);
 
       // Generate occurrences
       if (jobData.is_recurring && jobData.rrule) {
-        console.log('🔄 Generating recurring occurrences...');
         const { error: generateError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
           body: { seriesId: series.id }
         });
         
         if (generateError) {
-          console.error('❌ Error generating occurrences:', generateError);
+          console.error('Error generating occurrences:', generateError);
           throw generateError;
         }
-        
-        console.log('✅ Recurring occurrences generated');
       } else {
         // Create single occurrence for one-time job
-        console.log('📋 Creating single occurrence...');
         const { error: occurrenceError } = await supabase
           .from('job_occurrences')
           .insert({
@@ -202,7 +171,6 @@ export function useJobScheduler() {
           });
 
         if (occurrenceError) throw occurrenceError;
-        console.log('✅ Single occurrence created');
       }
 
       toast({
@@ -215,7 +183,7 @@ export function useJobScheduler() {
       return series;
 
     } catch (error: any) {
-      console.error('❌ Error creating job:', error);
+      console.error('Error creating job:', error);
       toast({
         variant: "destructive",
         title: "Failed to create job",
@@ -255,7 +223,7 @@ export function useJobScheduler() {
 
       await fetchJobs();
     } catch (error: any) {
-      console.error('❌ Error updating job:', error);
+      console.error('Error updating job:', error);
       toast({
         variant: "destructive",
         title: "Failed to update job",
@@ -296,7 +264,7 @@ export function useJobScheduler() {
 
       await fetchJobs();
     } catch (error: any) {
-      console.error('❌ Error deleting job:', error);
+      console.error('Error deleting job:', error);
       toast({
         variant: "destructive",
         title: "Failed to delete job",
@@ -308,24 +276,10 @@ export function useJobScheduler() {
 
   // Get jobs for calendar display (with timezone conversion)
   const getCalendarEvents = useCallback(() => {
-    const events = jobs.map((job, index) => {
+    return jobs.map((job) => {
       // Use the already converted local Date objects for FullCalendar
       const startISO = job.local_start.toISOString();
       const endISO = job.local_end.toISOString();
-      
-      // Log first 3 events for debugging
-      if (index < 3) {
-        console.log(`📅 Creating calendar event ${index + 1}:`, {
-          title: job.title,
-          original_utc_start: job.start_at,
-          original_utc_end: job.end_at,  
-          local_date_obj_start: job.local_start.toISOString(),
-          local_date_obj_end: job.local_end.toISOString(),
-          passing_to_fullcalendar_start: startISO,
-          passing_to_fullcalendar_end: endISO,
-          local_display: `${job.local_start.toLocaleString()} → ${job.local_end.toLocaleString()}`
-        });
-      }
       
       return {
         id: job.id,
@@ -343,9 +297,6 @@ export function useJobScheduler() {
         }
       };
     });
-    
-    console.log(`📊 Generated ${events.length} calendar events for FullCalendar`);
-    return events;
   }, [jobs]);
 
   // Initialize
