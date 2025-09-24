@@ -25,6 +25,9 @@ verify_jwt = false
 [functions.calendar-unified]
 verify_jwt = false
 
+[functions.regenerate-occurrences]
+verify_jwt = false
+
 # Scheduled job to extend horizons daily
 [[db.functions]]
 name = "extend_horizon_scheduler"

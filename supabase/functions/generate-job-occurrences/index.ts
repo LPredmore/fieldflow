@@ -75,16 +75,24 @@ serve(async (req) => {
       { zone: series.timezone }
     );
     
+    console.log('Timezone conversion:', {
+      input: `${series.start_date}T${series.local_start_time}`,
+      localStart: localStart.toISO(),
+      utcStart: localStart.toUTC().toISO()
+    });
+    
     // Convert to UTC for RRULE processing
     const startDateTime = new Date(localStart.toUTC().toISO());
+    
+    console.log('StartDateTime for RRule:', startDateTime.toISOString());
     
     // Parse the RRULE
     let rule: RRule;
     try {
-      // Parse RRULE and set the dtstart
-      rule = RRule.fromString(series.rrule);
-      // Override the dtstart with our timezone-corrected start time
-      rule.options.dtstart = startDateTime;
+      // Create new RRule with proper dtstart from the beginning
+      const rruleOptions = RRule.parseString(series.rrule);
+      rruleOptions.dtstart = startDateTime;
+      rule = new RRule(rruleOptions);
     } catch (rruleError) {
       console.error('Invalid RRULE:', rruleError);
       return new Response(
@@ -149,20 +157,27 @@ serve(async (req) => {
 
     // Insert each occurrence
     for (const occurrence of occurrences) {
-      // Convert the occurrence back to UTC timestamps for storage
-      const startUTC = DateTime.fromJSDate(occurrence).toUTC();
+      // The occurrence is already in UTC from RRule, just use it directly
+      const startUTC = DateTime.fromJSDate(occurrence, { zone: 'utc' });
       const endUTC = startUTC.plus({ minutes: series.duration_minutes });
+      
+      console.log('Processing occurrence:', {
+        occurrence: occurrence.toISOString(),
+        startUTC: startUTC.toISO(),
+        endUTC: endUTC.toISO()
+      });
 
       const occurrenceData = {
         tenant_id: series.tenant_id,
         series_id: series.id,
         customer_id: series.customer_id,
-        customer_name: series.customer_name,
         start_at: startUTC.toISO(),
         end_at: endUTC.toISO(),
         status: 'scheduled',
         priority: series.priority || 'medium',
-        assigned_to_user_id: series.assigned_to_user_id
+        assigned_to_user_id: series.assigned_to_user_id,
+        series_timezone: series.timezone,
+        series_local_start_time: series.local_start_time
       };
 
       // Use upsert with select to get accurate counts

@@ -231,8 +231,10 @@ export function useJobManagement() {
       ...dbUpdates 
     } = updates;
     
-    // The OneTimeJob interface now matches the job_series table structure
-    // No conversion needed
+    // Check if timing fields have changed and we have UTC timestamps
+    const hasTimingChanges = updates.scheduled_time_utc && updates.scheduled_end_time_utc;
+    
+    // Update the job_series record
     const { data, error } = await supabase
       .from('job_series')
       .update(dbUpdates)
@@ -241,6 +243,28 @@ export function useJobManagement() {
       .single();
 
     if (error) throw error;
+    
+    // If timing changed, also update any corresponding job_occurrences
+    if (hasTimingChanges) {
+      try {
+        // For one-time jobs, there might be an occurrence in job_occurrences table
+        // Update it to keep the calendar in sync
+        const { error: occurrenceError } = await supabase
+          .from('job_occurrences')
+          .update({
+            start_at: updates.scheduled_time_utc,
+            end_at: updates.scheduled_end_time_utc,
+          })
+          .eq('series_id', jobId);
+          
+        if (occurrenceError) {
+          console.warn('Could not update job_occurrences for one-time job:', occurrenceError);
+          // Don't throw - this is not critical as one-time jobs might not have occurrences
+        }
+      } catch (occError) {
+        console.warn('Error updating job occurrence:', occError);
+      }
+    }
     
     toast({
       title: "Job updated",
@@ -253,6 +277,9 @@ export function useJobManagement() {
 
   const updateJobSeries = async (seriesId: string, updates: Partial<JobSeries> & Record<string, any>) => {
     if (!user || !tenantId) throw new Error('User not authenticated');
+
+    // Check if we need to reschedule occurrences
+    const shouldRescheduleOccurrences = updates.rescheduleOccurrences;
 
     // Clean updates to remove fields that don't exist in database
     const { 
@@ -270,8 +297,31 @@ export function useJobManagement() {
       scheduled_end_time_utc,
       scheduled_time,
       scheduled_end_time,
+      rescheduleOccurrences,
       ...dbUpdates 
     } = updates;
+
+    // If rescheduling, clear future occurrences and reset last_generated_until
+    if (shouldRescheduleOccurrences) {
+      console.log('Rescheduling occurrences for series:', seriesId);
+      
+      // Delete all future occurrences (not yet started or completed)
+      const { error: deleteError } = await supabase
+        .from('job_occurrences')
+        .delete()
+        .eq('series_id', seriesId)
+        .gt('start_at', new Date().toISOString());
+        
+      if (deleteError) {
+        console.error('Error deleting future occurrences:', deleteError);
+      } else {
+        console.log('Deleted future occurrences for rescheduling');
+      }
+      
+      // Reset last_generated_until to allow regeneration
+      dbUpdates.last_generated_until = null;
+    }
+
     const { data, error } = await supabase
       .from('job_series')
       .update(dbUpdates)
@@ -280,6 +330,28 @@ export function useJobManagement() {
       .single();
 
     if (error) throw error;
+    
+    // If rescheduling, regenerate occurrences with new settings
+    if (shouldRescheduleOccurrences) {
+      try {
+        console.log('Invoking generate-job-occurrences-enhanced for rescheduled series');
+        const { error: generateError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
+          body: { 
+            seriesId: seriesId,
+            fromDate: data.start_date, // Start from the series start date
+            monthsAhead: 3 // Generate 3 months ahead
+          }
+        });
+        
+        if (generateError) {
+          console.error('Error generating new occurrences:', generateError);
+        } else {
+          console.log('Successfully regenerated occurrences for rescheduled series');
+        }
+      } catch (generateError) {
+        console.error('Error invoking generate-job-occurrences:', generateError);
+      }
+    }
     
     // If the series is being deactivated, cancel all future occurrences
     if (updates.active === false) {
@@ -291,35 +363,39 @@ export function useJobManagement() {
         .neq('status', 'completed');
     }
     
-    // Update future occurrences with new assignment, priority, or estimated cost
-    const occurrenceUpdates: any = {};
-    if (updates.assigned_to_user_id !== undefined) {
-      occurrenceUpdates.assigned_to_user_id = updates.assigned_to_user_id;
-    }
-    if (updates.priority) {
-      occurrenceUpdates.priority = updates.priority;
-    }
-    if (updates.estimated_cost !== undefined) {
-      occurrenceUpdates.override_estimated_cost = updates.estimated_cost;
-    }
-    
-    // Only update future scheduled occurrences if there are changes to propagate
-    if (Object.keys(occurrenceUpdates).length > 0) {
-      const { error: occurrenceError } = await supabase
-        .from('job_occurrences')
-        .update(occurrenceUpdates)
-        .eq('series_id', seriesId)
-        .gt('start_at', new Date().toISOString())
-        .eq('status', 'scheduled');
-        
-      if (occurrenceError) {
-        console.error('Error updating future occurrences:', occurrenceError);
+    // Update future occurrences with new assignment, priority, or estimated cost (only if not rescheduling)
+    if (!shouldRescheduleOccurrences) {
+      const occurrenceUpdates: any = {};
+      if (updates.assigned_to_user_id !== undefined) {
+        occurrenceUpdates.assigned_to_user_id = updates.assigned_to_user_id;
+      }
+      if (updates.priority) {
+        occurrenceUpdates.priority = updates.priority;
+      }
+      if (updates.estimated_cost !== undefined) {
+        occurrenceUpdates.override_estimated_cost = updates.estimated_cost;
+      }
+      
+      // Only update future scheduled occurrences if there are changes to propagate
+      if (Object.keys(occurrenceUpdates).length > 0) {
+        const { error: occurrenceError } = await supabase
+          .from('job_occurrences')
+          .update(occurrenceUpdates)
+          .eq('series_id', seriesId)
+          .gt('start_at', new Date().toISOString())
+          .eq('status', 'scheduled');
+          
+        if (occurrenceError) {
+          console.error('Error updating future occurrences:', occurrenceError);
+        }
       }
     }
     
     toast({
       title: "Job series updated",
-      description: "The job series and all future occurrences have been successfully updated.",
+      description: shouldRescheduleOccurrences 
+        ? "The job series has been updated and all future occurrences have been rescheduled."
+        : "The job series and all future occurrences have been successfully updated.",
     });
     
     await fetchJobManagementData();

@@ -20,7 +20,8 @@ export interface JobOccurrence {
   completion_notes?: string;
   actual_cost?: number;
   customer_id: string;
-  customer_name: string;
+  series_timezone?: string;
+  series_local_start_time?: string;
 }
 
 export function useJobOccurrences() {

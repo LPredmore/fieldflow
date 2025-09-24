@@ -8,7 +8,7 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
-import { combineDateTimeToUTC, DEFAULT_TIMEZONE, formatInUserTimezone } from '@/lib/timezoneUtils';
+import { combineDateTimeToUTC } from '@/lib/timezoneUtils';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 
 interface JobViewProps {
@@ -52,13 +52,8 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   const [isLoading, setIsLoading] = useState(false);
   const userTimezone = useUserTimezone();
 
-  // If it's a job series, use the specialized view
-  if ('job_type' in job && job.job_type === 'job_series') {
-    return <JobSeriesView jobSeries={job as JobSeries} onUpdate={onUpdate} />;
-  }
-
-  // For one-time jobs and unified jobs, use the existing logic
-  const unifiedJob = job as UnifiedJob | OneTimeJob;
+  // For one-time jobs, unified jobs, and job series, use the same editing logic
+  const unifiedJob = job as UnifiedJob | OneTimeJob | JobSeries;
 
   const handleEdit = () => {
     setIsEditing(true);
@@ -94,16 +89,79 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           is_recurring,
           rrule,
           until_date,
-          timezone,
           scheduled_time_utc,
           scheduled_end_time_utc,
           ...updateData
         } = formData;
         
-        // For one-time jobs, include time fields
-        if ('scheduled_date' in unifiedJob) {
-          updateData.scheduled_time = start_time;
-          updateData.scheduled_end_time = end_time;
+        // For recurring job series, detect scheduling changes that require occurrence regeneration
+        if ('job_type' in job && job.job_type === 'job_series') {
+          const jobSeries = job as JobSeries;
+          
+          const jobTimezone = formData.timezone || jobSeries.timezone || userTimezone;
+          
+          // Check if scheduling fields have changed
+          const schedulingFieldsChanged = 
+            formData.scheduled_date !== jobSeries.start_date ||
+            formData.start_time !== jobSeries.local_start_time ||
+            formData.duration_minutes !== jobSeries.duration_minutes ||
+            formData.timezone !== jobSeries.timezone ||
+            formData.rrule !== jobSeries.rrule ||
+            formData.until_date !== jobSeries.until_date;
+          
+          if (schedulingFieldsChanged && formData.scheduled_date && formData.start_time) {
+            try {
+              // Compute UTC timestamps for the new schedule
+              const durationMinutes = formData.duration_minutes || jobSeries.duration_minutes || 60;
+              const utcStart = combineDateTimeToUTC(formData.scheduled_date, formData.start_time, jobTimezone);
+              const utcEnd = new Date(utcStart.getTime() + durationMinutes * 60000);
+              
+              // Include computed UTC timestamps and reschedule flag
+              updateData.scheduled_time_utc = utcStart.toISOString();
+              updateData.scheduled_end_time_utc = utcEnd.toISOString();
+              updateData.start_date = formData.scheduled_date;
+              updateData.local_start_time = formData.start_time;
+              updateData.duration_minutes = formData.duration_minutes;
+              updateData.timezone = jobTimezone;
+              updateData.rescheduleOccurrences = true; // Flag for regenerating occurrences
+              
+              if (formData.rrule) updateData.rrule = formData.rrule;
+              if (formData.until_date) updateData.until_date = formData.until_date;
+            } catch (error) {
+              console.error('Error computing UTC timestamps for recurring job:', error);
+            }
+          }
+        }
+        // For one-time jobs, compute and include UTC timestamps when timing changes
+        else if ('start_date' in unifiedJob || 'scheduled_date' in unifiedJob) {
+          const jobTimezone = formData.timezone || ('timezone' in unifiedJob ? unifiedJob.timezone : userTimezone);
+          
+          // Check if timing has changed - compare with current values
+          const currentStartDate = 'start_date' in unifiedJob ? unifiedJob.start_date : formData.scheduled_date;
+          const currentStartTime = 'local_start_time' in unifiedJob ? unifiedJob.local_start_time : formData.start_time;
+          
+          const timingChanged = formData.scheduled_date !== currentStartDate || 
+                               formData.start_time !== currentStartTime ||
+                               formData.duration_minutes !== ('duration_minutes' in unifiedJob ? unifiedJob.duration_minutes : unifiedJob.estimated_duration);
+          
+          if (timingChanged && formData.scheduled_date && formData.start_time) {
+            try {
+              // Compute UTC timestamps for the update
+              const durationMinutes = formData.duration_minutes || ('duration_minutes' in unifiedJob ? unifiedJob.duration_minutes : unifiedJob.estimated_duration) || 60;
+              const utcStart = combineDateTimeToUTC(formData.scheduled_date, formData.start_time, jobTimezone);
+              const utcEnd = new Date(utcStart.getTime() + durationMinutes * 60000);
+              
+              // Include computed UTC timestamps
+              updateData.scheduled_time_utc = utcStart.toISOString();
+              updateData.scheduled_end_time_utc = utcEnd.toISOString();
+              updateData.start_date = formData.scheduled_date;
+              updateData.local_start_time = formData.start_time;
+              updateData.duration_minutes = formData.duration_minutes;
+              updateData.timezone = jobTimezone;
+            } catch (error) {
+              console.error('Error computing UTC timestamps:', error);
+            }
+          }
         }
         
         // Ensure assigned_to_user_id is properly handled
@@ -124,7 +182,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   if (isEditing) {
     // Convert OneTimeJob to UnifiedJob format if needed
     const jobForForm = 'start_at' in unifiedJob ? unifiedJob : (() => {
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       const localTime = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = localTime.substring(0, 5); // HH:mm format
       const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
@@ -159,7 +217,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = time.substring(0, 5); // HH:mm format
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       
       try {
         const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);
@@ -180,7 +238,7 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     if ('start_date' in unifiedJob) {
       const time = unifiedJob.local_start_time || '08:00';
       const startTimeFormatted = time.substring(0, 5); // HH:mm format
-      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || DEFAULT_TIMEZONE;
+      const timezone = ('timezone' in unifiedJob ? unifiedJob.timezone : undefined) || userTimezone;
       
       try {
         const utcStart = combineDateTimeToUTC(unifiedJob.start_date, startTimeFormatted, timezone);

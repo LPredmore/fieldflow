@@ -1,6 +1,7 @@
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import * as z from 'zod';
+import { useEffect } from 'react';
 import { UnifiedJob } from '@/hooks/useUnifiedJobs';
 import { useAuth } from '@/hooks/useAuth';
 import { usePermissions } from '@/hooks/usePermissions';
@@ -12,6 +13,7 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
+import { TimePicker } from '@/components/ui/time-picker';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
 import { Alert, AlertDescription } from '@/components/ui/alert';
@@ -102,7 +104,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       priority: job?.priority || 'medium',
       scheduled_date: job?.scheduled_date || initialValues.date,
       complete_date: job?.complete_date || undefined, // Don't use empty string
-      assigned_to_user_id: job?.assigned_to_user_id || undefined,
+      assigned_to_user_id: job?.assigned_to_user_id || user?.id,
       service_type: (job?.service_type as any) || 'general_maintenance',
       estimated_cost: job?.estimated_cost || undefined,
       actual_cost: job?.actual_cost || undefined,
@@ -116,6 +118,16 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       timezone: userTimezone,
     },
   });
+
+  // Auto-assign current user to new jobs once auth context loads
+  useEffect(() => {
+    const currentAssignedTo = form.getValues('assigned_to_user_id');
+    
+    // Only set if: no existing job (new job flow), field is empty, and user is available
+    if (!job && !currentAssignedTo && user?.id) {
+      form.setValue('assigned_to_user_id', user.id);
+    }
+  }, [user?.id, job, form]);
 
   const isRecurring = form.watch("is_recurring");
 
@@ -362,7 +374,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>Start Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <TimePicker {...field} placeholder="Select start time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -376,7 +388,7 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
                   <FormItem>
                     <FormLabel>End Time (optional)</FormLabel>
                     <FormControl>
-                      <Input type="time" {...field} />
+                      <TimePicker {...field} placeholder="Select end time" />
                     </FormControl>
                     <FormMessage />
                   </FormItem>

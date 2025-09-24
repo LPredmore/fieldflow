@@ -200,7 +200,6 @@ export type Database = {
           completion_notes: string | null
           created_at: string
           customer_id: string
-          customer_name: string
           end_at: string
           id: string
           override_description: string | null
@@ -208,6 +207,8 @@ export type Database = {
           override_title: string | null
           priority: Database["public"]["Enums"]["job_priority"]
           series_id: string
+          series_local_start_time: string | null
+          series_timezone: string | null
           start_at: string
           status: Database["public"]["Enums"]["job_status"]
           tenant_id: string
@@ -219,7 +220,6 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string
           customer_id: string
-          customer_name: string
           end_at: string
           id?: string
           override_description?: string | null
@@ -227,6 +227,8 @@ export type Database = {
           override_title?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
           series_id: string
+          series_local_start_time?: string | null
+          series_timezone?: string | null
           start_at: string
           status?: Database["public"]["Enums"]["job_status"]
           tenant_id: string
@@ -238,7 +240,6 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string
           customer_id?: string
-          customer_name?: string
           end_at?: string
           id?: string
           override_description?: string | null
@@ -246,6 +247,8 @@ export type Database = {
           override_title?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
           series_id?: string
+          series_local_start_time?: string | null
+          series_timezone?: string | null
           start_at?: string
           status?: Database["public"]["Enums"]["job_status"]
           tenant_id?: string
@@ -275,6 +278,7 @@ export type Database = {
           duration_minutes: number
           estimated_cost: number | null
           generation_cap_days: number | null
+          generation_status: string | null
           id: string
           is_recurring: boolean
           last_generated_until: string | null
@@ -282,6 +286,8 @@ export type Database = {
           notes: string | null
           priority: Database["public"]["Enums"]["job_priority"]
           rrule: string
+          scheduled_end_time_utc: string | null
+          scheduled_time_utc: string | null
           service_type: Database["public"]["Enums"]["job_service_type"]
           start_date: string
           status: Database["public"]["Enums"]["job_status"] | null
@@ -304,6 +310,7 @@ export type Database = {
           duration_minutes?: number
           estimated_cost?: number | null
           generation_cap_days?: number | null
+          generation_status?: string | null
           id?: string
           is_recurring?: boolean
           last_generated_until?: string | null
@@ -311,6 +318,8 @@ export type Database = {
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
           rrule: string
+          scheduled_end_time_utc?: string | null
+          scheduled_time_utc?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]
           start_date: string
           status?: Database["public"]["Enums"]["job_status"] | null
@@ -333,6 +342,7 @@ export type Database = {
           duration_minutes?: number
           estimated_cost?: number | null
           generation_cap_days?: number | null
+          generation_status?: string | null
           id?: string
           is_recurring?: boolean
           last_generated_until?: string | null
@@ -340,6 +350,8 @@ export type Database = {
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
           rrule?: string
+          scheduled_end_time_utc?: string | null
+          scheduled_time_utc?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"]
           start_date?: string
           status?: Database["public"]["Enums"]["job_status"] | null
@@ -609,6 +621,7 @@ export type Database = {
           tax_settings: Json | null
           tenant_id: string
           text_color: string | null
+          time_zone: Database["public"]["Enums"]["time_zones"] | null
           updated_at: string | null
           user_preferences: Json | null
         }
@@ -632,6 +645,7 @@ export type Database = {
           tax_settings?: Json | null
           tenant_id: string
           text_color?: string | null
+          time_zone?: Database["public"]["Enums"]["time_zones"] | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
@@ -655,6 +669,7 @@ export type Database = {
           tax_settings?: Json | null
           tenant_id?: string
           text_color?: string | null
+          time_zone?: Database["public"]["Enums"]["time_zones"] | null
           updated_at?: string | null
           user_preferences?: Json | null
         }
@@ -781,6 +796,14 @@ export type Database = {
         | "other"
       job_status: "scheduled" | "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
+      time_zones:
+        | "Eastern"
+        | "Central"
+        | "Mountain"
+        | "Pacific"
+        | "Arizona"
+        | "Alaska"
+        | "Hawaii Aleutian"
       user_role: "business_admin" | "contractor"
     }
     CompositeTypes: {
@@ -923,6 +946,15 @@ export const Constants = {
       ],
       job_status: ["scheduled", "in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "declined", "expired"],
+      time_zones: [
+        "Eastern",
+        "Central",
+        "Mountain",
+        "Pacific",
+        "Arizona",
+        "Alaska",
+        "Hawaii Aleutian",
+      ],
       user_role: ["business_admin", "contractor"],
     },
   },
