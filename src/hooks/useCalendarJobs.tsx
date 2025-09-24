@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+// useCalendarJobs.tsx
+import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useUserTimezone } from './useUserTimezone';
-import { convertFromUTC, formatInUserTimezone } from '@/lib/timezoneUtils';
+import { convertFromUTC } from '@/lib/timezoneUtils';
 import { useToast } from '@/hooks/use-toast';
 
 export interface CalendarJob {
@@ -11,7 +12,7 @@ export interface CalendarJob {
   title: string;
   description?: string;
   start_at: string; // UTC timestamp
-  end_at: string; // UTC timestamp
+  end_at: string;   // UTC timestamp
   status: 'scheduled' | 'in_progress' | 'completed' | 'cancelled';
   priority: 'low' | 'medium' | 'high' | 'urgent';
   customer_id: string;
@@ -23,23 +24,40 @@ export interface CalendarJob {
   created_at: string;
   updated_at?: string;
   tenant_id: string;
-  // Derived fields for display
+  // Derived fields for display (local timezone Date objects)
   local_start?: Date;
   local_end?: Date;
 }
 
+// Inclusive start (fromISO) and exclusive end (toISO)
+type CalendarRange = { fromISO: string; toISO: string };
+
+function iso(d: Date) {
+  return new Date(d.getTime() - (d.getMilliseconds())).toISOString();
+}
+
+function defaultRange(): CalendarRange {
+  const now = new Date();
+  const from = new Date(now);
+  from.setDate(from.getDate() - 7);        // show 1 week back
+  const to = new Date(now);
+  to.setDate(to.getDate() + 90);           // and ~3 months ahead
+  return { fromISO: iso(from), toISO: iso(to) };
+}
+
 /**
- * Hook to fetch calendar jobs from job_occurrences table only
- * All jobs (single and recurring) should be materialized in job_occurrences
+ * Hook to fetch calendar jobs from job_occurrences only.
+ * All jobs (single and recurring) are materialized in job_occurrences.
  */
 export function useCalendarJobs() {
   const [jobs, setJobs] = useState<CalendarJob[]>([]);
   const [loading, setLoading] = useState(true);
+  const [range, setRange] = useState<CalendarRange>(defaultRange());
   const { user, tenantId } = useAuth();
   const userTimezone = useUserTimezone();
   const { toast } = useToast();
 
-  const fetchJobs = async () => {
+  const fetchJobs = useCallback(async () => {
     if (!user || !tenantId) {
       setJobs([]);
       setLoading(false);
@@ -48,8 +66,8 @@ export function useCalendarJobs() {
 
     try {
       setLoading(true);
-      
-      // Fetch all job occurrences for the tenant
+
+      // Pull occurrences for the tenant, bounded by date range
       const { data, error } = await supabase
         .from('job_occurrences')
         .select(`
@@ -78,113 +96,115 @@ export function useCalendarJobs() {
           )
         `)
         .eq('tenant_id', tenantId)
+        .gte('start_at', range.fromISO)
+        .lt('start_at', range.toISO)
         .order('start_at', { ascending: true });
 
       if (error) {
         console.error('Error fetching calendar jobs:', error);
         toast({
-          variant: "destructive",
-          title: "Error loading calendar",
+          variant: 'destructive',
+          title: 'Error loading calendar',
           description: error.message,
         });
         setJobs([]);
         return;
       }
 
-      // Transform data - keep UTC times for FullCalendar, add local versions for other displays
-      const transformedJobs: CalendarJob[] = (data || []).map((job: any) => {
-        const series = job.job_series;
-        
-        // Convert UTC times to user's local timezone for non-calendar displays
-        const localStart = convertFromUTC(job.start_at, userTimezone);
-        const localEnd = convertFromUTC(job.end_at, userTimezone);
-        
+      // Keep UTC for the calendar component; add local Date objects for other displays
+      const transformed: CalendarJob[] = (data || []).map((row: any) => {
+        const series = row.job_series;
+        const localStart = convertFromUTC(row.start_at, userTimezone);
+        const localEnd = convertFromUTC(row.end_at, userTimezone);
+
         return {
-          id: job.id,
-          series_id: job.series_id,
-          title: job.override_title || series?.title || 'Untitled Job',
-          description: job.override_description || series?.description,
-          start_at: job.start_at, // Keep as UTC for FullCalendar
-          end_at: job.end_at, // Keep as UTC for FullCalendar
-          status: job.status,
-          priority: job.priority,
-          customer_id: job.customer_id,
-          customer_name: job.customer_name,
-          assigned_to_user_id: job.assigned_to_user_id,
-          estimated_cost: job.override_estimated_cost || series?.estimated_cost,
-          actual_cost: job.actual_cost,
-          completion_notes: job.completion_notes,
-          created_at: job.created_at,
-          updated_at: job.updated_at,
-          tenant_id: job.tenant_id,
-          // Add local timezone versions for non-calendar displays
+          id: row.id,
+          series_id: row.series_id,
+          title: row.override_title || series?.title || 'Untitled Job',
+          description: row.override_description || series?.description,
+          start_at: row.start_at,
+          end_at: row.end_at,
+          status: row.status,
+          priority: row.priority,
+          customer_id: row.customer_id,
+          customer_name: row.customer_name,
+          assigned_to_user_id: row.assigned_to_user_id,
+          estimated_cost: row.override_estimated_cost ?? series?.estimated_cost,
+          actual_cost: row.actual_cost,
+          completion_notes: row.completion_notes,
+          created_at: row.created_at,
+          updated_at: row.updated_at,
+          tenant_id: row.tenant_id,
           local_start: localStart,
           local_end: localEnd,
         };
       });
 
-      console.log(`Loaded ${transformedJobs.length} calendar jobs for timezone: ${userTimezone}`);
-      setJobs(transformedJobs);
-    } catch (error: any) {
-      console.error('Error in fetchJobs:', error);
+      setJobs(transformed);
+    } catch (err: any) {
+      console.error('Error in fetchJobs:', err);
       toast({
-        variant: "destructive",
-        title: "Error loading calendar",
-        description: error.message,
+        variant: 'destructive',
+        title: 'Error loading calendar',
+        description: err.message ?? String(err),
       });
       setJobs([]);
     } finally {
       setLoading(false);
     }
-  };
+  }, [user, tenantId, userTimezone, range.fromISO, range.toISO, toast]);
 
-  const updateJob = async (jobId: string, updates: Partial<CalendarJob>) => {
-    if (!user || !tenantId) throw new Error('User not authenticated');
+  const updateJob = useCallback(
+    async (jobId: string, updates: Partial<CalendarJob>) => {
+      if (!user || !tenantId) throw new Error('User not authenticated');
 
-    // Remove display-only fields before updating
-    const { local_start, local_end, ...dbUpdates } = updates;
+      // Strip display-only fields
+      const { local_start, local_end, ...dbUpdates } = updates;
 
-    const { data, error } = await supabase
-      .from('job_occurrences')
-      .update(dbUpdates)
-      .eq('id', jobId)
-      .eq('tenant_id', tenantId)
-      .select()
-      .single();
+      const { data, error } = await supabase
+        .from('job_occurrences')
+        .update(dbUpdates)
+        .eq('id', jobId)
+        .eq('tenant_id', tenantId)
+        .select()
+        .single();
 
-    if (error) throw error;
-    
-    toast({
-      title: "Job updated",
-      description: "The job has been successfully updated.",
-    });
-    
-    await fetchJobs();
-    return data;
-  };
+      if (error) {
+        console.error('Error updating job:', error);
+        throw error;
+      }
 
-  const deleteJob = async (jobId: string) => {
-    if (!user || !tenantId) throw new Error('User not authenticated');
+      toast({ title: 'Job updated', description: 'The job has been successfully updated.' });
+      await fetchJobs();
+      return data;
+    },
+    [user, tenantId, toast, fetchJobs]
+  );
 
-    const { error } = await supabase
-      .from('job_occurrences')
-      .delete()
-      .eq('id', jobId)
-      .eq('tenant_id', tenantId);
+  const deleteJob = useCallback(
+    async (jobId: string) => {
+      if (!user || !tenantId) throw new Error('User not authenticated');
 
-    if (error) throw error;
-    
-    toast({
-      title: "Job deleted",
-      description: "The job has been successfully deleted.",
-    });
-    
-    await fetchJobs();
-  };
+      const { error } = await supabase
+        .from('job_occurrences')
+        .delete()
+        .eq('id', jobId)
+        .eq('tenant_id', tenantId);
+
+      if (error) {
+        console.error('Error deleting job:', error);
+        throw error;
+      }
+
+      toast({ title: 'Job deleted', description: 'The job has been successfully deleted.' });
+      await fetchJobs();
+    },
+    [user, tenantId, toast, fetchJobs]
+  );
 
   useEffect(() => {
     fetchJobs();
-  }, [user, tenantId, userTimezone]);
+  }, [fetchJobs]);
 
   return {
     jobs,
@@ -192,5 +212,8 @@ export function useCalendarJobs() {
     refetch: fetchJobs,
     updateJob,
     deleteJob,
+    // Optional range control for callers (e.g., wire to calendar visible window)
+    range,
+    setRange,
   };
 }
