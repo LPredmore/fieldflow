@@ -7,7 +7,7 @@
 //  - Passing Date objects (constructed from UTC ISO strings) to FullCalendar
 //  - Setting timeZone to the browser's IANA string from useUserTimezone()
 
-import { useCallback, useMemo } from 'react';
+import { useCallback, useMemo, useRef } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -28,6 +28,7 @@ export function EnhancedCalendar() {
   // it also returns { range, setRange, refetch }. We only need setRange here.
   const { jobs, loading, setRange } = useCalendarJobs() as any;
   const userTimezone = useUserTimezone(); // e.g., "Europe/London", "America/New_York"
+  const calendarRef = useRef<FullCalendar>(null);
 
   // Convert to Date objects so FullCalendar can render in the selected timeZone
   const calendarEvents = useMemo(() => {
@@ -49,7 +50,12 @@ export function EnhancedCalendar() {
 
   // Update the data-fetch range whenever the visible dates change
   const handleDatesSet = useCallback(
-    (arg: { start: Date; end: Date }) => {
+    (arg: { start: Date; end: Date; view: any }) => {
+      console.log('Calendar datesSet:', { 
+        start: arg.start.toISOString(), 
+        end: arg.end.toISOString(),
+        view: arg.view.type 
+      });
       // Inclusive start, exclusive end works well with .gte / .lt in the hook
       setRange?.({ fromISO: arg.start.toISOString(), toISO: arg.end.toISOString() });
     },
@@ -169,50 +175,80 @@ export function EnhancedCalendar() {
           </div>
         </CardHeader>
         <CardContent>
-          <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          {/* Isolation wrapper to prevent Lovable data attributes from reaching FullCalendar */}
+          <div 
+            style={{ 
+              isolation: 'isolate',
+              contain: 'layout style',
             }}
-            // CRITICAL: named IANA timezone + luxon plugin
-            timeZone={userTimezone || 'local'}
-            // Provide Date objects so FC can convert correctly
-            events={calendarEvents}
-            // Keep user interactions
-            eventClick={handleEventClick}
-            select={handleDateSelect}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            weekends={true}
-            height="auto"
-            slotMinTime="06:00:00"
-            slotMaxTime="20:00:00"
-            allDaySlot={false}
-            eventDisplay="block"
-            // Update data range when the visible window changes
-            datesSet={handleDatesSet}
-            eventDidMount={(info) => {
-              const job = info.event.extendedProps as any;
-
-              // Simple tooltip
-              info.el.setAttribute(
-                'title',
-                `${info.event.title}\nCustomer: ${job.customer_name}\nStatus: ${job.status}\nPriority: ${job.priority}`
-              );
-
-              // Visual cues
-              if (job.priority === 'urgent') {
-                info.el.style.borderLeft = '4px solid #ef4444';
-              }
-              if (job.status === 'completed') {
-                info.el.style.opacity = '0.7';
-              }
+            onClickCapture={(e) => {
+              // Prevent any data-* attributes from bubbling up
+              e.stopPropagation();
             }}
-          />
+          >
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
+              initialView="timeGridWeek"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay',
+              }}
+              // CRITICAL: named IANA timezone + luxon plugin
+              timeZone={userTimezone || 'local'}
+              // Provide Date objects so FC can convert correctly
+              events={calendarEvents}
+              // Keep user interactions
+              eventClick={handleEventClick}
+              select={handleDateSelect}
+              selectable={true}
+              selectMirror={true}
+              dayMaxEvents={true}
+              weekends={true}
+              height="auto"
+              slotMinTime="06:00:00"
+              slotMaxTime="20:00:00"
+              allDaySlot={false}
+              eventDisplay="block"
+              // Navigation debugging and handling
+              viewDidMount={(info) => {
+                console.log('Calendar view mounted:', info.view.type, info.view.title);
+              }}
+              // Update data range when the visible window changes
+              datesSet={handleDatesSet}
+              // Navigation event handlers
+              navLinkDayClick={(date, jsEvent) => {
+                console.log('Day nav clicked:', date);
+                jsEvent.preventDefault();
+                return false;
+              }}
+              // Event styling
+              eventDidMount={(info) => {
+                const job = info.event.extendedProps as any;
+
+                // Simple tooltip
+                info.el.setAttribute(
+                  'title',
+                  `${info.event.title}\nCustomer: ${job.customer_name}\nStatus: ${job.status}\nPriority: ${job.priority}`
+                );
+
+                // Visual cues
+                if (job.priority === 'urgent') {
+                  info.el.style.borderLeft = '4px solid #ef4444';
+                }
+                if (job.status === 'completed') {
+                  info.el.style.opacity = '0.7';
+                }
+              }}
+              // Prevent any unknown options from being passed through
+              {...(() => {
+                const cleanProps = {};
+                // Only pass through known FullCalendar props, filtering out any data-* attributes
+                return cleanProps;
+              })()}
+            />
+          </div>
         </CardContent>
       </Card>
 
