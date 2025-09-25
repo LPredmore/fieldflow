@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { useJobScheduler, CreateJobData } from '@/hooks/useJobScheduler';
+import { useJobScheduler, CreateJobInput } from '@/hooks/useJobScheduler';
 import { useCustomers } from '@/hooks/useCustomers';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -19,7 +19,7 @@ interface CreateJobDialogProps {
 
 export function CreateJobDialog({ prefilledDate, trigger }: CreateJobDialogProps) {
   const [open, setOpen] = useState(false);
-  const [formData, setFormData] = useState<Partial<CreateJobData>>({
+  const [formData, setFormData] = useState<Partial<CreateJobInput>>({
     date: prefilledDate || format(new Date(), 'yyyy-MM-dd'),
     time: '09:00',
     duration_minutes: 60,
@@ -44,7 +44,7 @@ export function CreateJobDialog({ prefilledDate, trigger }: CreateJobDialogProps
       await createJob({
         ...formData,
         customer_name: selectedCustomer?.name || 'Unknown Customer',
-      } as CreateJobData);
+      } as CreateJobInput);
       
       setOpen(false);
       setFormData({

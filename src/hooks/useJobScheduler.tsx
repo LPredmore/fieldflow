@@ -15,7 +15,7 @@ import {
  * - For one-off jobs: also inserts exactly one row in `job_occurrences`
  * - For recurring jobs: calls the `generate-job-occurrences` Edge Function to (re)materialize a horizon
  *
- * NOTE: This replaces any dependency on the `jobs_calendar_upcoming` view.
+ * NOTE: Calendar components should use `useCalendarJobs` for calendar display functionality.
  */
 
 export type JobStatus = "scheduled" | "in_progress" | "completed" | "cancelled";
@@ -55,6 +55,8 @@ export interface CreateJobInput {
   priority?: JobPriority;
   duration_minutes?: number;
   assigned_to_user_id?: string | null;
+  estimated_cost?: number;
+  service_type?: string;
 
   // times supplied from UI (local)
   // we accept either (date,time) or (scheduled_date,start_time)
@@ -110,8 +112,8 @@ export function useJobScheduler() {
         job_type,
         created_at: row.created_at,
         updated_at: row.updated_at,
-        local_start,
-        local_end,
+        local_start: local_start.toISOString(),
+        local_end: local_end.toISOString(),
         service_type: row.job_series?.service_type ?? null,
       };
     },
@@ -246,6 +248,8 @@ export function useJobScheduler() {
         is_recurring: isRecurring,
         rrule: isRecurring ? jobData.rrule : null,
         until_date: jobData.until_date ?? null,
+        estimated_cost: jobData.estimated_cost ?? null,
+        service_type: jobData.service_type ?? null,
         // precomputed UTC for convenience/perf
         scheduled_time_utc: utcStart.toISOString(),
         scheduled_end_time_utc: utcEnd.toISOString(),
@@ -256,7 +260,7 @@ export function useJobScheduler() {
       // Insert series
       const { data: series, error: sErr } = await supabase
         .from("job_series")
-        .insert(seriesPayload)
+        .insert(seriesPayload as any)
         .select()
         .single();
 
@@ -320,7 +324,7 @@ export function useJobScheduler() {
 
         const { error: oErr } = await supabase
           .from("job_occurrences")
-          .insert(occurrencePayload);
+          .insert(occurrencePayload as any);
 
         if (oErr) {
           console.error("insert occurrence error", oErr);

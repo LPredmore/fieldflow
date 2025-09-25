@@ -3,7 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { useJobScheduler } from '@/hooks/useJobScheduler';
+import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -12,13 +12,26 @@ import { Calendar as CalendarIcon, Clock, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function EnhancedCalendar() {
-  const { jobs, loading, getCalendarEvents } = useJobScheduler();
+  const { jobs, loading } = useCalendarJobs();
   const userTimezone = useUserTimezone();
 
   // Get calendar events with proper timezone handling
   const calendarEvents = useMemo(() => {
-    return getCalendarEvents();
-  }, [getCalendarEvents]);
+    return jobs.map((job) => ({
+      id: job.id,
+      title: job.title,
+      start: job.start_at, // UTC ISO
+      end: job.end_at,     // UTC ISO
+      extendedProps: {
+        status: job.status,
+        priority: job.priority,
+        customer_name: job.customer_name,
+        series_id: job.series_id,
+        localStart: job.local_start,
+        localEnd: job.local_end,
+      },
+    }));
+  }, [jobs]);
 
   // Handle event click
   const handleEventClick = useCallback((clickInfo: any) => {
@@ -26,7 +39,7 @@ export function EnhancedCalendar() {
     const job = event.extendedProps;
 
     // TODO: Open job details modal
-    alert(`Job: ${event.title}\nLocal Time: ${format(new Date(job.localStart), 'PPp')}`);
+    alert(`Job: ${event.title}\nLocal Time: ${job.localStart ? format(job.localStart, 'PPp') : 'N/A'}`);
   }, []);
 
   // Handle date selection
@@ -186,7 +199,7 @@ export function EnhancedCalendar() {
                 <div key={job.id} className="ml-4 p-2 bg-muted rounded">
                   <p><strong>{job.title}</strong></p>
                   <p>UTC: {job.start_at} → {job.end_at}</p>
-                  <p>Local: {job.local_start.toLocaleString()} → {job.local_end.toLocaleString()}</p>
+                  <p>Local: {job.local_start?.toLocaleString()} → {job.local_end?.toLocaleString()}</p>
                 </div>
               ))}
             </div>
