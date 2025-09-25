@@ -1,10 +1,22 @@
+// src/components/Calendar/EnhancedCalendar.tsx
+// REQUIREMENTS:
+//   npm i @fullcalendar/luxon3 luxon
+//
+// Fixes timezone display by:
+//  - Adding FullCalendar's Luxon plugin (for named IANA zones)
+//  - Passing Date objects (constructed from UTC ISO strings) to FullCalendar
+//  - Setting timeZone to the browser's IANA string from useUserTimezone()
+
 import { useCallback, useMemo } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import luxon3Plugin from '@fullcalendar/luxon3';
+
 import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
+
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -12,39 +24,54 @@ import { Calendar as CalendarIcon, Clock, MapPin, User } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function EnhancedCalendar() {
-  const { jobs, loading } = useCalendarJobs();
-  const userTimezone = useUserTimezone();
+  // If you replaced useCalendarJobs with the version I provided,
+  // it also returns { range, setRange, refetch }. We only need setRange here.
+  const { jobs, loading, setRange } = useCalendarJobs() as any;
+  const userTimezone = useUserTimezone(); // e.g., "Europe/London", "America/New_York"
 
-  // Get calendar events with proper timezone handling
+  // Convert to Date objects so FullCalendar can render in the selected timeZone
   const calendarEvents = useMemo(() => {
-    return jobs.map((job) => ({
+    return jobs.map((job: any) => ({
       id: job.id,
       title: job.title,
-      start: job.start_at, // UTC ISO
-      end: job.end_at,     // UTC ISO
+      start: new Date(job.start_at), // job.start_at is UTC ISO, Date keeps absolute moment
+      end: new Date(job.end_at),
       extendedProps: {
         status: job.status,
         priority: job.priority,
         customer_name: job.customer_name,
         series_id: job.series_id,
-        localStart: job.local_start,
+        localStart: job.local_start, // optional, for tooltips or side UI
         localEnd: job.local_end,
       },
     }));
   }, [jobs]);
 
-  // Handle event click
+  // Update the data-fetch range whenever the visible dates change
+  const handleDatesSet = useCallback(
+    (arg: { start: Date; end: Date }) => {
+      // Inclusive start, exclusive end works well with .gte / .lt in the hook
+      setRange?.({ fromISO: arg.start.toISOString(), toISO: arg.end.toISOString() });
+    },
+    [setRange]
+  );
+
   const handleEventClick = useCallback((clickInfo: any) => {
     const event = clickInfo.event;
     const job = event.extendedProps;
 
-    // TODO: Open job details modal
-    alert(`Job: ${event.title}\nLocal Time: ${job.localStart ? format(job.localStart, 'PPp') : 'N/A'}`);
+    // Example details (replace with a modal as needed)
+    alert(
+      `Job: ${event.title}\n` +
+      `Customer: ${job.customer_name}\n` +
+      `Status: ${job.status}\n` +
+      `Priority: ${job.priority}\n` +
+      (job.localStart ? `Local Time: ${format(job.localStart, 'PPp')}` : '')
+    );
   }, []);
 
-  // Handle date selection
   const handleDateSelect = useCallback((selectInfo: any) => {
-    // TODO: Open create job modal with pre-filled date
+    // Replace with your "Create Job" modal
     alert(`Create job for ${format(selectInfo.start, 'PPP')}`);
   }, []);
 
@@ -81,42 +108,42 @@ export function EnhancedCalendar() {
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Scheduled</p>
                 <p className="text-2xl font-bold text-blue-600">
-                  {jobs.filter(j => j.status === 'scheduled').length}
+                  {jobs.filter((j: any) => j.status === 'scheduled').length}
                 </p>
               </div>
               <Clock className="h-8 w-8 text-blue-600" />
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">In Progress</p>
                 <p className="text-2xl font-bold text-orange-600">
-                  {jobs.filter(j => j.status === 'in_progress').length}
+                  {jobs.filter((j: any) => j.status === 'in_progress').length}
                 </p>
               </div>
               <User className="h-8 w-8 text-orange-600" />
             </div>
           </CardContent>
         </Card>
-        
+
         <Card>
           <CardContent className="p-4">
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-sm font-medium text-muted-foreground">Completed</p>
                 <p className="text-2xl font-bold text-green-600">
-                  {jobs.filter(j => j.status === 'completed').length}
+                  {jobs.filter((j: any) => j.status === 'completed').length}
                 </p>
               </div>
               <Badge variant="secondary" className="bg-green-100 text-green-800">
@@ -137,20 +164,24 @@ export function EnhancedCalendar() {
             </CardTitle>
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
               <MapPin className="h-4 w-4" />
-              <span>Timezone: {userTimezone}</span>
+              <span>Timezone: {userTimezone || 'local'}</span>
             </div>
           </div>
         </CardHeader>
         <CardContent>
           <FullCalendar
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
             initialView="timeGridWeek"
             headerToolbar={{
               left: 'prev,next today',
               center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay'
+              right: 'dayGridMonth,timeGridWeek,timeGridDay',
             }}
+            // CRITICAL: named IANA timezone + luxon plugin
+            timeZone={userTimezone || 'local'}
+            // Provide Date objects so FC can convert correctly
             events={calendarEvents}
+            // Keep user interactions
             eventClick={handleEventClick}
             select={handleDateSelect}
             selectable={true}
@@ -158,20 +189,22 @@ export function EnhancedCalendar() {
             dayMaxEvents={true}
             weekends={true}
             height="auto"
-            timeZone={userTimezone}
             slotMinTime="06:00:00"
             slotMaxTime="20:00:00"
             allDaySlot={false}
             eventDisplay="block"
+            // Update data range when the visible window changes
+            datesSet={handleDatesSet}
             eventDidMount={(info) => {
-              const job = info.event.extendedProps;
-              
-              // Add tooltip with job details
-              info.el.setAttribute('title', 
+              const job = info.event.extendedProps as any;
+
+              // Simple tooltip
+              info.el.setAttribute(
+                'title',
                 `${info.event.title}\nCustomer: ${job.customer_name}\nStatus: ${job.status}\nPriority: ${job.priority}`
               );
-              
-              // Add status indicators
+
+              // Visual cues
               if (job.priority === 'urgent') {
                 info.el.style.borderLeft = '4px solid #ef4444';
               }
@@ -192,10 +225,9 @@ export function EnhancedCalendar() {
           <CardContent>
             <div className="space-y-2 text-sm">
               <p><strong>Jobs loaded:</strong> {jobs.length}</p>
-              <p><strong>Calendar events:</strong> {calendarEvents.length}</p>
-              <p><strong>User timezone:</strong> {userTimezone}</p>
+              <p><strong>User timezone:</strong> {userTimezone || 'local'}</p>
               <p><strong>Sample job times:</strong></p>
-              {jobs.slice(0, 2).map(job => (
+              {jobs.slice(0, 2).map((job: any) => (
                 <div key={job.id} className="ml-4 p-2 bg-muted rounded">
                   <p><strong>{job.title}</strong></p>
                   <p>UTC: {job.start_at} → {job.end_at}</p>
