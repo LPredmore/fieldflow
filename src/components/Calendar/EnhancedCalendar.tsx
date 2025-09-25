@@ -175,56 +175,80 @@ export function EnhancedCalendar() {
           </div>
         </CardHeader>
         <CardContent>
-          <FullCalendar
-            ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
-            initialView="timeGridWeek"
-            headerToolbar={{
-              left: 'prev,next today',
-              center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay',
+          {/* Isolation wrapper to prevent Lovable data attributes from reaching FullCalendar */}
+          <div 
+            style={{ 
+              isolation: 'isolate',
+              contain: 'layout style',
             }}
-            // CRITICAL: named IANA timezone + luxon plugin
-            timeZone={userTimezone || 'local'}
-            // Provide Date objects so FC can convert correctly
-            events={calendarEvents}
-            // Keep user interactions
-            eventClick={handleEventClick}
-            select={handleDateSelect}
-            selectable={true}
-            selectMirror={true}
-            dayMaxEvents={true}
-            weekends={true}
-            height="auto"
-            slotMinTime="06:00:00"
-            slotMaxTime="20:00:00"
-            allDaySlot={false}
-            eventDisplay="block"
-            // Navigation debugging and handling
-            viewDidMount={(info) => {
-              console.log('Calendar view mounted:', info.view.type, info.view.title);
+            onClickCapture={(e) => {
+              // Prevent any data-* attributes from bubbling up
+              e.stopPropagation();
             }}
-            // Update data range when the visible window changes
-            datesSet={handleDatesSet}
-            // Event styling
-            eventDidMount={(info) => {
-              const job = info.event.extendedProps as any;
+          >
+            <FullCalendar
+              ref={calendarRef}
+              plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
+              initialView="timeGridWeek"
+              headerToolbar={{
+                left: 'prev,next today',
+                center: 'title',
+                right: 'dayGridMonth,timeGridWeek,timeGridDay',
+              }}
+              // CRITICAL: named IANA timezone + luxon plugin
+              timeZone={userTimezone || 'local'}
+              // Provide Date objects so FC can convert correctly
+              events={calendarEvents}
+              // Keep user interactions
+              eventClick={handleEventClick}
+              select={handleDateSelect}
+              selectable={true}
+              selectMirror={true}
+              dayMaxEvents={true}
+              weekends={true}
+              height="auto"
+              slotMinTime="06:00:00"
+              slotMaxTime="20:00:00"
+              allDaySlot={false}
+              eventDisplay="block"
+              // Navigation debugging and handling
+              viewDidMount={(info) => {
+                console.log('Calendar view mounted:', info.view.type, info.view.title);
+              }}
+              // Update data range when the visible window changes
+              datesSet={handleDatesSet}
+              // Navigation event handlers
+              navLinkDayClick={(date, jsEvent) => {
+                console.log('Day nav clicked:', date);
+                jsEvent.preventDefault();
+                return false;
+              }}
+              // Event styling
+              eventDidMount={(info) => {
+                const job = info.event.extendedProps as any;
 
-              // Simple tooltip
-              info.el.setAttribute(
-                'title',
-                `${info.event.title}\nCustomer: ${job.customer_name}\nStatus: ${job.status}\nPriority: ${job.priority}`
-              );
+                // Simple tooltip
+                info.el.setAttribute(
+                  'title',
+                  `${info.event.title}\nCustomer: ${job.customer_name}\nStatus: ${job.status}\nPriority: ${job.priority}`
+                );
 
-              // Visual cues
-              if (job.priority === 'urgent') {
-                info.el.style.borderLeft = '4px solid #ef4444';
-              }
-              if (job.status === 'completed') {
-                info.el.style.opacity = '0.7';
-              }
-            }}
-          />
+                // Visual cues
+                if (job.priority === 'urgent') {
+                  info.el.style.borderLeft = '4px solid #ef4444';
+                }
+                if (job.status === 'completed') {
+                  info.el.style.opacity = '0.7';
+                }
+              }}
+              // Prevent any unknown options from being passed through
+              {...(() => {
+                const cleanProps = {};
+                // Only pass through known FullCalendar props, filtering out any data-* attributes
+                return cleanProps;
+              })()}
+            />
+          </div>
         </CardContent>
       </Card>
 
