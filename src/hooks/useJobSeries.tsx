@@ -133,7 +133,7 @@ export function useJobSeries() {
       try {
         console.log('Generating occurrences for recurring job series:', data.id);
         
-        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
+        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
           body: { 
             seriesId: data.id,
             monthsAhead: 3,
@@ -241,7 +241,7 @@ export function useJobSeries() {
     // Regenerate occurrences if the series is still active
     if (data.active) {
       try {
-        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences-enhanced', {
+        const { data: functionResult, error: functionError } = await supabase.functions.invoke('generate-job-occurrences', {
           body: { 
             seriesId: data.id,
             monthsAhead: 3,
