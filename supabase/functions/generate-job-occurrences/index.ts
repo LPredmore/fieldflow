@@ -175,6 +175,7 @@ serve(async (req) => {
         tenant_id: series.tenant_id,
         series_id: series.id,
         customer_id: series.customer_id,
+        customer_name: series.customer_name,
         start_at: startUTC.toISO(),
         end_at: endUTC.toISO(),
         status: 'scheduled',

@@ -200,6 +200,7 @@ export type Database = {
           completion_notes: string | null
           created_at: string
           customer_id: string
+          customer_name: string
           end_at: string
           id: string
           override_description: string | null
@@ -220,6 +221,7 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string
           customer_id: string
+          customer_name?: string
           end_at: string
           id?: string
           override_description?: string | null
@@ -240,6 +242,7 @@ export type Database = {
           completion_notes?: string | null
           created_at?: string
           customer_id?: string
+          customer_name?: string
           end_at?: string
           id?: string
           override_description?: string | null
@@ -736,28 +739,7 @@ export type Database = {
       }
     }
     Views: {
-      jobs_calendar_upcoming: {
-        Row: {
-          actual_cost: number | null
-          assigned_to_user_id: string | null
-          completion_notes: string | null
-          created_at: string | null
-          customer_id: string | null
-          customer_name: string | null
-          description: string | null
-          end_at: string | null
-          estimated_cost: number | null
-          id: string | null
-          job_type: string | null
-          priority: Database["public"]["Enums"]["job_priority"] | null
-          start_at: string | null
-          status: Database["public"]["Enums"]["job_status"] | null
-          tenant_id: string | null
-          title: string | null
-          updated_at: string | null
-        }
-        Relationships: []
-      }
+      [_ in never]: never
     }
     Functions: {
       generate_quote_share_token: {
