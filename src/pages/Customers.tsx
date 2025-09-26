@@ -318,6 +318,7 @@ export default function Customers() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
+      </div>
     </div>
   );
 }

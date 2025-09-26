@@ -421,5 +421,6 @@ export default function Jobs() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </div>
   );
 }
