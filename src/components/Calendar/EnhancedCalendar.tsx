@@ -24,11 +24,14 @@ import { Calendar as CalendarIcon, Clock, MapPin, User, Bug, RefreshCw, Navigati
 import { format } from 'date-fns';
 
 export function EnhancedCalendar() {
-  // If you replaced useCalendarJobs with the version I provided,
-  // it also returns { range, setRange, refetch }. We only need setRange here.
   const { jobs, loading, setRange } = useCalendarJobs() as any;
-  const userTimezone = useUserTimezone(); // e.g., "Europe/London", "America/New_York"
+  const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
+  
+  // Controlled navigation state
+  const [currentView, setCurrentView] = useState<string>('timeGridWeek');
+  const [currentDate, setCurrentDate] = useState<Date>(new Date());
+  const [navigationInProgress, setNavigationInProgress] = useState(false);
   
   // Advanced debugging state
   const [debugInfo, setDebugInfo] = useState({
@@ -39,11 +42,6 @@ export function EnhancedCalendar() {
     lastNavigationTime: '',
   });
   
-  // Track render count for debugging
-  useEffect(() => {
-    setDebugInfo(prev => ({ ...prev, renderCount: prev.renderCount + 1 }));
-  });
-
   // Event Validation Pipeline
   const validateEvents = useCallback((events: any[]) => {
     const errors: string[] = [];
@@ -107,7 +105,76 @@ export function EnhancedCalendar() {
     return validateEvents(rawEvents);
   }, [jobs, validateEvents]);
 
-  // Step 1: Debug jobs data updates
+  // Create unique key to force FullCalendar re-render
+  const eventsKey = `${calendarEvents.length}-${calendarEvents.map(ev => ev.start?.toString() || '').join('-')}`;
+  console.log('🔑 FullCalendar key:', eventsKey);
+
+  // Single consolidated navigation effect - this replaces all the conflicting navigation logic
+  useEffect(() => {
+    if (!calendarRef.current || navigationInProgress) return;
+    
+    const api = calendarRef.current.getApi();
+    
+    // Only navigate if we have events or need to set initial view
+    if (calendarEvents.length > 0 || !api.view) {
+      setNavigationInProgress(true);
+      
+      let targetDate = currentDate;
+      
+      // If we have events, navigate to the earliest event
+      if (calendarEvents.length > 0) {
+        const eventDates = calendarEvents.map(e => new Date(e.start));
+        targetDate = new Date(Math.min(...eventDates.map(d => d.getTime())));
+        setCurrentDate(targetDate);
+      }
+      
+      console.log('[Navigation] Consolidated navigation to:', {
+        targetDate: targetDate.toISOString(),
+        currentView,
+        eventsCount: calendarEvents.length,
+        currentAPIView: api.view?.type,
+        currentAPIDate: api.getDate()?.toISOString()
+      });
+      
+      // Sequential API calls to avoid conflicts
+      try {
+        if (api.view.type !== currentView) {
+          api.changeView(currentView);
+        }
+        api.gotoDate(targetDate);
+        
+        // Allow some time for the view to update before refetching
+        setTimeout(() => {
+          api.refetchEvents();
+          setNavigationInProgress(false);
+          
+          console.log('[Navigation] Post-navigation state:', {
+            viewType: api.view.type,
+            viewTitle: api.view.title,
+            currentStart: api.view.currentStart?.toISOString(),
+            actualDate: api.getDate()?.toISOString()
+          });
+          
+          setDebugInfo(prev => ({
+            ...prev,
+            lastAPICall: `Consolidated navigation to ${targetDate.toISOString()} at ${new Date().toISOString()}`,
+            domUpdateCount: prev.domUpdateCount + 1
+          }));
+        }, 150);
+        
+      } catch (error) {
+        console.error('[Navigation] Error during navigation:', error);
+        setNavigationInProgress(false);
+      }
+    }
+  }, [calendarEvents.length, currentView, currentDate, navigationInProgress]);
+  
+  // Track render count for debugging
+  useEffect(() => {
+    setDebugInfo(prev => ({ ...prev, renderCount: prev.renderCount + 1 }));
+  });
+
+  // Update jobs debug info
   useEffect(() => {
     console.log('📋 Jobs received from Supabase:', jobs.map(j => j.start_at));
     console.log('📊 Job Statistics:', {
@@ -122,87 +189,6 @@ export function EnhancedCalendar() {
       } : null
     });
   }, [jobs]);
-
-  // Step 1: Debug calendar events updates
-  useEffect(() => {
-    console.log('🎨 Calendar events to be rendered:', calendarEvents);
-    console.log('📈 Event Processing Stats:', {
-      inputJobs: jobs.length,
-      outputEvents: calendarEvents.length,
-      validationErrors: debugInfo.eventValidationErrors.length
-    });
-  }, [calendarEvents, jobs.length, debugInfo.eventValidationErrors.length]);
-
-  // Step 2: Create unique key to force FullCalendar re-render
-  const eventsKey = `${calendarEvents.length}-${calendarEvents.map(ev => ev.start?.toString() || '').join('-')}`;
-  console.log('🔑 FullCalendar key:', eventsKey);
-
-  // Imperative Navigation: Force calendar to navigate to correct date when data changes
-  useEffect(() => {
-    if (calendarRef.current && calendarEvents.length >= 0) {
-      const api = calendarRef.current.getApi();
-      
-      // Log current FullCalendar internal state
-      console.log('[FullCalendar] Current internal state:', {
-        viewType: api.view.type,
-        viewTitle: api.view.title,
-        currentStart: api.view.currentStart?.toISOString(),
-        currentDate: api.getDate().toISOString(),
-        eventsCount: calendarEvents.length
-      });
-      
-      // Calculate target navigation date
-      let targetDate = new Date();
-      
-      if (calendarEvents.length > 0) {
-        // Use the earliest event date as navigation target
-        const eventDates = calendarEvents.map(e => new Date(e.start));
-        targetDate = new Date(Math.min(...eventDates.map(d => d.getTime())));
-      }
-      
-      console.log('[FullCalendar] Navigating to target date:', targetDate.toISOString());
-      
-      // Force navigation to target date
-      api.gotoDate(targetDate);
-      
-      // Force event refetch after navigation
-      setTimeout(() => {
-        api.refetchEvents();
-        console.log('[FullCalendar] Post-navigation state:', {
-          viewType: api.view.type,
-          viewTitle: api.view.title,
-          currentStart: api.view.currentStart?.toISOString(),
-        });
-      }, 100);
-      
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `gotoDate(${targetDate.toISOString()}) + refetch at ${new Date().toISOString()}`,
-        domUpdateCount: prev.domUpdateCount + 1
-      }));
-    }
-  }, [calendarEvents]);
-
-  // Sync calendar view with data range changes
-  useEffect(() => {
-    if (calendarRef.current && jobs.length > 0) {
-      const api = calendarRef.current.getApi();
-      
-      // Get earliest job date for navigation
-      const jobDates = jobs.map((j: any) => new Date(j.start_at));
-      const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
-      
-      console.log('🧭 Syncing calendar to earliest job date:', earliestJobDate.toISOString());
-      
-      // Force navigation and view refresh
-      api.gotoDate(earliestJobDate);
-      
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `Sync navigation to ${earliestJobDate.toISOString()} at ${new Date().toISOString()}`
-      }));
-    }
-  }, [jobs.length]);
 
   // Update the data-fetch range whenever the visible dates change
   const handleDatesSet = useCallback(
@@ -267,18 +253,31 @@ export function EnhancedCalendar() {
     alert(`Create job for ${format(selectInfo.start, 'PPP')}`);
   }, []);
 
-  // Manual debugging controls
-  const handleManualRefresh = useCallback(() => {
-    if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      console.log('🔄 Manual refresh triggered');
-      api.refetchEvents();
-      
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `Manual refresh at ${new Date().toISOString()}`
-      }));
+  // Enhanced navigation controls
+  const handleChangeView = useCallback((newView: string) => {
+    setCurrentView(newView);
+    console.log('🔄 View change requested:', newView);
+  }, []);
+  
+  const handleSyncCalendar = useCallback(() => {
+    if (jobs.length > 0) {
+      const jobDates = jobs.map((j: any) => new Date(j.start_at));
+      const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
+      setCurrentDate(earliestJobDate);
+      console.log('🔄 Manual sync to earliest job date:', earliestJobDate.toISOString());
     }
+  }, [jobs]);
+
+  const handleGoToToday = useCallback(() => {
+    setCurrentDate(new Date());
+    console.log('📅 Going to today');
+  }, []);
+
+  const handleTestNavigation = useCallback(() => {
+    const today = new Date();
+    setCurrentDate(today);
+    setCurrentView('timeGridWeek');
+    console.log('🧪 Test navigation triggered');
   }, []);
 
   const handleForceRerender = useCallback(() => {
@@ -286,8 +285,8 @@ export function EnhancedCalendar() {
       const api = calendarRef.current.getApi();
       console.log('🎨 Force rerender triggered');
       // Force a view change to trigger rerender
-      const currentView = api.view.type;
-      api.changeView(currentView);
+      const currentViewType = api.view.type;
+      api.changeView(currentViewType);
       
       setDebugInfo(prev => ({
         ...prev,
@@ -297,49 +296,15 @@ export function EnhancedCalendar() {
     }
   }, []);
 
-  const handleTestNavigation = useCallback(() => {
+  const handleManualRefresh = useCallback(() => {
     if (calendarRef.current) {
       const api = calendarRef.current.getApi();
-      const today = new Date();
-      console.log('🧪 Test navigation triggered');
-      api.gotoDate(today);
-      api.changeView('timeGridWeek');
-      
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `Test navigation to ${today.toISOString()}`
-      }));
-    }
-  }, []);
-
-  // New enhanced navigation controls
-  const handleSyncCalendar = useCallback(() => {
-    if (calendarRef.current && jobs.length > 0) {
-      const api = calendarRef.current.getApi();
-      const jobDates = jobs.map((j: any) => new Date(j.start_at));
-      const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
-      
-      console.log('🔄 Manual sync to earliest job date:', earliestJobDate.toISOString());
-      api.gotoDate(earliestJobDate);
+      console.log('🔄 Manual refresh triggered');
       api.refetchEvents();
       
       setDebugInfo(prev => ({
         ...prev,
-        lastAPICall: `Manual sync to ${earliestJobDate.toISOString()}`
-      }));
-    }
-  }, [jobs]);
-
-  const handleGoToToday = useCallback(() => {
-    if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      const today = new Date();
-      console.log('📅 Going to today');
-      api.gotoDate(today);
-      
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `Go to today: ${today.toISOString()}`
+        lastAPICall: `Manual refresh at ${new Date().toISOString()}`
       }));
     }
   }, []);
@@ -374,7 +339,7 @@ export function EnhancedCalendar() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-6 gap-4 mb-4">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -420,15 +385,23 @@ export function EnhancedCalendar() {
                 <CalendarIcon className="h-4 w-4" />
                 Go To Today
               </Button>
+              <select 
+                value={currentView} 
+                onChange={(e) => handleChangeView(e.target.value)}
+                className="px-3 py-1 border rounded text-sm"
+              >
+                <option value="timeGridWeek">Week View</option>
+                <option value="dayGridMonth">Month View</option>
+                <option value="timeGridDay">Day View</option>
+              </select>
             </div>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
               <div className="space-y-2">
-                <h4 className="font-semibold text-orange-800">Render Statistics</h4>
-                <p><strong>Component Renders:</strong> {debugInfo.renderCount}</p>
-                <p><strong>DOM Updates:</strong> {debugInfo.domUpdateCount}</p>
-                <p><strong>Last API Call:</strong> {debugInfo.lastAPICall || 'None'}</p>
-                <p><strong>Last Navigation:</strong> {debugInfo.lastNavigationTime || 'None'}</p>
+                <h4 className="font-semibold text-orange-800">Navigation State</h4>
+                <p><strong>Current View:</strong> {currentView}</p>
+                <p><strong>Current Date:</strong> {currentDate.toDateString()}</p>
+                <p><strong>Navigation In Progress:</strong> {navigationInProgress ? 'Yes' : 'No'}</p>
               </div>
               
               <div className="space-y-2">
@@ -530,7 +503,6 @@ export function EnhancedCalendar() {
             key={eventsKey}
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
-            initialView="timeGridWeek"
             headerToolbar={{
               left: 'prev,next today',
               center: 'title',
