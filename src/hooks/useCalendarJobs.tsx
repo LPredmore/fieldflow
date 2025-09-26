@@ -180,6 +180,15 @@ export function useCalendarJobs() {
     }
   }, [user, tenantId, userTimezone, range.fromISO, range.toISO, toast]);
 
+  // Step 5: Debug range updates
+  useEffect(() => {
+    console.log('📏 Range state updated:', {
+      fromISO: range.fromISO,
+      toISO: range.toISO,
+      spanDays: Math.ceil((new Date(range.toISO).getTime() - new Date(range.fromISO).getTime()) / (1000 * 60 * 60 * 24))
+    });
+  }, [range.fromISO, range.toISO]);
+
   const updateJob = useCallback(
     async (jobId: string, updates: Partial<CalendarJob>) => {
       if (!user || !tenantId) throw new Error('User not authenticated');

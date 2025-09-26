@@ -7,7 +7,7 @@
 //  - Passing Date objects (constructed from UTC ISO strings) to FullCalendar
 //  - Setting timeZone to the browser's IANA string from useUserTimezone()
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -47,6 +47,20 @@ export function EnhancedCalendar() {
       },
     }));
   }, [jobs]);
+
+  // Step 1: Debug jobs data updates
+  useEffect(() => {
+    console.log('📋 Jobs received from Supabase:', jobs.map(j => j.start_at));
+  }, [jobs]);
+
+  // Step 1: Debug calendar events updates
+  useEffect(() => {
+    console.log('🎨 Calendar events to be rendered:', calendarEvents);
+  }, [calendarEvents]);
+
+  // Step 2: Create unique key to force FullCalendar re-render
+  const eventsKey = `${calendarEvents.length}-${calendarEvents.map(ev => ev.start).join('-')}`;
+  console.log('🔑 FullCalendar key:', eventsKey);
 
   // Update the data-fetch range whenever the visible dates change
   const handleDatesSet = useCallback(
@@ -181,6 +195,7 @@ export function EnhancedCalendar() {
         </CardHeader>
         <CardContent>
           <FullCalendar
+            key={eventsKey}
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
             initialView="timeGridWeek"
