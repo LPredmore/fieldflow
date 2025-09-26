@@ -51,13 +51,18 @@ export function EnhancedCalendar() {
   // Update the data-fetch range whenever the visible dates change
   const handleDatesSet = useCallback(
     (arg: { start: Date; end: Date; view: any }) => {
-      console.log('Calendar datesSet:', { 
-        start: arg.start.toISOString(), 
+      console.log('🗓️ datesSet fired:', {
+        start: arg.start.toISOString(),
         end: arg.end.toISOString(),
-        view: arg.view.type 
+        viewType: arg.view.type,
+        title: arg.view.title
       });
+      
+      const newRange = { fromISO: arg.start.toISOString(), toISO: arg.end.toISOString() };
+      console.log('🔄 Setting new range:', newRange);
+      
       // Inclusive start, exclusive end works well with .gte / .lt in the hook
-      setRange?.({ fromISO: arg.start.toISOString(), toISO: arg.end.toISOString() });
+      setRange?.(newRange);
     },
     [setRange]
   );
