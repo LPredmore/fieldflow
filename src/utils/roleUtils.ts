@@ -19,6 +19,3 @@ export const canManageUsers = (role: UserRole | null): boolean => {
   return role === 'business_admin';
 };
 
-export const canViewAllData = (role: UserRole | null): boolean => {
-  return role === 'business_admin';
-};

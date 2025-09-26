@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users, User } from "lucide-react";
+import { Plus, Search, Filter, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users, User } from "lucide-react";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";

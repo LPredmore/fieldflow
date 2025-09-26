@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Plus, Search, Filter, Eye, Edit, Trash2, Clock } from "lucide-react";
+import { Plus, Search, Filter, Clock } from "lucide-react";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -67,7 +67,7 @@ const getStatusColor = (status: string) => {
 export default function Jobs() {
   const [searchTerm, setSearchTerm] = useState("");
   const [viewJob, setViewJob] = useState<ManagedJob | null>(null);
-  const [editJob, setEditJob] = useState<ManagedJob | null>(null);
+
   const [deleteJobId, setDeleteJobId] = useState<string | null>(null);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [formLoading, setFormLoading] = useState(false);
@@ -87,12 +87,6 @@ export default function Jobs() {
   );
 
   const handleCreateJob = () => {
-    setEditJob(null);
-    setIsFormOpen(true);
-  };
-
-  const handleEditJob = (job: ManagedJob) => {
-    setEditJob(job);
     setIsFormOpen(true);
   };
 
@@ -175,18 +169,7 @@ export default function Jobs() {
 
       console.log('Transformed data for job creation:', transformedData);
 
-      if (editJob) {
-        // Update existing job
-        if (editJob.job_type === 'one_time') {
-          await updateOneTimeJob(editJob.id, transformedData);
-        } else {
-          await updateJobSeries(editJob.id, transformedData);
-        }
-        toast({
-          title: "Job updated",
-          description: "Job has been successfully updated.",
-        });
-      } else {
+
         // Create new job - ALL jobs now go through job_series creation
         // which will create the appropriate job_occurrences
         
@@ -202,15 +185,13 @@ export default function Jobs() {
           };
           await createJobSeries(singleJobData);
         }
-      }
       
       setIsFormOpen(false);
-      setEditJob(null);
     } catch (error: any) {
       console.error('Error submitting job form:', error);
       toast({
         variant: "destructive",
-        title: editJob ? "Error updating job" : "Error creating job",
+        title: "Error creating job",
         description: error.message,
       });
     } finally {
@@ -231,10 +212,7 @@ export default function Jobs() {
     return Math.max(endMinutes - startMinutes, 15); // Minimum 15 minutes
   };
 
-  const canEditJob = (job: ManagedJob) => {
-    if (isAdmin) return true;
-    return job.assigned_to_user_id === allManagedJobs[0]?.tenant_id;
-  };
+
 
   const getJobStatus = (job: ManagedJob) => {
     if (job.job_type === 'job_series') {
