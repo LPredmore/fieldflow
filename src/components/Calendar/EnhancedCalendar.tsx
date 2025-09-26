@@ -28,17 +28,17 @@ export function EnhancedCalendar() {
   const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
   
-  // Simplified debugging state - no local navigation state
+  // Simplified debugging state - removed renderCount and eventValidationErrors to prevent loops
   const [debugInfo, setDebugInfo] = useState({
-    renderCount: 0,
     lastAPICall: '',
-    eventValidationErrors: [] as string[],
     domUpdateCount: 0,
     lastNavigationTime: '',
     apiReady: false,
   });
   
-  // Event Validation Pipeline
+  // Event Validation Pipeline - stabilized with ref for errors to avoid state loops
+  const validationErrorsRef = useRef<string[]>([]);
+  
   const validateEvents = useCallback((events: any[]) => {
     const errors: string[] = [];
     const validEvents: any[] = [];
@@ -69,7 +69,8 @@ export function EnhancedCalendar() {
       }
     });
     
-    setDebugInfo(prev => ({ ...prev, eventValidationErrors: errors }));
+    // Store in ref to avoid causing re-renders
+    validationErrorsRef.current = errors;
     
     console.log('🔍 Event Validation Results:', {
       totalEvents: events.length,
@@ -122,10 +123,9 @@ export function EnhancedCalendar() {
     }));
   }, [jobs.length]); // Only run when jobs.length changes
   
-  // Track render count for debugging
-  useEffect(() => {
-    setDebugInfo(prev => ({ ...prev, renderCount: prev.renderCount + 1 }));
-  });
+  // Track render count for debugging using ref to avoid infinite loops
+  const renderCountRef = useRef(0);
+  renderCountRef.current += 1;
 
   // Update jobs debug info
   useEffect(() => {
@@ -154,10 +154,10 @@ export function EnhancedCalendar() {
         startDate: arg.start.toISOString(),
         endDate: arg.end.toISOString(),
         calendarAPI: calendarRef.current?.getApi() ? 'Available' : 'Not Available',
-        eventCount: calendarEvents.length,
         navigationTime
       });
       
+      // Batch state updates to avoid multiple renders
       setDebugInfo(prev => ({
         ...prev,
         lastNavigationTime: navigationTime,
@@ -170,7 +170,7 @@ export function EnhancedCalendar() {
       // Inclusive start, exclusive end works well with .gte / .lt in the hook
       setRange?.(newRange);
     },
-    [setRange, calendarEvents.length]
+    [setRange] // Removed calendarEvents.length to prevent unnecessary re-renders
   );
 
   const handleEventClick = useCallback((clickInfo: any) => {
@@ -368,12 +368,12 @@ export function EnhancedCalendar() {
                 <h4 className="font-semibold text-orange-800">Event Validation</h4>
                 <p><strong>Input Jobs:</strong> {jobs.length}</p>
                 <p><strong>Valid Events:</strong> {calendarEvents.length}</p>
-                <p><strong>Validation Errors:</strong> {debugInfo.eventValidationErrors.length}</p>
-                {debugInfo.eventValidationErrors.length > 0 && (
+                <p><strong>Validation Errors:</strong> {validationErrorsRef.current.length}</p>
+                {validationErrorsRef.current.length > 0 && (
                   <div className="mt-2 p-2 bg-red-100 border border-red-200 rounded text-xs">
                     <strong>Errors:</strong>
                     <ul className="list-disc list-inside">
-                      {debugInfo.eventValidationErrors.slice(0, 5).map((error, i) => (
+                      {validationErrorsRef.current.slice(0, 5).map((error, i) => (
                         <li key={i}>{error}</li>
                       ))}
                     </ul>
@@ -556,9 +556,9 @@ export function EnhancedCalendar() {
                 
                 <div>
                   <h4 className="font-semibold mb-2">Performance Metrics</h4>
-                  <p><strong>Component renders:</strong> {debugInfo.renderCount}</p>
+                  <p><strong>Component renders:</strong> {renderCountRef.current}</p>
                   <p><strong>DOM updates:</strong> {debugInfo.domUpdateCount}</p>
-                  <p><strong>Validation errors:</strong> {debugInfo.eventValidationErrors.length}</p>
+                  <p><strong>Validation errors:</strong> {validationErrorsRef.current.length}</p>
                   {debugInfo.lastNavigationTime && (
                     <p><strong>Last navigation:</strong> {new Date(debugInfo.lastNavigationTime).toLocaleTimeString()}</p>
                   )}
