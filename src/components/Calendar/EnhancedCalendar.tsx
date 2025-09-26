@@ -65,12 +65,7 @@ export function EnhancedCalendar() {
   // Update the data-fetch range whenever the visible dates change
   const handleDatesSet = useCallback(
     (arg: { start: Date; end: Date; view: any }) => {
-      console.log('🗓️ datesSet fired:', {
-        start: arg.start.toISOString(),
-        end: arg.end.toISOString(),
-        viewType: arg.view.type,
-        title: arg.view.title
-      });
+      console.log('Calendar navigation to:', arg.start.toISOString(), arg.end.toISOString(), arg.view.type);
       
       const newRange = { fromISO: arg.start.toISOString(), toISO: arg.end.toISOString() };
       console.log('🔄 Setting new range:', newRange);
