@@ -37,6 +37,9 @@ export function EnhancedCalendar() {
   // Navigation lock using ref to prevent race conditions
   const navigationLockRef = useRef(false);
   const hasInitialNavigatedRef = useRef(false);
+  const navigationTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const navigationCycleCountRef = useRef(0);
+  const lastNavigationHashRef = useRef('');
   
   // Debugging state
   const [debugInfo, setDebugInfo] = useState({
@@ -112,89 +115,115 @@ export function EnhancedCalendar() {
     return validateEvents(rawEvents);
   }, [jobs, validateEvents]);
 
-  // Simplified Master Navigation Effect - no more infinite loops
+  // Debounced Navigation Handler with Cycle Detection
+  const debouncedNavigate = useCallback((targetDate?: Date, viewType?: string) => {
+    // Clear any existing timeout
+    if (navigationTimeoutRef.current) {
+      clearTimeout(navigationTimeoutRef.current);
+    }
+    
+    // Create navigation hash to detect cycles
+    const navigationHash = `${targetDate?.getTime() || 'none'}-${viewType || navigationState.desiredViewType}`;
+    
+    // Detect cycles - if we're repeating the same navigation, stop
+    if (lastNavigationHashRef.current === navigationHash) {
+      navigationCycleCountRef.current++;
+      if (navigationCycleCountRef.current > 3) {
+        console.warn('🚨 Navigation cycle detected, stopping', { navigationHash, cycleCount: navigationCycleCountRef.current });
+        return;
+      }
+    } else {
+      navigationCycleCountRef.current = 0;
+      lastNavigationHashRef.current = navigationHash;
+    }
+    
+    // Debounce navigation calls
+    navigationTimeoutRef.current = setTimeout(() => {
+      if (navigationLockRef.current || !calendarRef.current?.getApi) {
+        return;
+      }
+      
+      navigationLockRef.current = true;
+      
+      try {
+        const calendarApi = calendarRef.current.getApi();
+        const actions: string[] = [];
+        
+        if (targetDate) {
+          console.log('🎯 Navigating to date:', targetDate.toISOString());
+          calendarApi.gotoDate(targetDate);
+          actions.push(`gotoDate(${targetDate.toISOString()})`);
+        }
+        
+        if (viewType && calendarApi.view.type !== viewType) {
+          console.log('🔄 Changing view to:', viewType);
+          calendarApi.changeView(viewType);
+          actions.push(`changeView(${viewType})`);
+        }
+        
+        console.log('✅ Navigation completed:', {
+          actions,
+          currentView: calendarApi.view.type,
+          currentDate: calendarApi.view.currentStart.toISOString(),
+          viewTitle: calendarApi.view.title
+        });
+        
+        setDebugInfo(prev => ({
+          ...prev,
+          lastAPICall: `Navigation completed: ${actions.join(', ')}`,
+          apiReady: true,
+          lastNavigationTime: new Date().toISOString()
+        }));
+        
+      } catch (error) {
+        console.error('❌ Navigation failed:', error);
+        setDebugInfo(prev => ({
+          ...prev,
+          lastAPICall: `Navigation failed: ${error}`,
+        }));
+      } finally {
+        navigationLockRef.current = false;
+      }
+    }, 100); // 100ms debounce
+    
+  }, [navigationState.desiredViewType]);
+
+  // Initial Navigation Effect - ONLY runs once for initial job positioning
   useEffect(() => {
-    // Wait for ref to be available and prevent race conditions
-    if (!calendarRef.current || !calendarRef.current.getApi || navigationLockRef.current) {
+    if (hasInitialNavigatedRef.current || jobs.length === 0) {
       return;
     }
     
-    const api = calendarRef.current.getApi();
-    if (!api || !api.view) return;
+    // Only navigate to earliest job on first data load
+    const jobDates = jobs.map((j: any) => new Date(j.start_at));
+    const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
     
-    let shouldNavigate = false;
-    let navigationActions: string[] = [];
+    hasInitialNavigatedRef.current = true;
+    debouncedNavigate(earliestJobDate);
     
-    // Set navigation lock to prevent race conditions
-    navigationLockRef.current = true;
-    
-    try {
-      // Handle initial navigation to earliest job only once
-      if (!hasInitialNavigatedRef.current && jobs.length > 0 && !navigationState.targetDate) {
-        const jobDates = jobs.map((j: any) => new Date(j.start_at));
-        const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
-        hasInitialNavigatedRef.current = true;
-        
-        setNavigationState(prev => ({ 
-          ...prev, 
-          targetDate: earliestJobDate,
-        }));
-        navigationLockRef.current = false;
-        return; // Will re-trigger this effect with targetDate set
-      }
-      
-      // Handle view changes
-      if (api.view.type !== navigationState.desiredViewType) {
-        console.log('🔄 Changing view:', api.view.type, '→', navigationState.desiredViewType);
-        api.changeView(navigationState.desiredViewType);
-        navigationActions.push(`changeView(${navigationState.desiredViewType})`);
-        shouldNavigate = true;
-      }
-      
-      // Handle date navigation
-      if (navigationState.targetDate) {
-        console.log('🎯 Navigating to date:', navigationState.targetDate.toISOString());
-        api.gotoDate(navigationState.targetDate);
-        navigationActions.push(`gotoDate(${navigationState.targetDate.toISOString()})`);
-        shouldNavigate = true;
-        
-        // Clear target date after navigation
-        setNavigationState(prev => ({ ...prev, targetDate: null }));
-      }
-      
-      // Update debug info
-      if (shouldNavigate) {
-        const navigationTime = new Date().toISOString();
-        setDebugInfo(prev => ({
-          ...prev,
-          lastAPICall: `Navigation: ${navigationActions.join(', ')} at ${navigationTime}`,
-          apiReady: true,
-          lastNavigationTime: navigationTime
-        }));
-        
-        console.log('✅ Navigation completed:', {
-          actions: navigationActions,
-          currentView: api.view.type,
-          currentDate: api.view.currentStart?.toISOString(),
-          viewTitle: api.view.title
-        });
-      }
-      
-    } catch (error) {
-      console.error('❌ Navigation failed:', error);
-      setDebugInfo(prev => ({
-        ...prev,
-        lastAPICall: `Navigation failed: ${error}`,
-      }));
-    } finally {
-      // Always clear navigation lock
-      navigationLockRef.current = false;
+  }, [jobs.length > 0, debouncedNavigate]); // Only trigger when we first get jobs
+
+  // Navigation State Effect - ONLY for explicit navigation requests
+  useEffect(() => {
+    if (!navigationState.targetDate) {
+      return;
     }
-  }, [
-    navigationState.desiredViewType, 
-    navigationState.targetDate, 
-    jobs.length, // Removed isNavigating and isFirstMount to prevent loops
-  ]);
+    
+    debouncedNavigate(navigationState.targetDate, navigationState.desiredViewType);
+    
+    // Clear the target date after navigation request
+    setNavigationState(prev => ({ ...prev, targetDate: null }));
+    
+  }, [navigationState.targetDate, navigationState.desiredViewType, debouncedNavigate]);
+
+  // Cleanup effect - clear navigation timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (navigationTimeoutRef.current) {
+        clearTimeout(navigationTimeoutRef.current);
+      }
+    };
+  }, []);
   
   // Track render count for debugging using ref to avoid infinite loops
   const renderCountRef = useRef(0);
