@@ -28,13 +28,15 @@ export function EnhancedCalendar() {
   const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
   
-  // Centralized Navigation State
+  // Simple Navigation State - removed isNavigating to prevent loops
   const [navigationState, setNavigationState] = useState({
     desiredViewType: 'timeGridWeek' as string,
     targetDate: null as Date | null,
-    isNavigating: false,
-    isFirstMount: true,
   });
+  
+  // Navigation lock using ref to prevent race conditions
+  const navigationLockRef = useRef(false);
+  const hasInitialNavigatedRef = useRef(false);
   
   // Debugging state
   const [debugInfo, setDebugInfo] = useState({
@@ -110,10 +112,10 @@ export function EnhancedCalendar() {
     return validateEvents(rawEvents);
   }, [jobs, validateEvents]);
 
-  // Master Navigation Effect - handles ALL view and date changes
+  // Simplified Master Navigation Effect - no more infinite loops
   useEffect(() => {
-    // Wait for ref to be available and not currently navigating
-    if (!calendarRef.current || !calendarRef.current.getApi || navigationState.isNavigating) {
+    // Wait for ref to be available and prevent race conditions
+    if (!calendarRef.current || !calendarRef.current.getApi || navigationLockRef.current) {
       return;
     }
     
@@ -123,20 +125,21 @@ export function EnhancedCalendar() {
     let shouldNavigate = false;
     let navigationActions: string[] = [];
     
-    // Set navigation in progress to prevent race conditions
-    setNavigationState(prev => ({ ...prev, isNavigating: true }));
+    // Set navigation lock to prevent race conditions
+    navigationLockRef.current = true;
     
     try {
-      // Handle initial navigation to earliest job
-      if (navigationState.isFirstMount && jobs.length > 0 && !navigationState.targetDate) {
+      // Handle initial navigation to earliest job only once
+      if (!hasInitialNavigatedRef.current && jobs.length > 0 && !navigationState.targetDate) {
         const jobDates = jobs.map((j: any) => new Date(j.start_at));
         const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
+        hasInitialNavigatedRef.current = true;
         
         setNavigationState(prev => ({ 
           ...prev, 
           targetDate: earliestJobDate,
-          isFirstMount: false 
         }));
+        navigationLockRef.current = false;
         return; // Will re-trigger this effect with targetDate set
       }
       
@@ -184,15 +187,13 @@ export function EnhancedCalendar() {
         lastAPICall: `Navigation failed: ${error}`,
       }));
     } finally {
-      // Always clear navigation state
-      setNavigationState(prev => ({ ...prev, isNavigating: false }));
+      // Always clear navigation lock
+      navigationLockRef.current = false;
     }
   }, [
     navigationState.desiredViewType, 
     navigationState.targetDate, 
-    navigationState.isFirstMount,
-    jobs.length,
-    navigationState.isNavigating
+    jobs.length, // Removed isNavigating and isFirstMount to prevent loops
   ]);
   
   // Track render count for debugging using ref to avoid infinite loops
@@ -428,7 +429,7 @@ export function EnhancedCalendar() {
                 <p><strong>Ref Available:</strong> {calendarRef.current ? 'Yes' : 'No'}</p>
                 <p><strong>Current API View:</strong> {calendarRef.current?.getApi()?.view?.type || 'N/A'}</p>
                 <p><strong>Desired View:</strong> {navigationState.desiredViewType}</p>
-                <p><strong>Is Navigating:</strong> {navigationState.isNavigating ? 'Yes' : 'No'}</p>
+                <p><strong>Is Navigating:</strong> {navigationLockRef.current ? 'Yes' : 'No'}</p>
                 <p><strong>Target Date:</strong> {navigationState.targetDate?.toISOString() || 'None'}</p>
               </div>
               
@@ -530,8 +531,8 @@ export function EnhancedCalendar() {
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
-            // Only set initialView on first mount, then let navigation state control it
-            initialView={navigationState.isFirstMount ? "timeGridWeek" : undefined}
+            // Always provide a valid initialView - never undefined
+            initialView="timeGridWeek"
             headerToolbar={{
               left: 'prev,next today',
               center: 'title',
