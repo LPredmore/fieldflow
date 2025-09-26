@@ -34,7 +34,6 @@ export function EnhancedCalendar() {
   const calendarEvents = useMemo(() => {
     console.log('🎨 Converting jobs to calendar events:', {
       jobCount: jobs.length,
-      isUserNavigating,
       timestamp: new Date().toISOString()
     });
     
