@@ -1,9 +1,8 @@
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import luxon3Plugin from '@fullcalendar/luxon3';
 
 import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
@@ -16,6 +15,7 @@ export function EnhancedCalendar() {
   const { jobs, loading, setRange } = useCalendarJobs() as any;
   const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
+  const [lastRangeUpdate, setLastRangeUpdate] = useState<string>('');
 
   // Convert jobs to calendar events
   const calendarEvents = useMemo(() => {
@@ -35,19 +35,42 @@ export function EnhancedCalendar() {
     }));
   }, [jobs]);
 
-  // Handle calendar date range changes
+  // Handle calendar date range changes with debouncing to prevent infinite loops
   const handleDatesSet = useCallback(
     (arg: { start: Date; end: Date; view: any }) => {
-      setRange?.({
-        fromISO: arg.start.toISOString(),
-        toISO: arg.end.toISOString()
+      const newRangeKey = `${arg.start.toISOString()}-${arg.end.toISOString()}`;
+      
+      // Prevent duplicate range updates that cause infinite loops
+      if (newRangeKey === lastRangeUpdate) {
+        console.log('🔄 Skipping duplicate range update:', newRangeKey);
+        return;
+      }
+      
+      console.log('📅 Calendar range changed:', {
+        start: arg.start.toISOString(),
+        end: arg.end.toISOString(),
+        view: arg.view.type
       });
+      
+      setLastRangeUpdate(newRangeKey);
+      
+      // Use setTimeout to debounce and prevent immediate re-renders
+      setTimeout(() => {
+        setRange?.({
+          fromISO: arg.start.toISOString(),
+          toISO: arg.end.toISOString()
+        });
+      }, 100);
     },
-    [setRange]
+    [setRange, lastRangeUpdate]
   );
 
   // Handle event clicks
   const handleEventClick = useCallback((clickInfo: any) => {
+    // Prevent any default behavior that might cause page refresh
+    clickInfo.jsEvent.preventDefault();
+    clickInfo.jsEvent.stopPropagation();
+    
     const event = clickInfo.event;
     const job = event.extendedProps;
 
@@ -62,6 +85,10 @@ export function EnhancedCalendar() {
 
   // Handle date selection
   const handleDateSelect = useCallback((selectInfo: any) => {
+    // Prevent any default behavior that might cause page refresh
+    selectInfo.jsEvent?.preventDefault();
+    selectInfo.jsEvent?.stopPropagation();
+    
     alert(`Create job for ${format(selectInfo.start, 'PPP')}`);
   }, []);
 
@@ -92,10 +119,46 @@ export function EnhancedCalendar() {
         </CardTitle>
       </CardHeader>
       <CardContent>
+        {/* Prevent any form submission behavior */}
+        <div 
+          onSubmit={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            return false;
+          }}
+          onClick={(e) => {
+            // Allow clicks but prevent any form submission
+            if ((e.target as HTMLElement).tagName === 'BUTTON') {
+              e.preventDefault();
+            }
+          }}
+        >
         <div className="calendar-container">
+          <style>{`
+            .fc-button {
+              background: none !important;
+              border: 1px solid #d1d5db !important;
+              color: #374151 !important;
+            }
+            .fc-button:hover {
+              background: #f3f4f6 !important;
+            }
+            .fc-button:focus {
+              box-shadow: none !important;
+            }
+            .fc-button-primary {
+              background-color: #3b82f6 !important;
+              border-color: #3b82f6 !important;
+              color: white !important;
+            }
+            .fc-button-primary:hover {
+              background-color: #2563eb !important;
+              border-color: #2563eb !important;
+            }
+          `}</style>
           <FullCalendar
             ref={calendarRef}
-            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
+            plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
             timeZone={userTimezone}
             headerToolbar={{
@@ -125,7 +188,24 @@ export function EnhancedCalendar() {
               minute: '2-digit',
               meridiem: 'short'
             }}
+            // Prevent form submission on navigation
+            eventDidMount={(info) => {
+              // Ensure calendar events don't trigger form submissions
+              info.el.addEventListener('click', (e) => {
+                e.preventDefault();
+                e.stopPropagation();
+              });
+            }}
+            // Add custom event handlers to prevent page refresh
+            customButtons={{}}
+            buttonText={{
+              today: 'Today',
+              month: 'Month',
+              week: 'Week',
+              day: 'Day'
+            }}
           />
+        </div>
         </div>
       </CardContent>
     </Card>

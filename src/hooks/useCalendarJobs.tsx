@@ -1,5 +1,5 @@
 // useCalendarJobs.tsx
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useUserTimezone } from './useUserTimezone';
@@ -60,6 +60,8 @@ export function useCalendarJobs() {
   const { user, tenantId } = useAuth();
   const userTimezone = useUserTimezone();
   const { toast } = useToast();
+  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastFetchRangeRef = useRef<string>('');
 
   const fetchJobs = useCallback(async () => {
     if (!user || !tenantId) {
@@ -67,6 +69,16 @@ export function useCalendarJobs() {
       setLoading(false);
       return;
     }
+
+    const rangeKey = `${range.fromISO}-${range.toISO}`;
+    
+    // Prevent duplicate fetches for the same range
+    if (rangeKey === lastFetchRangeRef.current) {
+      console.log('🔄 Skipping duplicate fetch for range:', rangeKey);
+      return;
+    }
+    
+    lastFetchRangeRef.current = rangeKey;
 
     console.log('📊 fetchJobs called with range:', {
       fromISO: range.fromISO,
@@ -237,9 +249,43 @@ export function useCalendarJobs() {
     [user, tenantId, toast, fetchJobs]
   );
 
+  // Debounced effect to prevent rapid-fire fetches
   useEffect(() => {
-    fetchJobs();
+    // Clear any existing timeout
+    if (fetchTimeoutRef.current) {
+      clearTimeout(fetchTimeoutRef.current);
+    }
+    
+    // Set a new timeout to debounce the fetch
+    fetchTimeoutRef.current = setTimeout(() => {
+      fetchJobs();
+    }, 300); // 300ms debounce
+    
+    // Cleanup timeout on unmount
+    return () => {
+      if (fetchTimeoutRef.current) {
+        clearTimeout(fetchTimeoutRef.current);
+      }
+    };
   }, [fetchJobs]);
+
+  // Enhanced setRange with duplicate prevention
+  const setRangeDebounced = useCallback((newRange: CalendarRange) => {
+    const newRangeKey = `${newRange.fromISO}-${newRange.toISO}`;
+    const currentRangeKey = `${range.fromISO}-${range.toISO}`;
+    
+    if (newRangeKey === currentRangeKey) {
+      console.log('🔄 Ignoring duplicate range update:', newRangeKey);
+      return;
+    }
+    
+    console.log('📏 Range update accepted:', {
+      from: currentRangeKey,
+      to: newRangeKey
+    });
+    
+    setRange(newRange);
+  }, [range.fromISO, range.toISO]);
 
   return {
     jobs,
@@ -249,6 +295,6 @@ export function useCalendarJobs() {
     deleteJob,
     // Optional range control for callers (e.g., wire to calendar visible window)
     range,
-    setRange,
+    setRange: setRangeDebounced,
   };
 }
