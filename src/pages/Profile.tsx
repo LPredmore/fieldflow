@@ -9,7 +9,7 @@ import { Loader2, User, Mail, Phone, Lock } from 'lucide-react';
 import { useProfile } from '@/hooks/useProfile';
 import { useAuth } from '@/hooks/useAuth';
 import { useToast } from '@/hooks/use-toast';
-import Navigation from '@/components/Layout/Navigation';
+
 
 export default function Profile() {
   const { profile, loading, updatePersonalInfo, updateEmail, updatePassword } = useProfile();
@@ -126,7 +126,6 @@ export default function Profile() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navigation />
         <div className="lg:ml-64">
           <div className="p-6 lg:p-8 flex items-center justify-center min-h-[80vh]">
             <div className="flex flex-col items-center space-y-4">
@@ -141,8 +140,6 @@ export default function Profile() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-      
       <div className="lg:ml-64">
         <div className="p-6 lg:p-8 space-y-6">
       <div className="flex items-center space-x-4">

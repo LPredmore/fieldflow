@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
-import Navigation from "@/components/Layout/Navigation";
+
 import PriceProModal from "@/components/PriceProModal";
 import { toast } from "sonner";
 import { useServices } from "@/hooks/useServices";
@@ -165,7 +165,6 @@ export default function Services() {
   if (loading) {
     return (
       <div className="min-h-screen bg-background">
-        <Navigation />
         <main className="ml-64 p-8">
           <div className="flex items-center justify-center h-64">
             <div className="flex flex-col items-center space-y-4">
@@ -180,7 +179,6 @@ export default function Services() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       <main className="lg:ml-64 p-8">
         {/* Header section with title and create button */}
         <div className="flex justify-between items-center mb-8">

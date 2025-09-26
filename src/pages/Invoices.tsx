@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { Plus, Search, FileText } from "lucide-react";
-import Navigation from "@/components/Layout/Navigation";
+
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -112,8 +112,6 @@ export default function Invoices() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-      
       <div className="lg:ml-64">
         <div className="p-6 lg:p-8">
           {/* Header */}

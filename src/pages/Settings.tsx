@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import Navigation from "@/components/Layout/Navigation";
+
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/hooks/useAuth";
 import { canManageUsers } from "@/utils/roleUtils";
@@ -98,7 +98,6 @@ export default function Settings() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
       <main className="lg:ml-64 p-8">
         <div className="mb-8">
           <h1 className="text-3xl font-bold text-foreground mb-2">Settings</h1>

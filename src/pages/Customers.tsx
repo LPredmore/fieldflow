@@ -1,6 +1,5 @@
 import { useState, useMemo } from "react";
 import { Plus, Search, Filter, Eye, Edit, Trash2, MapPin, Phone, Mail, Home, Building2, MoreVertical, Users, User } from "lucide-react";
-import Navigation from "@/components/Layout/Navigation";
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -77,8 +76,6 @@ export default function Customers() {
 
   return (
     <div className="min-h-screen bg-background">
-      <Navigation />
-      
       <div className="lg:ml-64">
         <div className="p-6 lg:p-8">
           {/* Header */}
@@ -321,7 +318,6 @@ export default function Customers() {
             </AlertDialogContent>
           </AlertDialog>
         </div>
-      </div>
     </div>
   );
 }
