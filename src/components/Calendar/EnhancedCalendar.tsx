@@ -28,7 +28,15 @@ export function EnhancedCalendar() {
   const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
   
-  // Simplified debugging state - removed renderCount and eventValidationErrors to prevent loops
+  // Centralized Navigation State
+  const [navigationState, setNavigationState] = useState({
+    desiredViewType: 'timeGridWeek' as string,
+    targetDate: null as Date | null,
+    isNavigating: false,
+    isFirstMount: true,
+  });
+  
+  // Debugging state
   const [debugInfo, setDebugInfo] = useState({
     lastAPICall: '',
     domUpdateCount: 0,
@@ -102,26 +110,90 @@ export function EnhancedCalendar() {
     return validateEvents(rawEvents);
   }, [jobs, validateEvents]);
 
-  // Single effect to handle initial navigation to earliest event when jobs load
+  // Master Navigation Effect - handles ALL view and date changes
   useEffect(() => {
-    if (!calendarRef.current || !calendarRef.current.getApi || !jobs.length) return;
+    // Wait for ref to be available and not currently navigating
+    if (!calendarRef.current || !calendarRef.current.getApi || navigationState.isNavigating) {
+      return;
+    }
     
     const api = calendarRef.current.getApi();
     if (!api || !api.view) return;
     
-    // Navigate to earliest job date only once when jobs first load
-    const jobDates = jobs.map((j: any) => new Date(j.start_at));
-    const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
+    let shouldNavigate = false;
+    let navigationActions: string[] = [];
     
-    console.log('🎯 Initial navigation to earliest job:', earliestJobDate.toISOString());
-    api.gotoDate(earliestJobDate);
+    // Set navigation in progress to prevent race conditions
+    setNavigationState(prev => ({ ...prev, isNavigating: true }));
     
-    setDebugInfo(prev => ({
-      ...prev,
-      lastAPICall: `Initial navigation to earliest job: ${earliestJobDate.toISOString()}`,
-      apiReady: true
-    }));
-  }, [jobs.length]); // Only run when jobs.length changes
+    try {
+      // Handle initial navigation to earliest job
+      if (navigationState.isFirstMount && jobs.length > 0 && !navigationState.targetDate) {
+        const jobDates = jobs.map((j: any) => new Date(j.start_at));
+        const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
+        
+        setNavigationState(prev => ({ 
+          ...prev, 
+          targetDate: earliestJobDate,
+          isFirstMount: false 
+        }));
+        return; // Will re-trigger this effect with targetDate set
+      }
+      
+      // Handle view changes
+      if (api.view.type !== navigationState.desiredViewType) {
+        console.log('🔄 Changing view:', api.view.type, '→', navigationState.desiredViewType);
+        api.changeView(navigationState.desiredViewType);
+        navigationActions.push(`changeView(${navigationState.desiredViewType})`);
+        shouldNavigate = true;
+      }
+      
+      // Handle date navigation
+      if (navigationState.targetDate) {
+        console.log('🎯 Navigating to date:', navigationState.targetDate.toISOString());
+        api.gotoDate(navigationState.targetDate);
+        navigationActions.push(`gotoDate(${navigationState.targetDate.toISOString()})`);
+        shouldNavigate = true;
+        
+        // Clear target date after navigation
+        setNavigationState(prev => ({ ...prev, targetDate: null }));
+      }
+      
+      // Update debug info
+      if (shouldNavigate) {
+        const navigationTime = new Date().toISOString();
+        setDebugInfo(prev => ({
+          ...prev,
+          lastAPICall: `Navigation: ${navigationActions.join(', ')} at ${navigationTime}`,
+          apiReady: true,
+          lastNavigationTime: navigationTime
+        }));
+        
+        console.log('✅ Navigation completed:', {
+          actions: navigationActions,
+          currentView: api.view.type,
+          currentDate: api.view.currentStart?.toISOString(),
+          viewTitle: api.view.title
+        });
+      }
+      
+    } catch (error) {
+      console.error('❌ Navigation failed:', error);
+      setDebugInfo(prev => ({
+        ...prev,
+        lastAPICall: `Navigation failed: ${error}`,
+      }));
+    } finally {
+      // Always clear navigation state
+      setNavigationState(prev => ({ ...prev, isNavigating: false }));
+    }
+  }, [
+    navigationState.desiredViewType, 
+    navigationState.targetDate, 
+    navigationState.isFirstMount,
+    jobs.length,
+    navigationState.isNavigating
+  ]);
   
   // Track render count for debugging using ref to avoid infinite loops
   const renderCountRef = useRef(0);
@@ -206,40 +278,33 @@ export function EnhancedCalendar() {
     alert(`Create job for ${format(selectInfo.start, 'PPP')}`);
   }, []);
 
-  // Simplified navigation controls using FullCalendar API directly
+  // Stabilized navigation handlers - only update state, let master effect handle API calls
   const handleChangeView = useCallback((newView: string) => {
-    if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      api.changeView(newView);
-      console.log('🔄 View changed directly via API:', newView);
-    }
+    console.log('🔄 View change requested:', newView);
+    setNavigationState(prev => ({ ...prev, desiredViewType: newView }));
   }, []);
   
   const handleSyncCalendar = useCallback(() => {
-    if (calendarRef.current && jobs.length > 0) {
-      const api = calendarRef.current.getApi();
+    if (jobs.length > 0) {
       const jobDates = jobs.map((j: any) => new Date(j.start_at));
       const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
-      api.gotoDate(earliestJobDate);
-      console.log('🔄 Manual sync to earliest job date:', earliestJobDate.toISOString());
+      console.log('🔄 Manual sync requested to earliest job date:', earliestJobDate.toISOString());
+      setNavigationState(prev => ({ ...prev, targetDate: earliestJobDate }));
     }
   }, [jobs]);
 
   const handleGoToToday = useCallback(() => {
-    if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      api.gotoDate(new Date());
-      console.log('📅 Going to today via API');
-    }
+    console.log('📅 Navigate to today requested');
+    setNavigationState(prev => ({ ...prev, targetDate: new Date() }));
   }, []);
 
   const handleTestNavigation = useCallback(() => {
-    if (calendarRef.current) {
-      const api = calendarRef.current.getApi();
-      api.changeView('timeGridWeek');
-      api.gotoDate(new Date());
-      console.log('🧪 Test navigation triggered via API');
-    }
+    console.log('🧪 Test navigation requested');
+    setNavigationState(prev => ({ 
+      ...prev, 
+      desiredViewType: 'timeGridWeek',
+      targetDate: new Date()
+    }));
   }, []);
 
   const handleForceRerender = useCallback(() => {
@@ -346,7 +411,7 @@ export function EnhancedCalendar() {
                 Go To Today
               </Button>
               <select 
-                value={calendarRef.current?.getApi()?.view?.type || 'timeGridWeek'} 
+                value={navigationState.desiredViewType} 
                 onChange={(e) => handleChangeView(e.target.value)}
                 className="px-3 py-1 border rounded text-sm"
               >
@@ -362,6 +427,9 @@ export function EnhancedCalendar() {
                 <p><strong>API Ready:</strong> {debugInfo.apiReady ? 'Yes' : 'No'}</p>
                 <p><strong>Ref Available:</strong> {calendarRef.current ? 'Yes' : 'No'}</p>
                 <p><strong>Current API View:</strong> {calendarRef.current?.getApi()?.view?.type || 'N/A'}</p>
+                <p><strong>Desired View:</strong> {navigationState.desiredViewType}</p>
+                <p><strong>Is Navigating:</strong> {navigationState.isNavigating ? 'Yes' : 'No'}</p>
+                <p><strong>Target Date:</strong> {navigationState.targetDate?.toISOString() || 'None'}</p>
               </div>
               
               <div className="space-y-2">
@@ -462,7 +530,8 @@ export function EnhancedCalendar() {
           <FullCalendar
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin, luxon3Plugin]}
-            initialView="timeGridWeek"
+            // Only set initialView on first mount, then let navigation state control it
+            initialView={navigationState.isFirstMount ? "timeGridWeek" : undefined}
             headerToolbar={{
               left: 'prev,next today',
               center: 'title',
