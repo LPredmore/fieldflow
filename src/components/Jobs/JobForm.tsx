@@ -65,7 +65,7 @@ interface ExtendedJob extends UnifiedJob {
 }
 
 export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormProps) {
-  const { user, userRole } = useAuth();
+  const { user, userRole, tenantId } = useAuth();
   const { permissions } = usePermissions();
   const userTimezone = useUserTimezone();
   const { toast } = useToast();
@@ -124,10 +124,11 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
     const currentAssignedTo = form.getValues('assigned_to_user_id');
     
     // Only set if: no existing job (new job flow), field is empty, and user is available
-    if (!job && !currentAssignedTo && user?.id) {
+    // Also ensure we're not accidentally setting a tenant ID
+    if (!job && !currentAssignedTo && user?.id && user.id !== tenantId) {
       form.setValue('assigned_to_user_id', user.id);
     }
-  }, [user?.id, job, form]);
+  }, [user?.id, job, form, tenantId]);
 
   const isRecurring = form.watch("is_recurring");
 
@@ -176,7 +177,8 @@ export default function JobForm({ job, onSubmit, onCancel, loading }: JobFormPro
       const cleanedData = {
         ...data,
         // Convert empty strings to null for optional UUID and date fields
-        assigned_to_user_id: data.assigned_to_user_id || null,
+        // Ensure we don't accidentally save tenant ID as assigned_to_user_id
+        assigned_to_user_id: (data.assigned_to_user_id && data.assigned_to_user_id !== tenantId) ? data.assigned_to_user_id : null,
         customer_id: data.customer_id || null,
         complete_date: data.complete_date || null, // Convert empty string to null
         until_date: data.until_date || null, // Convert empty string to null

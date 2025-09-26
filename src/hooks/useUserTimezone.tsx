@@ -8,7 +8,6 @@ export function useUserTimezone() {
   const browserTimezone = useMemo(() => {
     try {
       const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone;
-      console.log(`Using browser timezone: ${timezone}`);
       return timezone;
     } catch (error) {
       console.warn('Failed to detect browser timezone, falling back to America/New_York');

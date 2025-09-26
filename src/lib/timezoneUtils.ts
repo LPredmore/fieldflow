@@ -74,8 +74,6 @@ export function combineDateTimeToUTC(
     throw new Error(`Invalid date/time combination or timezone: ${isoDateTimeString} in ${userTimezone}`);
   }
   
-  console.log(`combineDateTimeToUTC: ${date} ${time} in ${userTimezone} → ${utcDateTime.toISOString()}`);
-  
   return utcDateTime;
 }
 

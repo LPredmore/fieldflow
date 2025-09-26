@@ -126,9 +126,7 @@ export function QuoteForm({
 
   // Update form when quote changes (for editing)
   useEffect(() => {
-    console.log("useEffect triggered - quote:", !!quote, "open:", open);
     if (quote && open) {
-      console.log("Resetting form with quote data, line items:", quote.line_items.length);
       form.reset({
         customer_id: quote.customer_id,
         customer_name: quote.customer_name,

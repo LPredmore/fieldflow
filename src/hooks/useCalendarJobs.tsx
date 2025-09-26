@@ -54,7 +54,6 @@ export function useCalendarJobs() {
   const [loading, setLoading] = useState(true);
   const [range, setRange] = useState<CalendarRange>(() => {
     const initialRange = defaultRange();
-    console.log('🚀 Initial calendar range:', initialRange);
     return initialRange;
   });
   const { user, tenantId } = useAuth();
@@ -74,18 +73,10 @@ export function useCalendarJobs() {
     
     // Prevent duplicate fetches for the same range
     if (rangeKey === lastFetchRangeRef.current) {
-      console.log('🔄 Skipping duplicate fetch for range:', rangeKey);
       return;
     }
     
     lastFetchRangeRef.current = rangeKey;
-
-    console.log('📊 fetchJobs called with range:', {
-      fromISO: range.fromISO,
-      toISO: range.toISO,
-      tenantId,
-      rangeSpanDays: Math.ceil((new Date(range.toISO).getTime() - new Date(range.fromISO).getTime()) / (1000 * 60 * 60 * 24))
-    });
 
     try {
       setLoading(true);
@@ -134,11 +125,7 @@ export function useCalendarJobs() {
         return;
       }
 
-      console.log('✅ Supabase query returned:', {
-        recordCount: data?.length || 0,
-        queryWindow: { from: range.fromISO, to: range.toISO },
-        sampleDates: data?.slice(0, 3).map(job => ({ id: job.id, start_at: job.start_at })) || []
-      });
+
 
       // Keep UTC for the calendar component; add local Date objects for other displays
       const transformed: CalendarJob[] = (data || []).map((row: any) => {
@@ -170,15 +157,6 @@ export function useCalendarJobs() {
       });
 
       setJobs(transformed);
-      
-      console.log('🎯 Jobs state updated:', {
-        jobCount: transformed.length,
-        dateRange: transformed.length > 0 ? {
-          earliest: Math.min(...transformed.map(j => new Date(j.start_at).getTime())),
-          latest: Math.max(...transformed.map(j => new Date(j.start_at).getTime()))
-        } : 'no jobs',
-        currentRange: { from: range.fromISO, to: range.toISO }
-      });
     } catch (err: any) {
       console.error('Error in fetchJobs:', err);
       toast({
@@ -192,14 +170,7 @@ export function useCalendarJobs() {
     }
   }, [user, tenantId, userTimezone, range.fromISO, range.toISO, toast]);
 
-  // Step 5: Debug range updates
-  useEffect(() => {
-    console.log('📏 Range state updated:', {
-      fromISO: range.fromISO,
-      toISO: range.toISO,
-      spanDays: Math.ceil((new Date(range.toISO).getTime() - new Date(range.fromISO).getTime()) / (1000 * 60 * 60 * 24))
-    });
-  }, [range.fromISO, range.toISO]);
+
 
   const updateJob = useCallback(
     async (jobId: string, updates: Partial<CalendarJob>) => {
@@ -275,14 +246,8 @@ export function useCalendarJobs() {
     const currentRangeKey = `${range.fromISO}-${range.toISO}`;
     
     if (newRangeKey === currentRangeKey) {
-      console.log('🔄 Ignoring duplicate range update:', newRangeKey);
       return;
     }
-    
-    console.log('📏 Range update accepted:', {
-      from: currentRangeKey,
-      to: newRangeKey
-    });
     
     setRange(newRange);
   }, [range.fromISO, range.toISO]);

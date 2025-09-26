@@ -116,15 +116,25 @@ export function useJobManagement() {
         // Get contractor name separately
         let contractorName;
         if (job.assigned_to_user_id) {
-          const { data: contractorData } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('id', job.assigned_to_user_id)
-            .single();
-          
-          contractorName = contractorData?.full_name || 
-                          contractorData?.email?.split('@')[0] || 
-                          'Unnamed User';
+          try {
+            const { data: contractorData, error } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', job.assigned_to_user_id)
+              .single();
+            
+            if (error) {
+              console.warn(`Failed to fetch contractor for ID ${job.assigned_to_user_id}:`, error);
+              contractorName = 'Unknown User';
+            } else {
+              contractorName = contractorData?.full_name || 
+                              contractorData?.email?.split('@')[0] || 
+                              'Unnamed User';
+            }
+          } catch (err) {
+            console.warn(`Error fetching contractor for ID ${job.assigned_to_user_id}:`, err);
+            contractorName = 'Unknown User';
+          }
         }
 
         transformedOneTimeJobs.push({
@@ -161,15 +171,25 @@ export function useJobManagement() {
         // Get contractor name separately
         let contractorName;
         if (series.assigned_to_user_id) {
-          const { data: contractorData } = await supabase
-            .from('profiles')
-            .select('full_name, email')
-            .eq('id', series.assigned_to_user_id)
-            .single();
-          
-          contractorName = contractorData?.full_name || 
-                          contractorData?.email?.split('@')[0] || 
-                          'Unnamed User';
+          try {
+            const { data: contractorData, error } = await supabase
+              .from('profiles')
+              .select('full_name, email')
+              .eq('id', series.assigned_to_user_id)
+              .single();
+            
+            if (error) {
+              console.warn(`Failed to fetch contractor for ID ${series.assigned_to_user_id}:`, error);
+              contractorName = 'Unknown User';
+            } else {
+              contractorName = contractorData?.full_name || 
+                              contractorData?.email?.split('@')[0] || 
+                              'Unnamed User';
+            }
+          } catch (err) {
+            console.warn(`Error fetching contractor for ID ${series.assigned_to_user_id}:`, err);
+            contractorName = 'Unknown User';
+          }
         }
 
         // Get occurrence counts for this series

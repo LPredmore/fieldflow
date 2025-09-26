@@ -20,28 +20,15 @@ export function EnhancedCalendar() {
     date: new Date()
   });
 
-  // Debug component re-renders
-  useEffect(() => {
-    console.log('🔄 EnhancedCalendar re-rendered:', {
-      jobCount: jobs.length,
-      loading,
-      calendarView,
-      timestamp: new Date().toISOString()
-    });
-  });
+
 
   // Convert jobs to calendar events with stability to prevent view resets
   const calendarEvents = useMemo(() => {
-    console.log('🎨 Converting jobs to calendar events:', {
-      jobCount: jobs.length,
-      timestamp: new Date().toISOString()
-    });
-    
     const events = jobs.map((job: any) => ({
       id: job.id,
       title: job.title,
-      start: new Date(job.start_at),
-      end: new Date(job.end_at),
+      start: job.start_at, // Pass UTC ISO string, let FullCalendar handle timezone conversion
+      end: job.end_at,     // Pass UTC ISO string, let FullCalendar handle timezone conversion
       backgroundColor: job.status === 'completed' ? '#10b981' : 
                       job.status === 'cancelled' ? '#ef4444' :
                       job.priority === 'urgent' ? '#f59e0b' : '#3b82f6',
@@ -56,23 +43,11 @@ export function EnhancedCalendar() {
       },
     }));
     
-    console.log('🎨 Generated calendar events:', {
-      eventCount: events.length,
-      sampleEvents: events.slice(0, 2).map(e => ({
-        id: e.id,
-        title: e.title,
-        start: e.start.toISOString(),
-        end: e.end.toISOString()
-      }))
-    });
-    
     return events;
   }, [jobs]);
 
   // Handle navigation without triggering data refetch loops
   const handleNavigation = useCallback((direction: 'prev' | 'next' | 'today') => {
-    console.log(`🧭 Navigation: ${direction}`);
-    
     const api = calendarRef.current?.getApi();
     if (!api) return;
     
@@ -95,20 +70,11 @@ export function EnhancedCalendar() {
         view: currentView.type,
         date: currentView.currentStart
       });
-      
-      console.log('📅 Calendar view updated:', {
-        view: currentView.type,
-        title: currentView.title,
-        start: currentView.currentStart.toISOString(),
-        end: currentView.currentEnd.toISOString()
-      });
     }, 100);
   }, []);
 
   // Handle view changes (week/month/day)
   const handleViewChange = useCallback((viewType: string) => {
-    console.log(`👁️ View change: ${viewType}`);
-    
     const api = calendarRef.current?.getApi();
     if (!api) return;
     
@@ -119,13 +85,6 @@ export function EnhancedCalendar() {
       setCalendarView({
         view: currentView.type,
         date: currentView.currentStart
-      });
-      
-      console.log('📅 Calendar view changed:', {
-        view: currentView.type,
-        title: currentView.title,
-        start: currentView.currentStart.toISOString(),
-        end: currentView.currentEnd.toISOString()
       });
     }, 100);
   }, []);
@@ -144,12 +103,12 @@ export function EnhancedCalendar() {
       `Customer: ${job.customer_name}\n` +
       `Status: ${job.status}\n` +
       `Priority: ${job.priority}\n` +
-      (job.localStart ? `Local Time: ${format(job.localStart, 'PPp')}` : '')
+      `Time: ${event.start.toLocaleString()} - ${event.end.toLocaleString()}`
     );
   }, []);
 
   // Handle date selection
-  const handleDateSelect = useCallback((selectInfo: any) => {
+  const handleDateSelect = useCallback((selectInfo: unknown) => {
     // Prevent any default behavior that might cause page refresh
     selectInfo.jsEvent?.preventDefault();
     selectInfo.jsEvent?.stopPropagation();
@@ -261,16 +220,7 @@ export function EnhancedCalendar() {
                 e.stopPropagation();
               });
             }}
-            // Track navigation events to prevent conflicts
-            viewDidMount={(info) => {
-              console.log('🏗️ FullCalendar view mounted:', {
-                viewType: info.view.type,
-                title: info.view.title,
-                start: info.view.currentStart?.toISOString(),
-                end: info.view.currentEnd?.toISOString(),
-                timestamp: new Date().toISOString()
-              });
-            }}
+
             // Add navigation event handlers
             // Custom navigation buttons that don't trigger data refetch
             customButtons={{
