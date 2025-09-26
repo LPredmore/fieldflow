@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useMemo, useRef, useState, useEffect } from 'react';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -12,18 +12,41 @@ import { CalendarIcon } from 'lucide-react';
 import { format } from 'date-fns';
 
 export function EnhancedCalendar() {
-  const { jobs, loading, setRange } = useCalendarJobs() as any;
+  const { jobs, loading } = useCalendarJobs() as any;
   const userTimezone = useUserTimezone();
   const calendarRef = useRef<FullCalendar>(null);
-  const [lastRangeUpdate, setLastRangeUpdate] = useState<string>('');
+  const [calendarView, setCalendarView] = useState({
+    view: 'timeGridWeek',
+    date: new Date()
+  });
 
-  // Convert jobs to calendar events
+  // Debug component re-renders
+  useEffect(() => {
+    console.log('🔄 EnhancedCalendar re-rendered:', {
+      jobCount: jobs.length,
+      loading,
+      calendarView,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Convert jobs to calendar events with stability to prevent view resets
   const calendarEvents = useMemo(() => {
-    return jobs.map((job: any) => ({
+    console.log('🎨 Converting jobs to calendar events:', {
+      jobCount: jobs.length,
+      isUserNavigating,
+      timestamp: new Date().toISOString()
+    });
+    
+    const events = jobs.map((job: any) => ({
       id: job.id,
       title: job.title,
       start: new Date(job.start_at),
       end: new Date(job.end_at),
+      backgroundColor: job.status === 'completed' ? '#10b981' : 
+                      job.status === 'cancelled' ? '#ef4444' :
+                      job.priority === 'urgent' ? '#f59e0b' : '#3b82f6',
+      borderColor: 'transparent',
       extendedProps: {
         status: job.status,
         priority: job.priority,
@@ -33,37 +56,80 @@ export function EnhancedCalendar() {
         localEnd: job.local_end,
       },
     }));
+    
+    console.log('🎨 Generated calendar events:', {
+      eventCount: events.length,
+      sampleEvents: events.slice(0, 2).map(e => ({
+        id: e.id,
+        title: e.title,
+        start: e.start.toISOString(),
+        end: e.end.toISOString()
+      }))
+    });
+    
+    return events;
   }, [jobs]);
 
-  // Handle calendar date range changes with debouncing to prevent infinite loops
-  const handleDatesSet = useCallback(
-    (arg: { start: Date; end: Date; view: any }) => {
-      const newRangeKey = `${arg.start.toISOString()}-${arg.end.toISOString()}`;
-      
-      // Prevent duplicate range updates that cause infinite loops
-      if (newRangeKey === lastRangeUpdate) {
-        console.log('🔄 Skipping duplicate range update:', newRangeKey);
-        return;
-      }
-      
-      console.log('📅 Calendar range changed:', {
-        start: arg.start.toISOString(),
-        end: arg.end.toISOString(),
-        view: arg.view.type
+  // Handle navigation without triggering data refetch loops
+  const handleNavigation = useCallback((direction: 'prev' | 'next' | 'today') => {
+    console.log(`🧭 Navigation: ${direction}`);
+    
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    
+    switch (direction) {
+      case 'prev':
+        api.prev();
+        break;
+      case 'next':
+        api.next();
+        break;
+      case 'today':
+        api.today();
+        break;
+    }
+    
+    // Update our internal view state
+    setTimeout(() => {
+      const currentView = api.view;
+      setCalendarView({
+        view: currentView.type,
+        date: currentView.currentStart
       });
       
-      setLastRangeUpdate(newRangeKey);
+      console.log('📅 Calendar view updated:', {
+        view: currentView.type,
+        title: currentView.title,
+        start: currentView.currentStart.toISOString(),
+        end: currentView.currentEnd.toISOString()
+      });
+    }, 100);
+  }, []);
+
+  // Handle view changes (week/month/day)
+  const handleViewChange = useCallback((viewType: string) => {
+    console.log(`👁️ View change: ${viewType}`);
+    
+    const api = calendarRef.current?.getApi();
+    if (!api) return;
+    
+    api.changeView(viewType);
+    
+    setTimeout(() => {
+      const currentView = api.view;
+      setCalendarView({
+        view: currentView.type,
+        date: currentView.currentStart
+      });
       
-      // Use setTimeout to debounce and prevent immediate re-renders
-      setTimeout(() => {
-        setRange?.({
-          fromISO: arg.start.toISOString(),
-          toISO: arg.end.toISOString()
-        });
-      }, 100);
-    },
-    [setRange, lastRangeUpdate]
-  );
+      console.log('📅 Calendar view changed:', {
+        view: currentView.type,
+        title: currentView.title,
+        start: currentView.currentStart.toISOString(),
+        end: currentView.currentEnd.toISOString()
+      });
+    }, 100);
+  }, []);
 
   // Handle event clicks
   const handleEventClick = useCallback((clickInfo: any) => {
@@ -157,14 +223,15 @@ export function EnhancedCalendar() {
             }
           `}</style>
           <FullCalendar
+            key="stable-calendar"
             ref={calendarRef}
             plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
             initialView="timeGridWeek"
             timeZone={userTimezone}
             headerToolbar={{
-              left: 'prev,next today',
+              left: 'customPrev,customNext,customToday',
               center: 'title',
-              right: 'dayGridMonth,timeGridWeek,timeGridDay'
+              right: 'customMonth,customWeek,customDay'
             }}
             height="600px"
             events={calendarEvents}
@@ -173,7 +240,6 @@ export function EnhancedCalendar() {
             editable={false}
             eventClick={handleEventClick}
             select={handleDateSelect}
-            datesSet={handleDatesSet}
             slotMinTime="06:00:00"
             slotMaxTime="22:00:00"
             allDaySlot={false}
@@ -196,8 +262,44 @@ export function EnhancedCalendar() {
                 e.stopPropagation();
               });
             }}
-            // Add custom event handlers to prevent page refresh
-            customButtons={{}}
+            // Track navigation events to prevent conflicts
+            viewDidMount={(info) => {
+              console.log('🏗️ FullCalendar view mounted:', {
+                viewType: info.view.type,
+                title: info.view.title,
+                start: info.view.currentStart?.toISOString(),
+                end: info.view.currentEnd?.toISOString(),
+                timestamp: new Date().toISOString()
+              });
+            }}
+            // Add navigation event handlers
+            // Custom navigation buttons that don't trigger data refetch
+            customButtons={{
+              customPrev: {
+                text: '‹',
+                click: () => handleNavigation('prev')
+              },
+              customNext: {
+                text: '›',
+                click: () => handleNavigation('next')
+              },
+              customToday: {
+                text: 'Today',
+                click: () => handleNavigation('today')
+              },
+              customMonth: {
+                text: 'Month',
+                click: () => handleViewChange('dayGridMonth')
+              },
+              customWeek: {
+                text: 'Week',
+                click: () => handleViewChange('timeGridWeek')
+              },
+              customDay: {
+                text: 'Day',
+                click: () => handleViewChange('timeGridDay')
+              }
+            }}
             buttonText={{
               today: 'Today',
               month: 'Month',
