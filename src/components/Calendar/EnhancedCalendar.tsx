@@ -137,38 +137,69 @@ export function EnhancedCalendar() {
   const eventsKey = `${calendarEvents.length}-${calendarEvents.map(ev => ev.start?.toString() || '').join('-')}`;
   console.log('🔑 FullCalendar key:', eventsKey);
 
-  // Advanced: Imperative API Control
+  // Imperative Navigation: Force calendar to navigate to correct date when data changes
   useEffect(() => {
-    if (calendarRef.current && calendarEvents.length > 0) {
+    if (calendarRef.current && calendarEvents.length >= 0) {
       const api = calendarRef.current.getApi();
       
-      // Force refetch events
-      console.log('🔄 Forcing FullCalendar event refetch');
-      api.refetchEvents();
+      // Log current FullCalendar internal state
+      console.log('[FullCalendar] Current internal state:', {
+        viewType: api.view.type,
+        viewTitle: api.view.title,
+        currentStart: api.view.currentStart?.toISOString(),
+        currentDate: api.getDate().toISOString(),
+        eventsCount: calendarEvents.length
+      });
+      
+      // Calculate target navigation date
+      let targetDate = new Date();
+      
+      if (calendarEvents.length > 0) {
+        // Use the earliest event date as navigation target
+        const eventDates = calendarEvents.map(e => new Date(e.start));
+        targetDate = new Date(Math.min(...eventDates.map(d => d.getTime())));
+      }
+      
+      console.log('[FullCalendar] Navigating to target date:', targetDate.toISOString());
+      
+      // Force navigation to target date
+      api.gotoDate(targetDate);
+      
+      // Force event refetch after navigation
+      setTimeout(() => {
+        api.refetchEvents();
+        console.log('[FullCalendar] Post-navigation state:', {
+          viewType: api.view.type,
+          viewTitle: api.view.title,
+          currentStart: api.view.currentStart?.toISOString(),
+        });
+      }, 100);
       
       setDebugInfo(prev => ({
         ...prev,
-        lastAPICall: `refetchEvents() at ${new Date().toISOString()}`,
+        lastAPICall: `gotoDate(${targetDate.toISOString()}) + refetch at ${new Date().toISOString()}`,
         domUpdateCount: prev.domUpdateCount + 1
       }));
     }
   }, [calendarEvents]);
 
-  // Force calendar navigation on range changes
+  // Sync calendar view with data range changes
   useEffect(() => {
     if (calendarRef.current && jobs.length > 0) {
       const api = calendarRef.current.getApi();
-      const currentDate = api.getDate();
       
-      console.log('🧭 Current calendar date:', currentDate.toISOString());
-      console.log('🔄 Forcing calendar view refresh');
+      // Get earliest job date for navigation
+      const jobDates = jobs.map((j: any) => new Date(j.start_at));
+      const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
       
-      // Force goto current date to refresh view
-      api.gotoDate(currentDate);
+      console.log('🧭 Syncing calendar to earliest job date:', earliestJobDate.toISOString());
+      
+      // Force navigation and view refresh
+      api.gotoDate(earliestJobDate);
       
       setDebugInfo(prev => ({
         ...prev,
-        lastAPICall: `gotoDate(${currentDate.toISOString()}) at ${new Date().toISOString()}`
+        lastAPICall: `Sync navigation to ${earliestJobDate.toISOString()} at ${new Date().toISOString()}`
       }));
     }
   }, [jobs.length]);
@@ -281,6 +312,38 @@ export function EnhancedCalendar() {
     }
   }, []);
 
+  // New enhanced navigation controls
+  const handleSyncCalendar = useCallback(() => {
+    if (calendarRef.current && jobs.length > 0) {
+      const api = calendarRef.current.getApi();
+      const jobDates = jobs.map((j: any) => new Date(j.start_at));
+      const earliestJobDate = new Date(Math.min(...jobDates.map(d => d.getTime())));
+      
+      console.log('🔄 Manual sync to earliest job date:', earliestJobDate.toISOString());
+      api.gotoDate(earliestJobDate);
+      api.refetchEvents();
+      
+      setDebugInfo(prev => ({
+        ...prev,
+        lastAPICall: `Manual sync to ${earliestJobDate.toISOString()}`
+      }));
+    }
+  }, [jobs]);
+
+  const handleGoToToday = useCallback(() => {
+    if (calendarRef.current) {
+      const api = calendarRef.current.getApi();
+      const today = new Date();
+      console.log('📅 Going to today');
+      api.gotoDate(today);
+      
+      setDebugInfo(prev => ({
+        ...prev,
+        lastAPICall: `Go to today: ${today.toISOString()}`
+      }));
+    }
+  }, []);
+
   if (loading) {
     return (
       <Card>
@@ -311,7 +374,7 @@ export function EnhancedCalendar() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-4">
               <Button 
                 variant="outline" 
                 size="sm" 
@@ -338,6 +401,24 @@ export function EnhancedCalendar() {
               >
                 <Navigation className="h-4 w-4" />
                 Test Navigation
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleSyncCalendar}
+                className="flex items-center gap-2"
+              >
+                <Clock className="h-4 w-4" />
+                Sync Calendar
+              </Button>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={handleGoToToday}
+                className="flex items-center gap-2"
+              >
+                <CalendarIcon className="h-4 w-4" />
+                Go To Today
               </Button>
             </div>
             
