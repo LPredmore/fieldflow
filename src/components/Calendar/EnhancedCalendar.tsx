@@ -109,63 +109,110 @@ export function EnhancedCalendar() {
   const eventsKey = `${calendarEvents.length}-${calendarEvents.map(ev => ev.start?.toString() || '').join('-')}`;
   console.log('🔑 FullCalendar key:', eventsKey);
 
-  // Single consolidated navigation effect - this replaces all the conflicting navigation logic
+  // STABLE FullCalendar API Ref Navigation - consolidated and sequential
   useEffect(() => {
-    if (!calendarRef.current || navigationInProgress) return;
+    // CRITICAL: Check for stable ref and API availability
+    if (!calendarRef.current || !calendarRef.current.getApi || navigationInProgress) {
+      console.log('[Navigation] Skipping - ref not ready or navigation in progress');
+      return;
+    }
     
     const api = calendarRef.current.getApi();
     
-    // Only navigate if we have events or need to set initial view
-    if (calendarEvents.length > 0 || !api.view) {
-      setNavigationInProgress(true);
-      
-      let targetDate = currentDate;
-      
-      // If we have events, navigate to the earliest event
-      if (calendarEvents.length > 0) {
-        const eventDates = calendarEvents.map(e => new Date(e.start));
-        targetDate = new Date(Math.min(...eventDates.map(d => d.getTime())));
-        setCurrentDate(targetDate);
+    // Verify API is fully initialized
+    if (!api || !api.view) {
+      console.log('[Navigation] Skipping - API not fully initialized');
+      return;
+    }
+    
+    // Only navigate if we have meaningful changes
+    const needsNavigation = calendarEvents.length > 0 || 
+                           api.view.type !== currentView || 
+                           Math.abs(api.getDate().getTime() - currentDate.getTime()) > 24 * 60 * 60 * 1000; // More than 1 day difference
+    
+    if (!needsNavigation) {
+      console.log('[Navigation] Skipping - no navigation needed');
+      return;
+    }
+    
+    setNavigationInProgress(true);
+    
+    let targetDate = currentDate;
+    
+    // If we have events, navigate to the earliest event
+    if (calendarEvents.length > 0) {
+      const eventDates = calendarEvents.map(e => new Date(e.start));
+      targetDate = new Date(Math.min(...eventDates.map(d => d.getTime())));
+      setCurrentDate(targetDate);
+    }
+    
+    console.log('[Navigation] BEFORE API calls:', {
+      targetDate: targetDate.toISOString(),
+      targetView: currentView,
+      eventsCount: calendarEvents.length,
+      currentAPIView: api.view.type,
+      currentAPIDate: api.getDate().toISOString(),
+      currentAPITitle: api.view.title
+    });
+    
+    // SEQUENTIAL API CALLS - CRITICAL for avoiding race conditions
+    try {
+      // Step 1: Change view first (if needed)
+      if (api.view.type !== currentView) {
+        console.log(`[Navigation] Step 1: Changing view from ${api.view.type} to ${currentView}`);
+        api.changeView(currentView);
+        
+        // Verify view change
+        const newViewType = api.view.type;
+        console.log(`[Navigation] View change result: ${newViewType} (expected: ${currentView})`);
       }
       
-      console.log('[Navigation] Consolidated navigation to:', {
-        targetDate: targetDate.toISOString(),
-        currentView,
-        eventsCount: calendarEvents.length,
-        currentAPIView: api.view?.type,
-        currentAPIDate: api.getDate()?.toISOString()
-      });
+      // Step 2: Navigate to target date
+      console.log(`[Navigation] Step 2: Going to date ${targetDate.toISOString()}`);
+      api.gotoDate(targetDate);
       
-      // Sequential API calls to avoid conflicts
-      try {
-        if (api.view.type !== currentView) {
-          api.changeView(currentView);
-        }
-        api.gotoDate(targetDate);
-        
-        // Allow some time for the view to update before refetching
-        setTimeout(() => {
+      // Step 3: Verify and log immediate state
+      const immediateState = {
+        viewType: api.view.type,
+        viewTitle: api.view.title,
+        currentStart: api.view.currentStart?.toISOString(),
+        actualDate: api.getDate().toISOString()
+      };
+      console.log('[Navigation] Immediate post-navigation state:', immediateState);
+      
+      // Step 4: Refetch events and finalize (with delay for DOM updates)
+      setTimeout(() => {
+        try {
           api.refetchEvents();
-          setNavigationInProgress(false);
           
-          console.log('[Navigation] Post-navigation state:', {
+          const finalState = {
             viewType: api.view.type,
             viewTitle: api.view.title,
             currentStart: api.view.currentStart?.toISOString(),
-            actualDate: api.getDate()?.toISOString()
-          });
+            actualDate: api.getDate().toISOString(),
+            eventsDisplayed: calendarEvents.length
+          };
+          
+          console.log('[Navigation] FINAL state after refetch:', finalState);
           
           setDebugInfo(prev => ({
             ...prev,
-            lastAPICall: `Consolidated navigation to ${targetDate.toISOString()} at ${new Date().toISOString()}`,
-            domUpdateCount: prev.domUpdateCount + 1
+            lastAPICall: `Sequential navigation: ${currentView} -> ${targetDate.toISOString()} at ${new Date().toISOString()}`,
+            domUpdateCount: prev.domUpdateCount + 1,
+            lastNavigationTime: new Date().toISOString()
           }));
-        }, 150);
-        
-      } catch (error) {
-        console.error('[Navigation] Error during navigation:', error);
-        setNavigationInProgress(false);
-      }
+          
+          setNavigationInProgress(false);
+          
+        } catch (refetchError) {
+          console.error('[Navigation] Error during refetch:', refetchError);
+          setNavigationInProgress(false);
+        }
+      }, 200); // Increased delay for stability
+      
+    } catch (error) {
+      console.error('[Navigation] Error during API calls:', error);
+      setNavigationInProgress(false);
     }
   }, [calendarEvents.length, currentView, currentDate, navigationInProgress]);
   
