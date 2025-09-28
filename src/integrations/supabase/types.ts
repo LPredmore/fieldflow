@@ -805,133 +805,7 @@ export type Database = {
       }
     }
     Views: {
-      public_invoices: {
-        Row: {
-          customer_name: string | null
-          due_date: string | null
-          id: string | null
-          invoice_number: string | null
-          issue_date: string | null
-          line_items: Json | null
-          notes: string | null
-          payment_terms: string | null
-          share_token: string | null
-          share_token_expires_at: string | null
-          status: Database["public"]["Enums"]["invoice_status"] | null
-          subtotal: number | null
-          tax_amount: number | null
-          tax_rate: number | null
-          tenant_id: string | null
-          total_amount: number | null
-        }
-        Insert: {
-          customer_name?: string | null
-          due_date?: string | null
-          id?: string | null
-          invoice_number?: string | null
-          issue_date?: string | null
-          line_items?: Json | null
-          notes?: string | null
-          payment_terms?: string | null
-          share_token?: string | null
-          share_token_expires_at?: string | null
-          status?: Database["public"]["Enums"]["invoice_status"] | null
-          subtotal?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tenant_id?: string | null
-          total_amount?: number | null
-        }
-        Update: {
-          customer_name?: string | null
-          due_date?: string | null
-          id?: string | null
-          invoice_number?: string | null
-          issue_date?: string | null
-          line_items?: Json | null
-          notes?: string | null
-          payment_terms?: string | null
-          share_token?: string | null
-          share_token_expires_at?: string | null
-          status?: Database["public"]["Enums"]["invoice_status"] | null
-          subtotal?: number | null
-          tax_amount?: number | null
-          tax_rate?: number | null
-          tenant_id?: string | null
-          total_amount?: number | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "invoices_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
-      public_quotes: {
-        Row: {
-          customer_name: string | null
-          id: string | null
-          line_items: Json | null
-          notes: string | null
-          quote_number: string | null
-          share_token: string | null
-          share_token_expires_at: string | null
-          status: Database["public"]["Enums"]["quote_status"] | null
-          subtotal: number | null
-          tax_amount: number | null
-          tenant_id: string | null
-          terms: string | null
-          title: string | null
-          total_amount: number | null
-          valid_until: string | null
-        }
-        Insert: {
-          customer_name?: string | null
-          id?: string | null
-          line_items?: Json | null
-          notes?: string | null
-          quote_number?: string | null
-          share_token?: string | null
-          share_token_expires_at?: string | null
-          status?: Database["public"]["Enums"]["quote_status"] | null
-          subtotal?: number | null
-          tax_amount?: number | null
-          tenant_id?: string | null
-          terms?: string | null
-          title?: string | null
-          total_amount?: number | null
-          valid_until?: string | null
-        }
-        Update: {
-          customer_name?: string | null
-          id?: string | null
-          line_items?: Json | null
-          notes?: string | null
-          quote_number?: string | null
-          share_token?: string | null
-          share_token_expires_at?: string | null
-          status?: Database["public"]["Enums"]["quote_status"] | null
-          subtotal?: number | null
-          tax_amount?: number | null
-          tenant_id?: string | null
-          terms?: string | null
-          title?: string | null
-          total_amount?: number | null
-          valid_until?: string | null
-        }
-        Relationships: [
-          {
-            foreignKeyName: "quotes_tenant_id_fkey"
-            columns: ["tenant_id"]
-            isOneToOne: false
-            referencedRelation: "profiles"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
+      [_ in never]: never
     }
     Functions: {
       check_rate_limit: {
@@ -958,6 +832,43 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_public_invoice_by_token: {
+        Args: { token_param: string }
+        Returns: {
+          customer_name: string
+          due_date: string
+          id: string
+          invoice_number: string
+          issue_date: string
+          line_items: Json
+          notes: string
+          payment_terms: string
+          status: Database["public"]["Enums"]["invoice_status"]
+          subtotal: number
+          tax_amount: number
+          tax_rate: number
+          tenant_id: string
+          total_amount: number
+        }[]
+      }
+      get_public_quote_by_token: {
+        Args: { token_param: string }
+        Returns: {
+          customer_name: string
+          id: string
+          line_items: Json
+          notes: string
+          quote_number: string
+          status: Database["public"]["Enums"]["quote_status"]
+          subtotal: number
+          tax_amount: number
+          tenant_id: string
+          terms: string
+          title: string
+          total_amount: number
+          valid_until: string
+        }[]
       }
       get_user_permissions: {
         Args: { target_user_id: string }
