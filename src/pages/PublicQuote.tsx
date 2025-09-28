@@ -66,19 +66,11 @@ export default function PublicQuote() {
 
   const loadQuote = async () => {
     try {
-      // Load quote by share token with creator profile information
+      // Load quote by share token using secure function with limited data exposure
       const { data: quoteData, error: quoteError } = await supabase
-        .from("quotes")
-        .select(`
-          *,
-          profiles!quotes_created_by_user_id_fkey (
-            full_name
-          )
-        `)
-        .eq("share_token", token)
-        .single();
+        .rpc("get_public_quote_by_token", { token_param: token });
 
-      if (quoteError || !quoteData) {
+      if (quoteError || !quoteData || quoteData.length === 0) {
         toast({
           title: "Quote not found",
           description: "This quote link may be invalid or expired.",
@@ -87,17 +79,18 @@ export default function PublicQuote() {
         return;
       }
 
+      const quote = quoteData[0]; // RPC returns an array
       setQuote({
-        ...quoteData,
-        line_items: quoteData.line_items as any,
-        created_by_user_name: quoteData.profiles?.full_name || 'Professional Services'
+        ...quote,
+        line_items: quote.line_items as any,
+        created_by_user_name: 'Professional Services' // No longer exposing creator info
       });
 
       // Load business settings
       const { data: settingsData } = await supabase
         .from("settings")
         .select("*")
-        .eq("tenant_id", quoteData.tenant_id)
+        .eq("tenant_id", quote.tenant_id)
         .single();
 
       if (settingsData) {

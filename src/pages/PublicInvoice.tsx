@@ -62,29 +62,27 @@ export default function PublicInvoice() {
       }
 
       try {
-        // Fetch invoice by share token
+        // Fetch invoice by share token using secure function with limited data exposure
         const { data: invoiceData, error: invoiceError } = await supabase
-          .from("invoices")
-          .select("*")
-          .eq("share_token", token)
-          .single();
+          .rpc("get_public_invoice_by_token", { token_param: token });
 
-        if (invoiceError || !invoiceData) {
+        if (invoiceError || !invoiceData || invoiceData.length === 0) {
           setError("Invoice not found or link has expired");
           setLoading(false);
           return;
         }
 
+        const invoice = invoiceData[0]; // RPC returns an array
         setInvoice({
-          ...invoiceData,
-          line_items: invoiceData.line_items as unknown as LineItem[]
+          ...invoice,
+          line_items: invoice.line_items as unknown as LineItem[]
         });
 
         // Fetch business settings for payment info
         const { data: settingsData } = await supabase
           .from("settings")
           .select("business_name, logo_url, business_phone, business_email, business_address, payment_settings")
-          .eq("tenant_id", invoiceData.tenant_id)
+          .eq("tenant_id", invoice.tenant_id)
           .single();
 
         if (settingsData) {
