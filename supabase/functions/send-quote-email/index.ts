@@ -20,12 +20,59 @@ interface SendQuoteEmailRequest {
   generateTokenOnly?: boolean; // Flag for share link generation only
 }
 
+// Security helper functions
+async function checkRateLimit(identifier: string, endpoint: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('check_rate_limit', {
+    _identifier: identifier,
+    _endpoint: endpoint,
+    _max_requests: 50, // 50 requests per hour for email sending
+    _window_minutes: 60
+  });
+  
+  if (error) {
+    console.error('Rate limit check failed:', error);
+    return true; // Allow on error to prevent blocking legitimate requests
+  }
+  
+  return data;
+}
+
+async function logSharedAccess(contentType: string, contentId: string, shareToken: string, request: Request) {
+  const clientIP = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+  const referrer = request.headers.get('referer') || 'direct';
+
+  await supabase.from('shared_content_access_logs').insert({
+    content_type: contentType,
+    content_id: contentId,
+    share_token: shareToken,
+    ip_address: clientIP,
+    user_agent: userAgent,
+    referrer: referrer
+  });
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting check
+    const clientIP = req.headers.get('x-forwarded-for') || 
+                     req.headers.get('x-real-ip') || 
+                     'unknown';
+    
+    const canProceed = await checkRateLimit(clientIP, 'send-quote-email');
+    if (!canProceed) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const { quoteId, customerEmail, customerName, generateTokenOnly }: SendQuoteEmailRequest = await req.json();
     
     console.log("[send-quote-email] Request received:", { quoteId, generateTokenOnly, hasEmail: !!customerEmail });
@@ -57,11 +104,16 @@ const handler = async (req: Request): Promise<Response> => {
       shareToken = tokenData;
       console.log("[send-quote-email] Generated token:", shareToken ? "✓" : "✗");
 
+      // Set expiration date for share token (30 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+
       // Update quote with share token
       const { error: updateError } = await supabase
         .from('quotes')
         .update({ 
           share_token: shareToken,
+          share_token_expires_at: expiresAt.toISOString(),
           ...(generateTokenOnly ? {} : {
             status: 'sent',
             sent_date: new Date().toISOString()
@@ -81,6 +133,9 @@ const handler = async (req: Request): Promise<Response> => {
 
     // If only generating token for share link, return early
     if (generateTokenOnly) {
+      // Log the share token generation
+      await logSharedAccess('quote', quoteId, shareToken, req);
+      
       return new Response(JSON.stringify({ 
         success: true, 
         shareToken,

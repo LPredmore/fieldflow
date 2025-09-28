@@ -11,7 +11,10 @@ max_rows = 1000
 verify_jwt = false
 
 [functions.send-quote-email]
-verify_jwt = false
+verify_jwt = true
+
+[functions.send-invoice-email]
+verify_jwt = true
 
 [functions.quote-response]
 verify_jwt = false

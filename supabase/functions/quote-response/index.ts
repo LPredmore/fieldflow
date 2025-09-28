@@ -18,16 +18,61 @@ interface QuoteResponseRequest {
   customerComments?: string;
 }
 
+// Security helper function
+async function checkRateLimit(identifier: string, endpoint: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('check_rate_limit', {
+    _identifier: identifier,
+    _endpoint: endpoint,
+    _max_requests: 100, // 100 responses per hour (higher limit for public responses)
+    _window_minutes: 60
+  });
+  
+  if (error) {
+    console.error('Rate limit check failed:', error);
+    return true; // Allow on error to prevent blocking legitimate requests
+  }
+  
+  return data;
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
 
   try {
+    // Rate limiting check
+    const clientIP = req.headers.get('x-forwarded-for') || 
+                     req.headers.get('x-real-ip') || 
+                     'unknown';
+    
+    const canProceed = await checkRateLimit(clientIP, 'quote-response');
+    if (!canProceed) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     const { shareToken, responseType, customerEmail, customerComments }: QuoteResponseRequest = await req.json();
 
-    // Get client IP and user agent for tracking
-    const clientIP = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || 'unknown';
+    // Input validation
+    if (!shareToken || !responseType) {
+      return new Response(
+        JSON.stringify({ error: 'Share token and response type are required' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Validate response type
+    if (!['accepted', 'declined', 'viewed'].includes(responseType)) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid response type' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Get client IP and user agent for tracking  
     const userAgent = req.headers.get('user-agent') || 'unknown';
 
     // Find the quote by share token

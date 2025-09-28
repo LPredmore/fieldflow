@@ -106,6 +106,7 @@ export type Database = {
           paypal_me_link: string | null
           sent_date: string | null
           share_token: string | null
+          share_token_expires_at: string | null
           status: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -133,6 +134,7 @@ export type Database = {
           paypal_me_link?: string | null
           sent_date?: string | null
           share_token?: string | null
+          share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal: number
           tax_amount: number
@@ -160,6 +162,7 @@ export type Database = {
           paypal_me_link?: string | null
           sent_date?: string | null
           share_token?: string | null
+          share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
           subtotal?: number
           tax_amount?: number
@@ -461,6 +464,7 @@ export type Database = {
           quote_number: string
           sent_date: string | null
           share_token: string | null
+          share_token_expires_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
@@ -486,6 +490,7 @@ export type Database = {
           quote_number: string
           sent_date?: string | null
           share_token?: string | null
+          share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal: number
           tax_amount: number
@@ -511,6 +516,7 @@ export type Database = {
           quote_number?: string
           sent_date?: string | null
           share_token?: string | null
+          share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
           subtotal?: number
           tax_amount?: number
@@ -545,6 +551,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      rate_limits: {
+        Row: {
+          created_at: string
+          endpoint: string
+          id: string
+          identifier: string
+          request_count: number
+          window_start: string
+        }
+        Insert: {
+          created_at?: string
+          endpoint: string
+          id?: string
+          identifier: string
+          request_count?: number
+          window_start?: string
+        }
+        Update: {
+          created_at?: string
+          endpoint?: string
+          id?: string
+          identifier?: string
+          request_count?: number
+          window_start?: string
+        }
+        Relationships: []
       }
       services: {
         Row: {
@@ -693,6 +726,39 @@ export type Database = {
           },
         ]
       }
+      shared_content_access_logs: {
+        Row: {
+          accessed_at: string
+          content_id: string
+          content_type: string
+          id: string
+          ip_address: string | null
+          referrer: string | null
+          share_token: string
+          user_agent: string | null
+        }
+        Insert: {
+          accessed_at?: string
+          content_id: string
+          content_type: string
+          id?: string
+          ip_address?: string | null
+          referrer?: string | null
+          share_token: string
+          user_agent?: string | null
+        }
+        Update: {
+          accessed_at?: string
+          content_id?: string
+          content_type?: string
+          id?: string
+          ip_address?: string | null
+          referrer?: string | null
+          share_token?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
       user_permissions: {
         Row: {
           access_invoicing: boolean
@@ -742,6 +808,19 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      check_rate_limit: {
+        Args: {
+          _endpoint: string
+          _identifier: string
+          _max_requests?: number
+          _window_minutes?: number
+        }
+        Returns: boolean
+      }
+      cleanup_expired_rate_limits: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       generate_quote_share_token: {
         Args: Record<PropertyKey, never>
         Returns: string

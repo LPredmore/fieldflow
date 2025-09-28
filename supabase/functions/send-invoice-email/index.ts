@@ -21,6 +21,40 @@ const supabase = createClient(
 
 const resend = new Resend(Deno.env.get('RESEND_API_KEY'));
 
+// Security helper functions
+async function checkRateLimit(identifier: string, endpoint: string): Promise<boolean> {
+  const { data, error } = await supabase.rpc('check_rate_limit', {
+    _identifier: identifier,
+    _endpoint: endpoint,
+    _max_requests: 50, // 50 requests per hour for email sending
+    _window_minutes: 60
+  });
+  
+  if (error) {
+    console.error('Rate limit check failed:', error);
+    return true; // Allow on error to prevent blocking legitimate requests
+  }
+  
+  return data;
+}
+
+async function logSharedAccess(contentType: string, contentId: string, shareToken: string, request: Request) {
+  const clientIP = request.headers.get('x-forwarded-for') || 
+                   request.headers.get('x-real-ip') || 
+                   'unknown';
+  const userAgent = request.headers.get('user-agent') || 'unknown';
+  const referrer = request.headers.get('referer') || 'direct';
+
+  await supabase.from('shared_content_access_logs').insert({
+    content_type: contentType,
+    content_id: contentId,
+    share_token: shareToken,
+    ip_address: clientIP,
+    user_agent: userAgent,
+    referrer: referrer
+  });
+}
+
 serve(async (req) => {
   console.log('send-invoice-email function called');
 
@@ -30,6 +64,19 @@ serve(async (req) => {
   }
 
   try {
+    // Rate limiting check
+    const clientIP = req.headers.get('x-forwarded-for') || 
+                     req.headers.get('x-real-ip') || 
+                     'unknown';
+    
+    const canProceed = await checkRateLimit(clientIP, 'send-invoice-email');
+    if (!canProceed) {
+      return new Response(
+        JSON.stringify({ error: 'Rate limit exceeded. Please try again later.' }),
+        { status: 429, headers: { ...corsHeaders, 'Content-Type': 'application/json' } }
+      );
+    }
+
     const { invoiceId, customerEmail, customerName, generateTokenOnly }: SendInvoiceEmailRequest = await req.json();
     console.log('Processing invoice email request:', { 
       invoiceId, 
@@ -67,9 +114,16 @@ serve(async (req) => {
       shareToken = crypto.randomUUID().replace(/-/g, '');
       console.log('Generated new share token for invoice');
       
+      // Set expiration date for share token (30 days from now)
+      const expiresAt = new Date();
+      expiresAt.setDate(expiresAt.getDate() + 30);
+      
       const { error: updateError } = await supabase
         .from('invoices')
-        .update({ share_token: shareToken })
+        .update({ 
+          share_token: shareToken,
+          share_token_expires_at: expiresAt.toISOString()
+        })
         .eq('id', invoiceId);
 
       if (updateError) {
@@ -89,6 +143,9 @@ serve(async (req) => {
 
     // If only generating token, return early
     if (generateTokenOnly) {
+      // Log the share token generation
+      await logSharedAccess('invoice', invoiceId, shareToken, req);
+      
       return new Response(
         JSON.stringify({ 
           shareToken,
