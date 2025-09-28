@@ -805,7 +805,133 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      public_invoices: {
+        Row: {
+          customer_name: string | null
+          due_date: string | null
+          id: string | null
+          invoice_number: string | null
+          issue_date: string | null
+          line_items: Json | null
+          notes: string | null
+          payment_terms: string | null
+          share_token: string | null
+          share_token_expires_at: string | null
+          status: Database["public"]["Enums"]["invoice_status"] | null
+          subtotal: number | null
+          tax_amount: number | null
+          tax_rate: number | null
+          tenant_id: string | null
+          total_amount: number | null
+        }
+        Insert: {
+          customer_name?: string | null
+          due_date?: string | null
+          id?: string | null
+          invoice_number?: string | null
+          issue_date?: string | null
+          line_items?: Json | null
+          notes?: string | null
+          payment_terms?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"] | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tenant_id?: string | null
+          total_amount?: number | null
+        }
+        Update: {
+          customer_name?: string | null
+          due_date?: string | null
+          id?: string | null
+          invoice_number?: string | null
+          issue_date?: string | null
+          line_items?: Json | null
+          notes?: string | null
+          payment_terms?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
+          status?: Database["public"]["Enums"]["invoice_status"] | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          tax_rate?: number | null
+          tenant_id?: string | null
+          total_amount?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_quotes: {
+        Row: {
+          customer_name: string | null
+          id: string | null
+          line_items: Json | null
+          notes: string | null
+          quote_number: string | null
+          share_token: string | null
+          share_token_expires_at: string | null
+          status: Database["public"]["Enums"]["quote_status"] | null
+          subtotal: number | null
+          tax_amount: number | null
+          tenant_id: string | null
+          terms: string | null
+          title: string | null
+          total_amount: number | null
+          valid_until: string | null
+        }
+        Insert: {
+          customer_name?: string | null
+          id?: string | null
+          line_items?: Json | null
+          notes?: string | null
+          quote_number?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
+          status?: Database["public"]["Enums"]["quote_status"] | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          tenant_id?: string | null
+          terms?: string | null
+          title?: string | null
+          total_amount?: number | null
+          valid_until?: string | null
+        }
+        Update: {
+          customer_name?: string | null
+          id?: string | null
+          line_items?: Json | null
+          notes?: string | null
+          quote_number?: string | null
+          share_token?: string | null
+          share_token_expires_at?: string | null
+          status?: Database["public"]["Enums"]["quote_status"] | null
+          subtotal?: number | null
+          tax_amount?: number | null
+          tenant_id?: string | null
+          terms?: string | null
+          title?: string | null
+          total_amount?: number | null
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quotes_tenant_id_fkey"
+            columns: ["tenant_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Functions: {
       check_rate_limit: {
