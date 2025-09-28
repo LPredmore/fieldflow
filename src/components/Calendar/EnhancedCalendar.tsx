@@ -3,6 +3,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
+import type { DateSelectArg, EventClickArg } from '@fullcalendar/core';
 
 import { useCalendarJobs } from '@/hooks/useCalendarJobs';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
@@ -90,7 +91,7 @@ export function EnhancedCalendar() {
   }, []);
 
   // Handle event clicks
-  const handleEventClick = useCallback((clickInfo: any) => {
+  const handleEventClick = useCallback((clickInfo: EventClickArg) => {
     // Prevent any default behavior that might cause page refresh
     clickInfo.jsEvent.preventDefault();
     clickInfo.jsEvent.stopPropagation();
@@ -108,7 +109,7 @@ export function EnhancedCalendar() {
   }, []);
 
   // Handle date selection
-  const handleDateSelect = useCallback((selectInfo: unknown) => {
+  const handleDateSelect = useCallback((selectInfo: DateSelectArg) => {
     // Prevent any default behavior that might cause page refresh
     selectInfo.jsEvent?.preventDefault();
     selectInfo.jsEvent?.stopPropagation();

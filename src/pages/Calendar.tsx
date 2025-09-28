@@ -1,4 +1,4 @@
-import { EnhancedCalendar } from '@/components/Calendar/EnhancedCalendar';
+import { CalendarWrapper } from '@/components/Calendar/CalendarWrapper';
 import { CreateJobDialog } from '@/components/Jobs/CreateJobDialog';
 import { Button } from '@/components/ui/button';
 import { Plus } from 'lucide-react';
@@ -19,7 +19,7 @@ export default function Calendar() {
         />
       </div>
       
-      <EnhancedCalendar />
+      <CalendarWrapper />
     </div>
   );
 }
