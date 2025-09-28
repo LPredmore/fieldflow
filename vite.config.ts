@@ -16,26 +16,41 @@ export default defineConfig(({ mode }) => ({
     },
   },
   build: {
-    // Enable better chunking for caching
+    // Optimize for faster First Contentful Paint
     rollupOptions: {
       output: {
-        manualChunks: {
-          // Separate vendor chunks for better caching
-          vendor: ['react', 'react-dom'],
-          ui: ['@radix-ui/react-dialog', '@radix-ui/react-popover', '@radix-ui/react-select'],
-          calendar: ['@fullcalendar/react', '@fullcalendar/daygrid', '@fullcalendar/timegrid'],
-          utils: ['date-fns', 'luxon', 'clsx']
+        manualChunks: (id) => {
+          // Create smaller, more focused chunks for better loading
+          if (id.includes('node_modules')) {
+            if (id.includes('react') || id.includes('react-dom')) {
+              return 'react-vendor';
+            }
+            if (id.includes('@radix-ui')) {
+              return 'ui-vendor';
+            }
+            if (id.includes('@fullcalendar')) {
+              return 'calendar-vendor';
+            }
+            if (id.includes('date-fns') || id.includes('luxon')) {
+              return 'date-vendor';
+            }
+            if (id.includes('@supabase') || id.includes('@tanstack')) {
+              return 'data-vendor';
+            }
+            return 'vendor';
+          }
         },
-        // Ensure consistent file naming for cache busting
+        // Optimize file naming for better caching
         chunkFileNames: 'assets/[name]-[hash].js',
         entryFileNames: 'assets/[name]-[hash].js',
         assetFileNames: 'assets/[name]-[hash].[ext]'
       }
     },
-    // Optimize build for production caching
-    target: 'esnext',
-    minify: true,
-    // Remove terser config to use default minifier
-    sourcemap: false
+    // Optimize build settings for performance
+    target: 'es2020',
+    minify: 'esbuild',
+    sourcemap: false,
+    cssCodeSplit: true,
+    reportCompressedSize: false
   }
 }));
