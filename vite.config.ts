@@ -34,12 +34,8 @@ export default defineConfig(({ mode }) => ({
     },
     // Optimize build for production caching
     target: 'esnext',
-    minify: 'terser',
-    terserOptions: {
-      compress: {
-        drop_console: mode === 'production',
-        drop_debugger: true
-      }
-    }
+    minify: true,
+    // Remove terser config to use default minifier
+    sourcemap: false
   }
 }));
