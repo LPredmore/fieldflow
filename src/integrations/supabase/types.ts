@@ -14,6 +14,48 @@ export type Database = {
   }
   public: {
     Tables: {
+      audit_logs: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          new_values: Json | null
+          old_values: Json | null
+          resource_id: string | null
+          resource_type: string
+          tenant_id: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          resource_id?: string | null
+          resource_type: string
+          tenant_id: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          new_values?: Json | null
+          old_values?: Json | null
+          resource_id?: string | null
+          resource_type?: string
+          tenant_id?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       customers: {
         Row: {
           address: Json | null
@@ -825,6 +867,16 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      enhanced_rate_limit_check: {
+        Args: {
+          _endpoint: string
+          _identifier: string
+          _log_violations?: boolean
+          _max_requests?: number
+          _window_minutes?: number
+        }
+        Returns: Json
+      }
       generate_quote_share_token: {
         Args: Record<PropertyKey, never>
         Returns: string
@@ -832,6 +884,10 @@ export type Database = {
       get_current_user_role: {
         Args: Record<PropertyKey, never>
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_masked_customer_data: {
+        Args: { customer_row: Database["public"]["Tables"]["customers"]["Row"] }
+        Returns: Json
       }
       get_public_invoice_by_token: {
         Args: { token_param: string }
