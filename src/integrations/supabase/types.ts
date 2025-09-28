@@ -883,6 +883,15 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: string
       }
+      validate_quote_response_input: {
+        Args: {
+          _customer_comments?: string
+          _customer_email?: string
+          _quote_id: string
+          _response_type: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       customer_type: "residential" | "commercial"
