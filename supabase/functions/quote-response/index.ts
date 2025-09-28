@@ -64,18 +64,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Validate response type
-    if (!['accepted', 'declined', 'viewed'].includes(responseType)) {
-      return new Response(
-        JSON.stringify({ error: 'Invalid response type' }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
-    }
-
-    // Get client IP and user agent for tracking  
-    const userAgent = req.headers.get('user-agent') || 'unknown';
-
-    // Find the quote by share token
+    // Find the quote by share token first to get quote ID for validation
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
       .select('id, status, customer_name')
@@ -91,6 +80,26 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     }
+
+    // Use server-side validation function for enhanced security
+    const { data: isValid, error: validationError } = await supabase.rpc('validate_quote_response_input', {
+      _quote_id: quote.id,
+      _response_type: responseType,
+      _customer_email: customerEmail,
+      _customer_comments: customerComments
+    });
+
+    if (validationError || !isValid) {
+      return new Response(
+        JSON.stringify({ error: 'Invalid input data' }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Get client IP and user agent for tracking  
+    const userAgent = req.headers.get('user-agent') || 'unknown';
+
+    // Quote was already validated above, so we can proceed
 
     // Record the response
     const { error: responseError } = await supabase
