@@ -821,6 +821,10 @@ export type Database = {
         Args: Record<PropertyKey, never>
         Returns: undefined
       }
+      cleanup_expired_share_tokens: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       generate_quote_share_token: {
         Args: Record<PropertyKey, never>
         Returns: string
