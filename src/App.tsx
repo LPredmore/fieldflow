@@ -11,16 +11,18 @@ import { BrandColorProvider } from "@/components/BrandColorProvider";
 import { Layout } from "@/components/Layout/Layout";
 import { lazy, Suspense } from "react";
 
-// Lazy load pages to reduce initial bundle size
-const Index = lazy(() => import("./pages/Index"));
-const Jobs = lazy(() => import("./pages/Jobs"));
-const Customers = lazy(() => import("./pages/Customers"));
-const Services = lazy(() => import("./pages/Services"));
-const Invoices = lazy(() => import("./pages/Invoices"));
-const Quotes = lazy(() => import("./pages/Quotes"));
-const Settings = lazy(() => import("./pages/Settings"));
-const Profile = lazy(() => import("./pages/Profile"));
-const Auth = lazy(() => import("./pages/Auth"));
+// Critical pages - load immediately to improve LCP
+import Index from "./pages/Index";
+import Jobs from "./pages/Jobs";
+import Customers from "./pages/Customers";
+import Services from "./pages/Services";
+import Invoices from "./pages/Invoices";
+import Quotes from "./pages/Quotes";
+import Settings from "./pages/Settings";
+import Profile from "./pages/Profile";
+import Auth from "./pages/Auth";
+
+// Lazy load non-critical pages to reduce initial bundle size
 const PublicQuote = lazy(() => import("./pages/PublicQuote"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const Calendar = lazy(() => import("./pages/Calendar"));
@@ -42,11 +44,10 @@ const App = () => (
         <Toaster />
         <Sonner />
         <BrowserRouter>
-          <Suspense fallback={<PageLoadingFallback />}>
             <Routes>
               <Route path="/auth" element={<Auth />} />
-            <Route path="/public-quote/:token" element={<PublicQuote />} />
-            <Route path="/public-invoice/:token" element={<PublicInvoice />} />
+              <Route path="/public-quote/:token" element={<Suspense fallback={<PageLoadingFallback />}><PublicQuote /></Suspense>} />
+              <Route path="/public-invoice/:token" element={<Suspense fallback={<PageLoadingFallback />}><PublicInvoice /></Suspense>} />
               <Route path="/" element={<ProtectedRoute><Layout><Index /></Layout></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Layout><Jobs /></Layout></ProtectedRoute>} />
               <Route path="/customers" element={<ProtectedRoute><Layout><Customers /></Layout></ProtectedRoute>} />
@@ -75,13 +76,12 @@ const App = () => (
                 </ProtectedRoute>
               } />
               <Route path="/quotes" element={<ProtectedRoute><Layout><Quotes /></Layout></ProtectedRoute>} />
-              <Route path="/calendar" element={<ProtectedRoute><Layout><Calendar /></Layout></ProtectedRoute>} />
+              <Route path="/calendar" element={<ProtectedRoute><Layout><Suspense fallback={<PageLoadingFallback />}><Calendar /></Suspense></Layout></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Layout><AdminProtectedRoute><Settings /></AdminProtectedRoute></Layout></ProtectedRoute>} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
-              <Route path="*" element={<NotFound />} />
+              <Route path="*" element={<Suspense fallback={<PageLoadingFallback />}><NotFound /></Suspense>} />
             </Routes>
-          </Suspense>
         </BrowserRouter>
         </TooltipProvider>
       </BrandColorProvider>
