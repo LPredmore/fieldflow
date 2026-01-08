@@ -19,18 +19,26 @@ export default function Auth() {
   const [companyName, setCompanyName] = useState('');
   const [loading, setLoading] = useState(false);
   
-  const { signIn, signUp, resetPassword, user, loading: authLoading } = useAuth();
+  const { signIn, signUp, resetPassword, user, loading: authLoading, userRole } = useAuth();
   const { settings } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
 
-  // Redirect to main page if already authenticated
+  // Redirect based on role after authentication
   useEffect(() => {
-    if (user && !authLoading) {
-      const redirectTo = (location.state as any)?.from?.pathname || '/';
-      navigate(redirectTo, { replace: true });
+    if (user && !authLoading && userRole) {
+      // Determine redirect based on role
+      const getRedirectPath = () => {
+        if (userRole === 'client') {
+          return '/client/dashboard';
+        }
+        // business_admin and contractor go to main dashboard
+        return (location.state as any)?.from?.pathname || '/';
+      };
+      
+      navigate(getRedirectPath(), { replace: true });
     }
-  }, [user, authLoading, navigate, location]);
+  }, [user, authLoading, userRole, navigate, location]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

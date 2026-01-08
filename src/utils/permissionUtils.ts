@@ -27,7 +27,7 @@ export const canSupervise = (permissions: UserPermissions | null): boolean => {
 };
 
 // Default permissions for fallback scenarios
-export const getDefaultPermissions = (role: 'business_admin' | 'contractor' | null): UserPermissions => {
+export const getDefaultPermissions = (role: 'business_admin' | 'contractor' | 'client' | null): UserPermissions => {
   if (role === 'business_admin') {
     return {
       send_quotes: true,
@@ -37,6 +37,7 @@ export const getDefaultPermissions = (role: 'business_admin' | 'contractor' | nu
     };
   }
   
+  // Contractors and clients get no permissions by default
   return {
     send_quotes: false,
     access_services: false,

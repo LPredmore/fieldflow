@@ -8,7 +8,7 @@ import { User, Shield } from "lucide-react";
 interface ContractorOption {
   id: string;
   full_name: string;
-  role: 'business_admin' | 'contractor';
+  role: 'business_admin' | 'contractor' | 'client';
 }
 
 interface ContractorSelectorProps {
