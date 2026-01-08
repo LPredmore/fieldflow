@@ -7,8 +7,10 @@ import { AuthProvider } from "@/hooks/useAuth";
 import { ProtectedRoute } from "@/components/ProtectedRoute";
 import { AdminProtectedRoute } from "@/components/AdminProtectedRoute";
 import { PermissionProtectedRoute } from "@/components/PermissionProtectedRoute";
+import { ClientProtectedRoute } from "@/components/ClientProtectedRoute";
 import { BrandColorProvider } from "@/components/BrandColorProvider";
 import { Layout } from "@/components/Layout/Layout";
+import { ClientLayout } from "@/components/Layout/ClientLayout";
 import { lazy, Suspense } from "react";
 
 // Critical pages - load immediately to improve LCP
@@ -27,6 +29,12 @@ const PublicQuote = lazy(() => import("./pages/PublicQuote"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+
+// Client portal pages
+const ClientDashboard = lazy(() => import("./pages/client/ClientDashboard"));
+const ClientProfile = lazy(() => import("./pages/client/ClientProfile"));
+const ClientQuotes = lazy(() => import("./pages/client/ClientQuotes"));
+const ClientInvoices = lazy(() => import("./pages/client/ClientInvoices"));
 
 const PageLoadingFallback = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -48,6 +56,46 @@ const App = () => (
               <Route path="/auth" element={<Auth />} />
               <Route path="/public-quote/:token" element={<Suspense fallback={<PageLoadingFallback />}><PublicQuote /></Suspense>} />
               <Route path="/public-invoice/:token" element={<Suspense fallback={<PageLoadingFallback />}><PublicInvoice /></Suspense>} />
+              
+              {/* Client Portal Routes */}
+              <Route path="/client/dashboard" element={
+                <ClientProtectedRoute>
+                  <ClientLayout>
+                    <Suspense fallback={<PageLoadingFallback />}>
+                      <ClientDashboard />
+                    </Suspense>
+                  </ClientLayout>
+                </ClientProtectedRoute>
+              } />
+              <Route path="/client/profile" element={
+                <ClientProtectedRoute>
+                  <ClientLayout>
+                    <Suspense fallback={<PageLoadingFallback />}>
+                      <ClientProfile />
+                    </Suspense>
+                  </ClientLayout>
+                </ClientProtectedRoute>
+              } />
+              <Route path="/client/quotes" element={
+                <ClientProtectedRoute>
+                  <ClientLayout>
+                    <Suspense fallback={<PageLoadingFallback />}>
+                      <ClientQuotes />
+                    </Suspense>
+                  </ClientLayout>
+                </ClientProtectedRoute>
+              } />
+              <Route path="/client/invoices" element={
+                <ClientProtectedRoute>
+                  <ClientLayout>
+                    <Suspense fallback={<PageLoadingFallback />}>
+                      <ClientInvoices />
+                    </Suspense>
+                  </ClientLayout>
+                </ClientProtectedRoute>
+              } />
+              
+              {/* Admin/Contractor Routes */}
               <Route path="/" element={<ProtectedRoute><Layout><Index /></Layout></ProtectedRoute>} />
               <Route path="/jobs" element={<ProtectedRoute><Layout><Jobs /></Layout></ProtectedRoute>} />
               <Route path="/customers" element={<ProtectedRoute><Layout><Customers /></Layout></ProtectedRoute>} />

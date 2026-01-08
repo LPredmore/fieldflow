@@ -3,13 +3,16 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+export type UserRole = 'business_admin' | 'contractor' | 'client';
+
 interface AuthContextType {
   user: User | null;
   session: Session | null;
   loading: boolean;
   tenantId: string | null;
-  userRole: 'business_admin' | 'contractor' | null;
+  userRole: UserRole | null;
   isAdmin: boolean;
+  isClient: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, fullName: string, phone: string, companyName: string) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
@@ -23,7 +26,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [tenantId, setTenantId] = useState<string | null>(null);
-  const [userRole, setUserRole] = useState<'business_admin' | 'contractor' | null>(null);
+  const [userRole, setUserRole] = useState<UserRole | null>(null);
   const { toast } = useToast();
 
   useEffect(() => {
@@ -226,6 +229,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     tenantId,
     userRole,
     isAdmin: userRole === 'business_admin',
+    isClient: userRole === 'client',
     signIn,
     signUp,
     signOut,

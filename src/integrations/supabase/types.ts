@@ -60,6 +60,7 @@ export type Database = {
         Row: {
           address: Json | null
           assigned_to_user_id: string | null
+          client_user_id: string | null
           created_at: string
           created_by_user_id: string
           customer_type: Database["public"]["Enums"]["customer_type"]
@@ -76,6 +77,7 @@ export type Database = {
         Insert: {
           address?: Json | null
           assigned_to_user_id?: string | null
+          client_user_id?: string | null
           created_at?: string
           created_by_user_id: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
@@ -92,6 +94,7 @@ export type Database = {
         Update: {
           address?: Json | null
           assigned_to_user_id?: string | null
+          client_user_id?: string | null
           created_at?: string
           created_by_user_id?: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
@@ -860,6 +863,27 @@ export type Database = {
           },
         ]
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["user_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -941,7 +965,18 @@ export type Database = {
           supervisor: boolean
         }[]
       }
+      get_user_role_from_roles_table: {
+        Args: { _user_id: string }
+        Returns: Database["public"]["Enums"]["user_role"]
+      }
       get_user_tenant_id: { Args: never; Returns: string }
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["user_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
       validate_quote_response_input: {
         Args: {
           _customer_comments?: string
@@ -974,7 +1009,7 @@ export type Database = {
         | "Arizona"
         | "Alaska"
         | "Hawaii Aleutian"
-      user_role: "business_admin" | "contractor"
+      user_role: "business_admin" | "contractor" | "client"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1125,7 +1160,7 @@ export const Constants = {
         "Alaska",
         "Hawaii Aleutian",
       ],
-      user_role: ["business_admin", "contractor"],
+      user_role: ["business_admin", "contractor", "client"],
     },
   },
 } as const

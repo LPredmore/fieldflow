@@ -9,7 +9,7 @@ export interface Profile {
   email: string | null;
   phone: string | null;
   company_name: string | null;
-  role: 'business_admin' | 'contractor';
+  role: 'business_admin' | 'contractor' | 'client';
   parent_admin_id: string | null;
   avatar_url: string | null;
   created_at: string;
