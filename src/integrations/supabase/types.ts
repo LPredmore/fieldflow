@@ -129,6 +129,21 @@ export type Database = {
           },
         ]
       }
+      ignore: {
+        Row: {
+          created_at: string
+          today: string | null
+        }
+        Insert: {
+          created_at?: string
+          today?: string | null
+        }
+        Update: {
+          created_at?: string
+          today?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
           created_at: string
@@ -859,14 +874,8 @@ export type Database = {
         }
         Returns: boolean
       }
-      cleanup_expired_rate_limits: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
-      cleanup_expired_share_tokens: {
-        Args: Record<PropertyKey, never>
-        Returns: undefined
-      }
+      cleanup_expired_rate_limits: { Args: never; Returns: undefined }
+      cleanup_expired_share_tokens: { Args: never; Returns: undefined }
       enhanced_rate_limit_check: {
         Args: {
           _endpoint: string
@@ -877,12 +886,9 @@ export type Database = {
         }
         Returns: Json
       }
-      generate_quote_share_token: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      generate_quote_share_token: { Args: never; Returns: string }
       get_current_user_role: {
-        Args: Record<PropertyKey, never>
+        Args: never
         Returns: Database["public"]["Enums"]["user_role"]
       }
       get_masked_customer_data: {
@@ -935,10 +941,7 @@ export type Database = {
           supervisor: boolean
         }[]
       }
-      get_user_tenant_id: {
-        Args: Record<PropertyKey, never>
-        Returns: string
-      }
+      get_user_tenant_id: { Args: never; Returns: string }
       validate_quote_response_input: {
         Args: {
           _customer_comments?: string
