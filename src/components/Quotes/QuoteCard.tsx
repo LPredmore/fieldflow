@@ -155,7 +155,7 @@ export function QuoteCard({
                   </>
                 )}
                 {canConvert && (
-                  <DropdownMenuItem onClick={() => setShowConvertDialog(true)}>
+                  <DropdownMenuItem onClick={() => onConvertToJob(quote)}>
                     <Briefcase className="mr-2 h-4 w-4" />
                     Convert to Job
                   </DropdownMenuItem>
