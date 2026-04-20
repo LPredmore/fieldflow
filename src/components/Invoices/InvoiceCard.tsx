@@ -108,11 +108,16 @@ export function InvoiceCard({
             <CardTitle className="text-lg">{invoice.invoice_number}</CardTitle>
             <p className="text-sm text-muted-foreground mt-1">{invoice.customer_name}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <Badge className={statusInfo.className}>
               <StatusIcon className="h-3 w-3 mr-1" />
               {statusInfo.label}
             </Badge>
+            {invoice.status === 'paid' && (invoice as any).payment_method_used && (
+              <Badge variant="outline" className="text-xs">
+                via {String((invoice as any).payment_method_used).replace('stripe_', 'Stripe ').replace('_', ' ')}
+              </Badge>
+            )}
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" size="sm">
