@@ -28,11 +28,6 @@ const formSchema = z.object({
     default_invoice_notes: z.string().optional(),
     default_quote_terms: z.string().optional(),
   }),
-  payment_settings: z.object({
-    paypal_me_link: z.string().optional(),
-    venmo_handle: z.string().optional(),
-    other_instructions: z.string().optional(),
-  }),
 });
 
 type FormData = z.infer<typeof formSchema>;
