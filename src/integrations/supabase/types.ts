@@ -265,6 +265,63 @@ export type Database = {
           },
         ]
       }
+      job_files: {
+        Row: {
+          bucket_id: string
+          caption: string | null
+          created_at: string
+          created_by_user_id: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["file_entity_type"]
+          file_kind: Database["public"]["Enums"]["file_kind"]
+          file_name: string
+          id: string
+          mime_type: string | null
+          signed_at: string | null
+          signed_by_name: string | null
+          size_bytes: number | null
+          storage_path: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          bucket_id: string
+          caption?: string | null
+          created_at?: string
+          created_by_user_id: string
+          entity_id: string
+          entity_type: Database["public"]["Enums"]["file_entity_type"]
+          file_kind: Database["public"]["Enums"]["file_kind"]
+          file_name: string
+          id?: string
+          mime_type?: string | null
+          signed_at?: string | null
+          signed_by_name?: string | null
+          size_bytes?: number | null
+          storage_path: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          bucket_id?: string
+          caption?: string | null
+          created_at?: string
+          created_by_user_id?: string
+          entity_id?: string
+          entity_type?: Database["public"]["Enums"]["file_entity_type"]
+          file_kind?: Database["public"]["Enums"]["file_kind"]
+          file_name?: string
+          id?: string
+          mime_type?: string | null
+          signed_at?: string | null
+          signed_by_name?: string | null
+          size_bytes?: number | null
+          storage_path?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       job_occurrences: {
         Row: {
           actual_cost: number | null
@@ -1142,6 +1199,13 @@ export type Database = {
     }
     Enums: {
       customer_type: "residential" | "commercial"
+      file_entity_type: "job_occurrence" | "job_series" | "quote" | "invoice"
+      file_kind:
+        | "photo_before"
+        | "photo_after"
+        | "photo_during"
+        | "attachment"
+        | "signature"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       job_priority: "low" | "medium" | "high" | "urgent"
       job_service_type:
@@ -1292,6 +1356,14 @@ export const Constants = {
   public: {
     Enums: {
       customer_type: ["residential", "commercial"],
+      file_entity_type: ["job_occurrence", "job_series", "quote", "invoice"],
+      file_kind: [
+        "photo_before",
+        "photo_after",
+        "photo_during",
+        "attachment",
+        "signature",
+      ],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       job_priority: ["low", "medium", "high", "urgent"],
       job_service_type: [
