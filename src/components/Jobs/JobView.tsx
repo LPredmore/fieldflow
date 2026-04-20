@@ -8,6 +8,8 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
+import JobExpensesTab from '@/components/Jobs/JobExpensesTab';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { combineDateTimeToUTC, formatInUserTimezone } from '@/lib/timezoneUtils';
 import { format } from 'date-fns';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
@@ -253,6 +255,14 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     return new Date().toISOString();
   };
 
+  // Resolve the job_series_id used by costing/expenses
+  const jobSeriesId = (() => {
+    if ('series_id' in unifiedJob && unifiedJob.series_id) return unifiedJob.series_id as string;
+    return unifiedJob.id;
+  })();
+  const jobOccurrenceId =
+    'job_type' in unifiedJob && unifiedJob.job_type === 'recurring_instance' ? unifiedJob.id : null;
+
   return (
     <div className="space-y-6">
       {/* Job Type Alert for Recurring Jobs */}
@@ -293,6 +303,13 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         )}
       </div>
 
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="costs">Costs &amp; Profitability</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details" className="space-y-6 mt-4">
       {/* Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
@@ -476,6 +493,12 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="costs" className="mt-4">
+          <JobExpensesTab jobSeriesId={jobSeriesId} jobOccurrenceId={jobOccurrenceId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
