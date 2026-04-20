@@ -1,1 +1,10 @@
 project_id = "zqohnagvnvpczduoizdh"
+
+[functions.stripe-connect-oauth-callback]
+verify_jwt = false
+
+[functions.create-invoice-checkout]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

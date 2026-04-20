@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import PaymentMethodsSettings from "./PaymentMethodsSettings";
 
 const formSchema = z.object({
   tax_settings: z.object({
@@ -26,11 +27,6 @@ const formSchema = z.object({
     default_payment_terms: z.string(),
     default_invoice_notes: z.string().optional(),
     default_quote_terms: z.string().optional(),
-  }),
-  payment_settings: z.object({
-    paypal_me_link: z.string().optional(),
-    venmo_handle: z.string().optional(),
-    other_instructions: z.string().optional(),
   }),
 });
 
@@ -65,11 +61,6 @@ export default function FinancialSettings() {
         default_invoice_notes: "",
         default_quote_terms: "Payment due within 30 days of acceptance",
       },
-      payment_settings: {
-        paypal_me_link: "",
-        venmo_handle: "",
-        other_instructions: "",
-      },
     },
   });
 
@@ -77,7 +68,6 @@ export default function FinancialSettings() {
     if (settings) {
       const taxSettings = settings.tax_settings || {};
       const invoiceSettings = settings.invoice_settings || {};
-      const paymentSettings = settings.payment_settings || {};
 
       form.reset({
         tax_settings: {
@@ -94,11 +84,6 @@ export default function FinancialSettings() {
           default_invoice_notes: invoiceSettings.default_invoice_notes || "",
           default_quote_terms: invoiceSettings.default_quote_terms || "Payment due within 30 days of acceptance",
         },
-        payment_settings: {
-          paypal_me_link: paymentSettings.paypal_me_link || "",
-          venmo_handle: paymentSettings.venmo_handle || "",
-          other_instructions: paymentSettings.other_instructions || "",
-        },
       });
     }
   }, [settings, form]);
@@ -110,7 +95,6 @@ export default function FinancialSettings() {
       const updateData = {
         tax_settings: data.tax_settings,
         invoice_settings: data.invoice_settings,
-        payment_settings: data.payment_settings,
       };
 
       if (settings) {
@@ -338,65 +322,8 @@ export default function FinancialSettings() {
             </CardContent>
           </Card>
 
-          {/* Payment Instructions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Instructions</CardTitle>
-              <CardDescription>Configure payment methods displayed on invoices</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="payment_settings.paypal_me_link"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PayPal.Me Link</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://paypal.me/yourbusiness" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="payment_settings.venmo_handle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Venmo Handle</FormLabel>
-                      <FormControl>
-                        <Input placeholder="@yourbusiness" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="payment_settings.other_instructions"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Other Payment Instructions</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Bank transfer details, check mailing address, etc."
-                        className="min-h-[100px]"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      These instructions will be displayed on public invoice pages
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+          {/* Payment Methods */}
+          <PaymentMethodsSettings />
 
           <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto">
             {isSubmitting ? (
