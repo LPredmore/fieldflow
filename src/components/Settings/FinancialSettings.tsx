@@ -322,65 +322,8 @@ export default function FinancialSettings() {
             </CardContent>
           </Card>
 
-          {/* Payment Instructions */}
-          <Card>
-            <CardHeader>
-              <CardTitle>Payment Instructions</CardTitle>
-              <CardDescription>Configure payment methods displayed on invoices</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <FormField
-                  control={form.control}
-                  name="payment_settings.paypal_me_link"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>PayPal.Me Link</FormLabel>
-                      <FormControl>
-                        <Input placeholder="https://paypal.me/yourbusiness" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-
-                <FormField
-                  control={form.control}
-                  name="payment_settings.venmo_handle"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Venmo Handle</FormLabel>
-                      <FormControl>
-                        <Input placeholder="@yourbusiness" {...field} />
-                      </FormControl>
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
-              </div>
-
-              <FormField
-                control={form.control}
-                name="payment_settings.other_instructions"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Other Payment Instructions</FormLabel>
-                    <FormControl>
-                      <Textarea 
-                        placeholder="Bank transfer details, check mailing address, etc."
-                        className="min-h-[100px]"
-                        {...field} 
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      These instructions will be displayed on public invoice pages
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-            </CardContent>
-          </Card>
+          {/* Payment Methods */}
+          <PaymentMethodsSettings />
 
           <Button type="submit" disabled={isSubmitting} className="w-full md:w-auto">
             {isSubmitting ? (
