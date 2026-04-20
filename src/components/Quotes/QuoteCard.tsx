@@ -111,12 +111,12 @@ export function QuoteCard({
   };
 
   const handleConvertToJob = () => {
-    onConvertToJob(quote.id);
+    onConvertToJob(quote);
     setShowConvertDialog(false);
   };
 
   const canShare = (quote.status === 'draft' || quote.status === 'sent') && canSendQuotes(permissions);
-  const canConvert = quote.status === 'accepted' || quote.status === 'sent';
+  const canConvert = (quote.status === 'accepted' || quote.status === 'sent') && !quote.job_id;
 
   return (
     <>
