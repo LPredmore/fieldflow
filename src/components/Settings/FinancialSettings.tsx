@@ -61,11 +61,6 @@ export default function FinancialSettings() {
         default_invoice_notes: "",
         default_quote_terms: "Payment due within 30 days of acceptance",
       },
-      payment_settings: {
-        paypal_me_link: "",
-        venmo_handle: "",
-        other_instructions: "",
-      },
     },
   });
 
