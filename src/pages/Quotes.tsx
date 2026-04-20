@@ -196,7 +196,7 @@ export default function Quotes() {
                 onPreview={handlePreviewQuote}
                 onShare={shareQuote}
                 onSendEmail={handleSendQuoteEmail}
-                onConvertToJob={convertToJob}
+                onConvertToJob={handleConvertQuoteRequest}
               />
             ))}
           </div>
@@ -245,6 +245,18 @@ export default function Quotes() {
           open={showQuotePreview}
           onOpenChange={setShowQuotePreview}
           quote={selectedQuote}
+        />
+
+        {/* Convert Quote → Job dialog */}
+        <ConvertQuoteToJobDialog
+          open={showConvertDialog}
+          onOpenChange={(open) => {
+            setShowConvertDialog(open);
+            if (!open) setQuoteToConvert(null);
+          }}
+          quote={quoteToConvert}
+          onConfirm={handleConvertConfirm}
+          isSubmitting={isConverting}
         />
         </main>
       </div>
