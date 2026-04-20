@@ -48,7 +48,7 @@ interface Quote {
   customer_id: string;
   customer_name: string;
   title: string;
-  status: 'draft' | 'sent' | 'accepted' | 'declined';
+  status: 'requested' | 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
   estimated_start_date?: string;
   estimated_completion_date?: string;
