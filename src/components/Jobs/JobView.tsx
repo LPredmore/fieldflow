@@ -8,6 +8,8 @@ import { Calendar, Clock, DollarSign, User, FileText, Wrench, Edit, AlertTriangl
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import JobForm from '@/components/Jobs/JobForm';
 import JobSeriesView from '@/components/Jobs/JobSeriesView';
+import JobExpensesTab from '@/components/Jobs/JobExpensesTab';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { combineDateTimeToUTC, formatInUserTimezone } from '@/lib/timezoneUtils';
 import { format } from 'date-fns';
 import { useUserTimezone } from '@/hooks/useUserTimezone';
