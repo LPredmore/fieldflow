@@ -265,6 +265,108 @@ export type Database = {
           },
         ]
       }
+      job_expenses: {
+        Row: {
+          billable: boolean
+          billed_to_invoice_id: string | null
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at: string
+          created_by_user_id: string
+          description: string
+          expense_date: string
+          id: string
+          job_occurrence_id: string | null
+          job_series_id: string
+          markup_percent: number | null
+          notes: string | null
+          quantity: number
+          receipt_file_id: string | null
+          tenant_id: string
+          total_cost: number | null
+          unit_cost: number
+          updated_at: string | null
+          vendor: string | null
+        }
+        Insert: {
+          billable?: boolean
+          billed_to_invoice_id?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by_user_id: string
+          description: string
+          expense_date?: string
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id: string
+          markup_percent?: number | null
+          notes?: string | null
+          quantity?: number
+          receipt_file_id?: string | null
+          tenant_id: string
+          total_cost?: number | null
+          unit_cost?: number
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          billable?: boolean
+          billed_to_invoice_id?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by_user_id?: string
+          description?: string
+          expense_date?: string
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id?: string
+          markup_percent?: number | null
+          notes?: string | null
+          quantity?: number
+          receipt_file_id?: string | null
+          tenant_id?: string
+          total_cost?: number | null
+          unit_cost?: number
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_expenses_billed_to_invoice_id_fkey"
+            columns: ["billed_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_occurrence_id_fkey"
+            columns: ["job_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "job_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
+            referencedRelation: "job_series"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_receipt_file_id_fkey"
+            columns: ["receipt_file_id"]
+            isOneToOne: false
+            referencedRelation: "job_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_files: {
         Row: {
           bucket_id: string
@@ -387,6 +489,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_occurrences_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
           {
             foreignKeyName: "job_occurrences_series_id_fkey"
             columns: ["series_id"]
@@ -1021,6 +1130,13 @@ export type Database = {
             foreignKeyName: "time_entries_job_series_id_fkey"
             columns: ["job_series_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
+          {
+            foreignKeyName: "time_entries_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
             referencedRelation: "job_series"
             referencedColumns: ["id"]
           },
@@ -1093,7 +1209,26 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      job_cost_summary: {
+        Row: {
+          customer_id: string | null
+          customer_name: string | null
+          expense_total: number | null
+          gross_margin: number | null
+          job_series_id: string | null
+          labor_cost: number | null
+          labor_hours: number | null
+          margin_percent: number | null
+          revenue: number | null
+          service_type: Database["public"]["Enums"]["job_service_type"] | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          tenant_id: string | null
+          title: string | null
+          total_cost: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_rate_limit: {
@@ -1121,6 +1256,18 @@ export type Database = {
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_customer_profitability: {
+        Args: { date_from?: string; date_to?: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          gross_margin: number
+          job_count: number
+          margin_percent: number
+          revenue: number
+          total_cost: number
+        }[]
       }
       get_masked_customer_data: {
         Args: { customer_row: Database["public"]["Tables"]["customers"]["Row"] }
@@ -1166,6 +1313,17 @@ export type Database = {
           valid_until: string
         }[]
       }
+      get_service_type_profitability: {
+        Args: { date_from?: string; date_to?: string }
+        Returns: {
+          gross_margin: number
+          job_count: number
+          margin_percent: number
+          revenue: number
+          service_type: Database["public"]["Enums"]["job_service_type"]
+          total_cost: number
+        }[]
+      }
       get_user_permissions: {
         Args: { target_user_id: string }
         Returns: {
@@ -1199,6 +1357,13 @@ export type Database = {
     }
     Enums: {
       customer_type: "residential" | "commercial"
+      expense_category:
+        | "material"
+        | "mileage"
+        | "subcontractor"
+        | "equipment"
+        | "permit"
+        | "other"
       file_entity_type: "job_occurrence" | "job_series" | "quote" | "invoice"
       file_kind:
         | "photo_before"
@@ -1356,6 +1521,14 @@ export const Constants = {
   public: {
     Enums: {
       customer_type: ["residential", "commercial"],
+      expense_category: [
+        "material",
+        "mileage",
+        "subcontractor",
+        "equipment",
+        "permit",
+        "other",
+      ],
       file_entity_type: ["job_occurrence", "job_series", "quote", "invoice"],
       file_kind: [
         "photo_before",
