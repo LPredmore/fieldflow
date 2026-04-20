@@ -44,6 +44,7 @@ export function useUnifiedJobs() {
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
+  const { generateInvoice } = useGenerateInvoiceFromJob();
   const userTimezone = useUserTimezone();
 
   const fetchUnifiedJobs = async () => {
