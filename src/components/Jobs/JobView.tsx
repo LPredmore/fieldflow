@@ -493,6 +493,12 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="costs" className="mt-4">
+          <JobExpensesTab jobSeriesId={jobSeriesId} jobOccurrenceId={jobOccurrenceId} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
