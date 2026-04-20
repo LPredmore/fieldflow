@@ -61,6 +61,8 @@ export default function Quotes() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showQuotePreview, setShowQuotePreview] = useState(false);
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [quoteToConvert, setQuoteToConvert] = useState<Quote | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
 
@@ -81,6 +83,18 @@ export default function Quotes() {
     setSelectedQuote(null);
     setFormMode("create");
     setShowQuoteForm(true);
+  };
+
+  const handleConvertQuoteRequest = (quote: Quote) => {
+    setQuoteToConvert(quote);
+    setShowConvertDialog(true);
+  };
+
+  const handleConvertConfirm = (values: ConvertQuoteFormValues) => {
+    if (!quoteToConvert) return;
+    convertToJob({ quoteId: quoteToConvert.id, options: values });
+    setShowConvertDialog(false);
+    setQuoteToConvert(null);
   };
 
   const handleEditQuote = (quote: Quote) => {
