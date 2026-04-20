@@ -41,11 +41,16 @@ import { canSendQuotes } from "@/utils/permissionUtils";
 interface Quote {
   id: string;
   quote_number: string;
+  customer_id: string;
   customer_name: string;
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
   total_amount: number;
   valid_until?: string;
+  estimated_start_date?: string;
+  is_emergency?: boolean;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other' | null;
+  job_id?: string | null;
   created_at: string;
   notes?: string;
 }
@@ -58,7 +63,7 @@ interface QuoteCardProps {
   onPreview: (quote: Quote) => void;
   onShare: (id: string) => void;
   onSendEmail: (quote: Quote) => void;
-  onConvertToJob: (id: string) => void;
+  onConvertToJob: (quote: Quote) => void;
 }
 
 export function QuoteCard({ 
