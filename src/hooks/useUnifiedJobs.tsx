@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
+import { useGenerateInvoiceFromJob } from './useGenerateInvoiceFromJob';
 import { useUserTimezone } from './useUserTimezone';
 import { combineDateTimeToUTC, DEFAULT_TIMEZONE, formatInUserTimezone } from '@/lib/timezoneUtils';
 
