@@ -242,9 +242,9 @@ export default function ClientJobs() {
                       <p className="text-sm text-muted-foreground mb-4">{description}</p>
                     )}
                     {job.completion_notes && (
-                      <div className="mb-4 p-3 rounded-md bg-emerald-50 border border-emerald-200">
-                        <p className="text-xs font-semibold text-emerald-900 mb-1">Completion Notes</p>
-                        <p className="text-sm text-emerald-800">{job.completion_notes}</p>
+                      <div className="mb-4 p-3 rounded-md bg-accent border border-border">
+                        <p className="text-xs font-semibold text-foreground mb-1">Completion Notes</p>
+                        <p className="text-sm text-muted-foreground">{job.completion_notes}</p>
                       </div>
                     )}
 
