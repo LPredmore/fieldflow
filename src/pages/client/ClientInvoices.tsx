@@ -5,8 +5,9 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Receipt, ExternalLink, Calendar, DollarSign } from 'lucide-react';
+import { Receipt, ExternalLink, Calendar, DollarSign, CreditCard, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
+import { useToast } from '@/hooks/use-toast';
 
 interface Invoice {
   id: string;
@@ -20,8 +21,44 @@ interface Invoice {
 
 export default function ClientInvoices() {
   const { customer, loading: customerLoading } = useClientCustomer();
+  const { toast } = useToast();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
+  const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
+
+  const handlePayNow = async (invoice: Invoice) => {
+    if (!invoice.share_token) {
+      toast({
+        title: 'Cannot pay invoice',
+        description: 'This invoice does not have a payment link available. Please contact support.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setPayingInvoiceId(invoice.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('create-invoice-checkout', {
+        body: {
+          share_token: invoice.share_token,
+          return_origin: window.location.origin,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.url) throw new Error('No checkout URL returned');
+
+      window.location.href = data.url;
+    } catch (err: any) {
+      console.error('Payment error:', err);
+      toast({
+        title: 'Unable to start payment',
+        description: err?.message || 'Please try again or contact support.',
+        variant: 'destructive',
+      });
+      setPayingInvoiceId(null);
+    }
+  };
 
   useEffect(() => {
     const fetchInvoices = async () => {
@@ -132,17 +169,40 @@ export default function ClientInvoices() {
                   </div>
                 </div>
                 
-                {invoice.share_token && invoice.status !== 'paid' && (
-                  <Button asChild variant="outline" size="sm">
-                    <a 
-                      href={`/public-invoice/${invoice.share_token}`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      View Invoice
-                    </a>
-                  </Button>
+                {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
+                  <div className="flex flex-wrap gap-2">
+                    {invoice.share_token && (
+                      <>
+                        <Button
+                          size="sm"
+                          onClick={() => handlePayNow(invoice)}
+                          disabled={payingInvoiceId === invoice.id}
+                        >
+                          {payingInvoiceId === invoice.id ? (
+                            <>
+                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                              Starting payment…
+                            </>
+                          ) : (
+                            <>
+                              <CreditCard className="h-4 w-4 mr-2" />
+                              Pay Now
+                            </>
+                          )}
+                        </Button>
+                        <Button asChild variant="outline" size="sm">
+                          <a
+                            href={`/public-invoice/${invoice.share_token}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                          >
+                            <ExternalLink className="h-4 w-4 mr-2" />
+                            View Invoice
+                          </a>
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 )}
               </CardContent>
             </Card>
