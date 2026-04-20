@@ -265,6 +265,101 @@ export type Database = {
           },
         ]
       }
+      job_expenses: {
+        Row: {
+          billable: boolean
+          billed_to_invoice_id: string | null
+          category: Database["public"]["Enums"]["expense_category"]
+          created_at: string
+          created_by_user_id: string
+          description: string
+          expense_date: string
+          id: string
+          job_occurrence_id: string | null
+          job_series_id: string
+          markup_percent: number | null
+          notes: string | null
+          quantity: number
+          receipt_file_id: string | null
+          tenant_id: string
+          total_cost: number | null
+          unit_cost: number
+          updated_at: string | null
+          vendor: string | null
+        }
+        Insert: {
+          billable?: boolean
+          billed_to_invoice_id?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by_user_id: string
+          description: string
+          expense_date?: string
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id: string
+          markup_percent?: number | null
+          notes?: string | null
+          quantity?: number
+          receipt_file_id?: string | null
+          tenant_id: string
+          total_cost?: number | null
+          unit_cost?: number
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Update: {
+          billable?: boolean
+          billed_to_invoice_id?: string | null
+          category?: Database["public"]["Enums"]["expense_category"]
+          created_at?: string
+          created_by_user_id?: string
+          description?: string
+          expense_date?: string
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id?: string
+          markup_percent?: number | null
+          notes?: string | null
+          quantity?: number
+          receipt_file_id?: string | null
+          tenant_id?: string
+          total_cost?: number | null
+          unit_cost?: number
+          updated_at?: string | null
+          vendor?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_expenses_billed_to_invoice_id_fkey"
+            columns: ["billed_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_occurrence_id_fkey"
+            columns: ["job_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "job_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
+            referencedRelation: "job_series"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_expenses_receipt_file_id_fkey"
+            columns: ["receipt_file_id"]
+            isOneToOne: false
+            referencedRelation: "job_files"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_files: {
         Row: {
           bucket_id: string
@@ -1199,6 +1294,13 @@ export type Database = {
     }
     Enums: {
       customer_type: "residential" | "commercial"
+      expense_category:
+        | "material"
+        | "mileage"
+        | "subcontractor"
+        | "equipment"
+        | "permit"
+        | "other"
       file_entity_type: "job_occurrence" | "job_series" | "quote" | "invoice"
       file_kind:
         | "photo_before"
@@ -1356,6 +1458,14 @@ export const Constants = {
   public: {
     Enums: {
       customer_type: ["residential", "commercial"],
+      expense_category: [
+        "material",
+        "mileage",
+        "subcontractor",
+        "equipment",
+        "permit",
+        "other",
+      ],
       file_entity_type: ["job_occurrence", "job_series", "quote", "invoice"],
       file_kind: [
         "photo_before",
