@@ -303,6 +303,13 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
         )}
       </div>
 
+      <Tabs defaultValue="details" className="w-full">
+        <TabsList>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="costs">Costs &amp; Profitability</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details" className="space-y-6 mt-4">
       {/* Basic Info */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <Card>
