@@ -39,6 +39,19 @@ interface Quote {
   tenant_id: string;
   created_by_user_id: string;
   created_by_user_name?: string;
+  job_id?: string | null;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other' | null;
+}
+
+// Options for converting a quote to a job
+export interface ConvertToJobOptions {
+  start_date?: string; // yyyy-MM-dd
+  local_start_time?: string; // HH:mm:ss
+  duration_minutes?: number;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  assigned_to_user_id?: string | null;
+  timezone?: string;
 }
 
 interface QuoteFormData {
