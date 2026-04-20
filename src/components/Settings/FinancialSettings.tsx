@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2 } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import PaymentMethodsSettings from "./PaymentMethodsSettings";
 
 const formSchema = z.object({
   tax_settings: z.object({
