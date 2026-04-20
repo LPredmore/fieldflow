@@ -26,6 +26,10 @@ interface Quote {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  estimated_start_date?: string;
+  is_emergency?: boolean;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other' | null;
+  job_id?: string | null;
   line_items: any[];
   tax_rate: number;
   notes?: string;
