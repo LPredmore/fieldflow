@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './useAuth';
 import { useToast } from '@/hooks/use-toast';
 import { useInvoices } from './useInvoices';
+import { useGenerateInvoiceFromJob } from './useGenerateInvoiceFromJob';
 import { useUserTimezone } from './useUserTimezone';
 import { combineDateTimeToUTC, DEFAULT_TIMEZONE, formatInUserTimezone } from '@/lib/timezoneUtils';
 
@@ -43,6 +44,7 @@ export function useUnifiedJobs() {
   const { user, tenantId } = useAuth();
   const { toast } = useToast();
   const { createInvoice } = useInvoices();
+  const { generateInvoice } = useGenerateInvoiceFromJob();
   const userTimezone = useUserTimezone();
 
   const fetchUnifiedJobs = async () => {
@@ -299,44 +301,66 @@ export function useUnifiedJobs() {
     
     // Auto-create invoice when job is marked as completed
     if (isStatusChangingToCompleted) {
-      try {
-        const issueDate = new Date().toISOString().split('T')[0];
-        const dueDate = new Date();
-        dueDate.setDate(dueDate.getDate() + 30);
-        
-        const jobCost = data.actual_cost || job.estimated_cost || 0;
-        const lineItems = [{
-          description: `${job.service_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} - ${job.title}`,
-          quantity: 1,
-          unit_price: jobCost,
-          total: jobCost
-        }];
+      // For one-time jobs the job id IS the job_series row; for recurring instances use series_id
+      const jobSeriesId = job.job_type === 'one_time' ? jobId : job.series_id;
 
-        await createInvoice({
-          customer_id: job.customer_id,
-          customer_name: job.customer_name,
-          job_id: jobId,
-          issue_date: issueDate,
-          due_date: dueDate.toISOString().split('T')[0],
-          status: 'draft',
-          line_items: lineItems,
-          tax_rate: 8.75,
-          payment_terms: 'Net 30',
-          notes: data.completion_notes || undefined
-        });
-
-        toast({
-          title: "Job completed & Invoice created",
-          description: "The job has been marked as completed and a draft invoice has been created.",
-        });
-      } catch (invoiceError) {
-        console.error('Error creating invoice:', invoiceError);
-        toast({
-          title: "Job updated",
-          description: "The job has been updated, but there was an error creating the invoice.",
-          variant: "destructive",
-        });
+      let autoInvoiceCreated = false;
+      if (jobSeriesId) {
+        try {
+          const result = await generateInvoice({
+            jobSeriesId,
+            silent: true,
+            taxRate: 8.75,
+            dueInDays: 30,
+            notes: data.completion_notes || undefined,
+          });
+          autoInvoiceCreated = !result?.skipped;
+        } catch (err: any) {
+          // No invoiceable items (no quote/labor/expenses) — fall back to legacy single-line invoice
+          console.warn('Aggregated invoice generation skipped, falling back:', err?.message);
+        }
       }
+
+      if (!autoInvoiceCreated) {
+        try {
+          const issueDate = new Date().toISOString().split('T')[0];
+          const dueDate = new Date();
+          dueDate.setDate(dueDate.getDate() + 30);
+
+          const jobCost = data.actual_cost || job.estimated_cost || 0;
+          const lineItems = [{
+            description: `${job.service_type.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())} - ${job.title}`,
+            quantity: 1,
+            unit_price: jobCost,
+            total: jobCost
+          }];
+
+          await createInvoice({
+            customer_id: job.customer_id,
+            customer_name: job.customer_name,
+            job_id: jobSeriesId ?? jobId,
+            issue_date: issueDate,
+            due_date: dueDate.toISOString().split('T')[0],
+            status: 'draft',
+            line_items: lineItems,
+            tax_rate: 8.75,
+            payment_terms: 'Net 30',
+            notes: data.completion_notes || undefined
+          });
+        } catch (invoiceError) {
+          console.error('Error creating fallback invoice:', invoiceError);
+          toast({
+            title: "Job updated",
+            description: "The job has been updated, but there was an error creating the invoice.",
+            variant: "destructive",
+          });
+        }
+      }
+
+      toast({
+        title: "Job completed & Invoice created",
+        description: "Draft invoice generated from quote items, labor, and expenses.",
+      });
     } else if (isStatusChangingToCancelled && job.job_type === 'recurring_instance') {
       toast({
         title: "Job series cancelled",
