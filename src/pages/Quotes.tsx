@@ -15,6 +15,7 @@ import { QuoteStatsCards } from "@/components/Quotes/QuoteStatsCards";
 import { QuoteCard } from "@/components/Quotes/QuoteCard";
 import { QuoteForm } from "@/components/Quotes/QuoteForm";
 import { QuotePreview } from "@/components/Quotes/QuotePreview";
+import { ConvertQuoteToJobDialog, type ConvertQuoteFormValues } from "@/components/Quotes/ConvertQuoteToJobDialog";
 import { useQuotes } from "@/hooks/useQuotes";
 
 interface Quote {
