@@ -162,12 +162,15 @@ export type Database = {
           notes: string | null
           paid_date: string | null
           payment_instructions: string | null
+          payment_method_used: string | null
           payment_terms: string
           paypal_me_link: string | null
           sent_date: string | null
           share_token: string | null
           share_token_expires_at: string | null
           status: Database["public"]["Enums"]["invoice_status"]
+          stripe_checkout_session_id: string | null
+          stripe_payment_intent_id: string | null
           subtotal: number
           tax_amount: number
           tax_rate: number
@@ -190,12 +193,15 @@ export type Database = {
           notes?: string | null
           paid_date?: string | null
           payment_instructions?: string | null
+          payment_method_used?: string | null
           payment_terms?: string
           paypal_me_link?: string | null
           sent_date?: string | null
           share_token?: string | null
           share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
           subtotal: number
           tax_amount: number
           tax_rate?: number
@@ -218,12 +224,15 @@ export type Database = {
           notes?: string | null
           paid_date?: string | null
           payment_instructions?: string | null
+          payment_method_used?: string | null
           payment_terms?: string
           paypal_me_link?: string | null
           sent_date?: string | null
           share_token?: string | null
           share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["invoice_status"]
+          stripe_checkout_session_id?: string | null
+          stripe_payment_intent_id?: string | null
           subtotal?: number
           tax_amount?: number
           tax_rate?: number
@@ -819,6 +828,51 @@ export type Database = {
         }
         Relationships: []
       }
+      stripe_connected_accounts: {
+        Row: {
+          account_email: string | null
+          charges_enabled: boolean
+          connected_at: string
+          created_at: string
+          created_by_user_id: string
+          disconnected_at: string | null
+          display_name: string | null
+          id: string
+          payouts_enabled: boolean
+          stripe_account_id: string
+          tenant_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          account_email?: string | null
+          charges_enabled?: boolean
+          connected_at?: string
+          created_at?: string
+          created_by_user_id: string
+          disconnected_at?: string | null
+          display_name?: string | null
+          id?: string
+          payouts_enabled?: boolean
+          stripe_account_id: string
+          tenant_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          account_email?: string | null
+          charges_enabled?: boolean
+          connected_at?: string
+          created_at?: string
+          created_by_user_id?: string
+          disconnected_at?: string | null
+          display_name?: string | null
+          id?: string
+          payouts_enabled?: boolean
+          stripe_account_id?: string
+          tenant_id?: string
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       user_permissions: {
         Row: {
           access_invoicing: boolean
@@ -929,8 +983,11 @@ export type Database = {
           issue_date: string
           line_items: Json
           notes: string
+          payment_method_used: string
+          payment_settings: Json
           payment_terms: string
           status: Database["public"]["Enums"]["invoice_status"]
+          stripe_enabled: boolean
           subtotal: number
           tax_amount: number
           tax_rate: number
