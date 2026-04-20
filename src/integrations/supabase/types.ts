@@ -348,6 +348,13 @@ export type Database = {
             foreignKeyName: "job_expenses_job_series_id_fkey"
             columns: ["job_series_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
+          {
+            foreignKeyName: "job_expenses_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
             referencedRelation: "job_series"
             referencedColumns: ["id"]
           },
@@ -482,6 +489,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "job_occurrences_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
           {
             foreignKeyName: "job_occurrences_series_id_fkey"
             columns: ["series_id"]
@@ -1116,6 +1130,13 @@ export type Database = {
             foreignKeyName: "time_entries_job_series_id_fkey"
             columns: ["job_series_id"]
             isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
+          {
+            foreignKeyName: "time_entries_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
             referencedRelation: "job_series"
             referencedColumns: ["id"]
           },
@@ -1188,7 +1209,26 @@ export type Database = {
       }
     }
     Views: {
-      [_ in never]: never
+      job_cost_summary: {
+        Row: {
+          customer_id: string | null
+          customer_name: string | null
+          expense_total: number | null
+          gross_margin: number | null
+          job_series_id: string | null
+          labor_cost: number | null
+          labor_hours: number | null
+          margin_percent: number | null
+          revenue: number | null
+          service_type: Database["public"]["Enums"]["job_service_type"] | null
+          start_date: string | null
+          status: Database["public"]["Enums"]["job_status"] | null
+          tenant_id: string | null
+          title: string | null
+          total_cost: number | null
+        }
+        Relationships: []
+      }
     }
     Functions: {
       check_rate_limit: {
@@ -1216,6 +1256,18 @@ export type Database = {
       get_current_user_role: {
         Args: never
         Returns: Database["public"]["Enums"]["user_role"]
+      }
+      get_customer_profitability: {
+        Args: { date_from?: string; date_to?: string }
+        Returns: {
+          customer_id: string
+          customer_name: string
+          gross_margin: number
+          job_count: number
+          margin_percent: number
+          revenue: number
+          total_cost: number
+        }[]
       }
       get_masked_customer_data: {
         Args: { customer_row: Database["public"]["Tables"]["customers"]["Row"] }
@@ -1259,6 +1311,17 @@ export type Database = {
           title: string
           total_amount: number
           valid_until: string
+        }[]
+      }
+      get_service_type_profitability: {
+        Args: { date_from?: string; date_to?: string }
+        Returns: {
+          gross_margin: number
+          job_count: number
+          margin_percent: number
+          revenue: number
+          service_type: Database["public"]["Enums"]["job_service_type"]
+          total_cost: number
         }[]
       }
       get_user_permissions: {
