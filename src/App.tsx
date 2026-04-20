@@ -36,6 +36,7 @@ const ClientDashboard = lazy(() => import("./pages/client/ClientDashboard"));
 const ClientProfile = lazy(() => import("./pages/client/ClientProfile"));
 const ClientQuotes = lazy(() => import("./pages/client/ClientQuotes"));
 const ClientInvoices = lazy(() => import("./pages/client/ClientInvoices"));
+const ClientServiceRequest = lazy(() => import("./pages/client/ClientServiceRequest"));
 
 const PageLoadingFallback = () => (
   <div className="min-h-screen bg-background flex items-center justify-center">
@@ -91,6 +92,15 @@ const App = () => (
                   <ClientLayout>
                     <Suspense fallback={<PageLoadingFallback />}>
                       <ClientInvoices />
+                    </Suspense>
+                  </ClientLayout>
+                </ClientProtectedRoute>
+              } />
+              <Route path="/client/request-service" element={
+                <ClientProtectedRoute>
+                  <ClientLayout>
+                    <Suspense fallback={<PageLoadingFallback />}>
+                      <ClientServiceRequest />
                     </Suspense>
                   </ClientLayout>
                 </ClientProtectedRoute>

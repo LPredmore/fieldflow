@@ -11,14 +11,16 @@ import {
   User, 
   LogOut,
   FileText,
-  Receipt
+  Receipt,
+  PlusCircle
 } from 'lucide-react';
 
 const clientNavigationItems = [
   { name: 'Dashboard', href: '/client/dashboard', icon: LayoutDashboard },
-  { name: 'My Profile', href: '/client/profile', icon: User },
+  { name: 'Request Service', href: '/client/request-service', icon: PlusCircle },
   { name: 'My Quotes', href: '/client/quotes', icon: FileText },
   { name: 'My Invoices', href: '/client/invoices', icon: Receipt },
+  { name: 'My Profile', href: '/client/profile', icon: User },
 ];
 
 export function ClientNavigation() {

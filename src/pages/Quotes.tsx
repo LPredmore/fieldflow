@@ -24,7 +24,7 @@ interface Quote {
   customer_id: string;
   customer_name: string;
   title: string;
-  status: 'draft' | 'sent' | 'accepted' | 'declined';
+  status: 'requested' | 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
   estimated_start_date?: string;
   is_emergency?: boolean;
@@ -175,6 +175,7 @@ export default function Quotes() {
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="all">All Status</SelectItem>
+              <SelectItem value="requested">Requested</SelectItem>
               <SelectItem value="draft">Draft</SelectItem>
               <SelectItem value="sent">Sent</SelectItem>
               <SelectItem value="accepted">Accepted</SelectItem>
