@@ -95,7 +95,6 @@ export default function FinancialSettings() {
       const updateData = {
         tax_settings: data.tax_settings,
         invoice_settings: data.invoice_settings,
-        payment_settings: data.payment_settings,
       };
 
       if (settings) {
