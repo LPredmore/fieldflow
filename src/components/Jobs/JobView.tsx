@@ -255,6 +255,14 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
     return new Date().toISOString();
   };
 
+  // Resolve the job_series_id used by costing/expenses
+  const jobSeriesId = (() => {
+    if ('series_id' in unifiedJob && unifiedJob.series_id) return unifiedJob.series_id as string;
+    return unifiedJob.id;
+  })();
+  const jobOccurrenceId =
+    'job_type' in unifiedJob && unifiedJob.job_type === 'recurring_instance' ? unifiedJob.id : null;
+
   return (
     <div className="space-y-6">
       {/* Job Type Alert for Recurring Jobs */}
