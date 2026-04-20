@@ -17,6 +17,7 @@ const formSchema = z.object({
     data_retention_days: z.number().min(30).max(2555), // Max ~7 years
     require_job_photos: z.boolean(),
     customer_portal_enabled: z.boolean(),
+    auto_create_job_on_acceptance: z.boolean(),
   }),
 });
 
@@ -34,6 +35,7 @@ export default function SystemSettings() {
         data_retention_days: 365,
         require_job_photos: false,
         customer_portal_enabled: false,
+        auto_create_job_on_acceptance: true,
       },
     },
   });
@@ -48,6 +50,7 @@ export default function SystemSettings() {
           data_retention_days: systemSettings.data_retention_days || 365,
           require_job_photos: systemSettings.require_job_photos ?? false,
           customer_portal_enabled: systemSettings.customer_portal_enabled ?? false,
+          auto_create_job_on_acceptance: systemSettings.auto_create_job_on_acceptance ?? true,
         },
       });
     }
@@ -155,6 +158,27 @@ export default function SystemSettings() {
                       <FormLabel className="text-base">Require Job Photos</FormLabel>
                       <FormDescription>
                         Require photo uploads when marking jobs as completed
+                      </FormDescription>
+                    </div>
+                    <FormControl>
+                      <Switch
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+
+              <FormField
+                control={form.control}
+                name="system_settings.auto_create_job_on_acceptance"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-center justify-between rounded-lg border p-4">
+                    <div className="space-y-0.5">
+                      <FormLabel className="text-base">Auto-create job when quote is accepted</FormLabel>
+                      <FormDescription>
+                        Automatically create a job when a customer accepts a quote via the public share link
                       </FormDescription>
                     </div>
                     <FormControl>
