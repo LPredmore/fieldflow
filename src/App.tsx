@@ -29,6 +29,7 @@ const PublicQuote = lazy(() => import("./pages/PublicQuote"));
 const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const Profitability = lazy(() => import("./pages/Profitability"));
 
 // Client portal pages
 const ClientDashboard = lazy(() => import("./pages/client/ClientDashboard"));
@@ -127,6 +128,17 @@ const App = () => (
               <Route path="/calendar" element={<ProtectedRoute><Layout><Suspense fallback={<PageLoadingFallback />}><Calendar /></Suspense></Layout></ProtectedRoute>} />
               <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Layout><AdminProtectedRoute><Settings /></AdminProtectedRoute></Layout></ProtectedRoute>} />
+              <Route path="/profitability" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AdminProtectedRoute>
+                      <Suspense fallback={<PageLoadingFallback />}>
+                        <Profitability />
+                      </Suspense>
+                    </AdminProtectedRoute>
+                  </Layout>
+                </ProtectedRoute>
+              } />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<Suspense fallback={<PageLoadingFallback />}><NotFound /></Suspense>} />
             </Routes>

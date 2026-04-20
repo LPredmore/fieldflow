@@ -12,7 +12,8 @@ import {
   X,
   Wrench,
   User,
-  LogOut
+  LogOut,
+  TrendingUp
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -30,6 +31,7 @@ const navigationItems = [
   { name: "Quotes", href: "/quotes", icon: FileText },
   { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Profitability", href: "/profitability", icon: TrendingUp },
   { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
 ];
@@ -90,6 +92,11 @@ export default function Navigation() {
               
               // Hide Settings for non-admin users
               if (item.name === 'Settings' && !canAccessSettings(userRole)) {
+                return null;
+              }
+              
+              // Profitability is admin-only
+              if (item.name === 'Profitability' && !canAccessSettings(userRole)) {
                 return null;
               }
               
