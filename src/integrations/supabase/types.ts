@@ -165,6 +165,7 @@ export type Database = {
           payment_method_used: string | null
           payment_terms: string
           paypal_me_link: string | null
+          quote_id: string | null
           sent_date: string | null
           share_token: string | null
           share_token_expires_at: string | null
@@ -196,6 +197,7 @@ export type Database = {
           payment_method_used?: string | null
           payment_terms?: string
           paypal_me_link?: string | null
+          quote_id?: string | null
           sent_date?: string | null
           share_token?: string | null
           share_token_expires_at?: string | null
@@ -227,6 +229,7 @@ export type Database = {
           payment_method_used?: string | null
           payment_terms?: string
           paypal_me_link?: string | null
+          quote_id?: string | null
           sent_date?: string | null
           share_token?: string | null
           share_token_expires_at?: string | null
@@ -254,6 +257,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
             referencedColumns: ["id"]
           },
           {
@@ -526,6 +536,7 @@ export type Database = {
           local_start_time: string
           notes: string | null
           priority: Database["public"]["Enums"]["job_priority"]
+          quote_id: string | null
           rrule: string | null
           scheduled_end_time_utc: string | null
           scheduled_time_utc: string | null
@@ -558,6 +569,7 @@ export type Database = {
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
+          quote_id?: string | null
           rrule?: string | null
           scheduled_end_time_utc?: string | null
           scheduled_time_utc?: string | null
@@ -590,6 +602,7 @@ export type Database = {
           local_start_time?: string
           notes?: string | null
           priority?: Database["public"]["Enums"]["job_priority"]
+          quote_id?: string | null
           rrule?: string | null
           scheduled_end_time_utc?: string | null
           scheduled_time_utc?: string | null
@@ -602,7 +615,15 @@ export type Database = {
           until_date?: string | null
           updated_at?: string | null
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "job_series_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       profiles: {
         Row: {
@@ -697,10 +718,12 @@ export type Database = {
           estimated_start_date: string | null
           id: string
           is_emergency: boolean
+          job_id: string | null
           line_items: Json
           notes: string | null
           quote_number: string
           sent_date: string | null
+          service_type: Database["public"]["Enums"]["job_service_type"] | null
           share_token: string | null
           share_token_expires_at: string | null
           status: Database["public"]["Enums"]["quote_status"]
@@ -723,10 +746,12 @@ export type Database = {
           estimated_start_date?: string | null
           id?: string
           is_emergency?: boolean
+          job_id?: string | null
           line_items: Json
           notes?: string | null
           quote_number: string
           sent_date?: string | null
+          service_type?: Database["public"]["Enums"]["job_service_type"] | null
           share_token?: string | null
           share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
@@ -749,10 +774,12 @@ export type Database = {
           estimated_start_date?: string | null
           id?: string
           is_emergency?: boolean
+          job_id?: string | null
           line_items?: Json
           notes?: string | null
           quote_number?: string
           sent_date?: string | null
+          service_type?: Database["public"]["Enums"]["job_service_type"] | null
           share_token?: string | null
           share_token_expires_at?: string | null
           status?: Database["public"]["Enums"]["quote_status"]
@@ -779,6 +806,20 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_series_id"]
+          },
+          {
+            foreignKeyName: "quotes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_series"
             referencedColumns: ["id"]
           },
           {
@@ -1046,6 +1087,7 @@ export type Database = {
         Row: {
           approved_at: string | null
           approved_by_user_id: string | null
+          billed_to_invoice_id: string | null
           clock_in_accuracy_m: number | null
           clock_in_at: string
           clock_in_lat: number | null
@@ -1071,6 +1113,7 @@ export type Database = {
         Insert: {
           approved_at?: string | null
           approved_by_user_id?: string | null
+          billed_to_invoice_id?: string | null
           clock_in_accuracy_m?: number | null
           clock_in_at?: string
           clock_in_lat?: number | null
@@ -1096,6 +1139,7 @@ export type Database = {
         Update: {
           approved_at?: string | null
           approved_by_user_id?: string | null
+          billed_to_invoice_id?: string | null
           clock_in_accuracy_m?: number | null
           clock_in_at?: string
           clock_in_lat?: number | null
@@ -1119,6 +1163,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "time_entries_billed_to_invoice_id_fkey"
+            columns: ["billed_to_invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "time_entries_job_occurrence_id_fkey"
             columns: ["job_occurrence_id"]
@@ -1268,6 +1319,10 @@ export type Database = {
           revenue: number
           total_cost: number
         }[]
+      }
+      get_job_invoiceable_summary: {
+        Args: { _job_series_id: string }
+        Returns: Json
       }
       get_masked_customer_data: {
         Args: { customer_row: Database["public"]["Tables"]["customers"]["Row"] }
