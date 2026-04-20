@@ -59,7 +59,7 @@ export function useCalendarJobs() {
   const { user, tenantId } = useAuth();
   const userTimezone = useUserTimezone();
   const { toast } = useToast();
-  const fetchTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const fetchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastFetchRangeRef = useRef<string>('');
 
   const fetchJobs = useCallback(async () => {
