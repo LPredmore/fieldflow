@@ -722,6 +722,7 @@ export type Database = {
           line_items: Json
           notes: string | null
           quote_number: string
+          requested_by_client_user_id: string | null
           sent_date: string | null
           service_type: Database["public"]["Enums"]["job_service_type"] | null
           share_token: string | null
@@ -750,6 +751,7 @@ export type Database = {
           line_items: Json
           notes?: string | null
           quote_number: string
+          requested_by_client_user_id?: string | null
           sent_date?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"] | null
           share_token?: string | null
@@ -778,6 +780,7 @@ export type Database = {
           line_items?: Json
           notes?: string | null
           quote_number?: string
+          requested_by_client_user_id?: string | null
           sent_date?: string | null
           service_type?: Database["public"]["Enums"]["job_service_type"] | null
           share_token?: string | null
@@ -1398,6 +1401,10 @@ export type Database = {
           _role: Database["public"]["Enums"]["user_role"]
           _user_id: string
         }
+        Returns: boolean
+      }
+      is_customer_owned_by_client: {
+        Args: { _customer_id: string }
         Returns: boolean
       }
       validate_quote_response_input: {
