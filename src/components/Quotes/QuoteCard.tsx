@@ -29,7 +29,8 @@ import {
   Clock,
   CheckCircle,
   XCircle,
-  AlertTriangle
+  AlertTriangle,
+  Inbox
 } from "lucide-react";
 import { format } from "date-fns";
 import { useState } from "react";
@@ -44,7 +45,7 @@ interface Quote {
   customer_id: string;
   customer_name: string;
   title: string;
-  status: 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
+  status: 'requested' | 'draft' | 'sent' | 'accepted' | 'declined' | 'expired';
   total_amount: number;
   valid_until?: string;
   estimated_start_date?: string;
@@ -92,6 +93,7 @@ export function QuoteCard({
     const effectiveStatus = isExpired ? 'expired' : status;
     
     const statusConfig = {
+      requested: { label: "Requested", icon: Inbox, className: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200" },
       draft: { label: "Draft", icon: FileText, className: "bg-gray-100 text-gray-800" },
       sent: { label: "Sent", icon: Clock, className: "bg-blue-100 text-blue-800" },
       accepted: { label: "Accepted", icon: CheckCircle, className: "bg-green-100 text-green-800" },
