@@ -67,7 +67,7 @@ const handler = async (req: Request): Promise<Response> => {
     // Find the quote by share token first to get quote ID for validation
     const { data: quote, error: quoteError } = await supabase
       .from('quotes')
-      .select('id, status, customer_name')
+      .select('id, status, customer_name, customer_id, tenant_id, title, service_type, total_amount, notes, job_id, created_by_user_id, estimated_start_date')
       .eq('share_token', shareToken)
       .single();
 
@@ -124,6 +124,8 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    let createdJobId: string | null = null;
+
     // Update quote status if it's an acceptance or decline
     if (responseType === 'accepted' || responseType === 'declined') {
       const { error: updateError } = await supabase
@@ -141,6 +143,64 @@ const handler = async (req: Request): Promise<Response> => {
           }
         );
       }
+
+      // Auto-create job on acceptance (idempotent: skip if already linked)
+      if (responseType === 'accepted' && !quote.job_id) {
+        try {
+          // Check tenant setting for auto-create (defaults to true)
+          const { data: settingsRow } = await supabase
+            .from('settings')
+            .select('system_settings')
+            .eq('tenant_id', quote.tenant_id)
+            .maybeSingle();
+
+          const sys = (settingsRow?.system_settings as any) ?? {};
+          const autoCreate = sys.auto_create_job_on_acceptance !== false; // default true
+
+          if (autoCreate) {
+            const startDate = quote.estimated_start_date
+              ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+            const { data: newJob, error: jobError } = await supabase
+              .from('job_series')
+              .insert({
+                tenant_id: quote.tenant_id,
+                created_by_user_id: quote.created_by_user_id,
+                customer_id: quote.customer_id,
+                customer_name: quote.customer_name,
+                title: quote.title,
+                description: quote.notes ?? null,
+                service_type: quote.service_type ?? 'general_maintenance',
+                estimated_cost: quote.total_amount,
+                quote_id: quote.id,
+                is_recurring: false,
+                start_date: startDate,
+                local_start_time: '08:00:00',
+                duration_minutes: 60,
+                status: 'scheduled',
+                priority: 'medium',
+                active: true,
+              })
+              .select('id')
+              .single();
+
+            if (jobError) {
+              console.error('Auto job creation failed:', jobError);
+            } else if (newJob) {
+              createdJobId = newJob.id;
+              // Backlink quote -> job
+              await supabase
+                .from('quotes')
+                .update({ job_id: newJob.id })
+                .eq('id', quote.id);
+              console.log(`Auto-created job ${newJob.id} from accepted quote ${quote.id}`);
+            }
+          }
+        } catch (autoErr) {
+          console.error('Unexpected error during auto job creation:', autoErr);
+          // Non-fatal: quote acceptance still succeeds
+        }
+      }
     }
 
     console.log(`Quote ${responseType} recorded for quote ID: ${quote.id}`);
@@ -149,7 +209,9 @@ const handler = async (req: Request): Promise<Response> => {
       success: true, 
       message: `Quote ${responseType} successfully recorded`,
       quoteId: quote.id,
-      customerName: quote.customer_name
+      customerName: quote.customer_name,
+      jobId: createdJobId ?? quote.job_id ?? null,
+      jobAutoCreated: !!createdJobId,
     }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
