@@ -1437,7 +1437,13 @@ export type Database = {
         | "general_maintenance"
         | "other"
       job_status: "scheduled" | "in_progress" | "completed" | "cancelled"
-      quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
+      quote_status:
+        | "requested"
+        | "draft"
+        | "sent"
+        | "accepted"
+        | "declined"
+        | "expired"
       time_entry_status: "active" | "pending_approval" | "approved" | "rejected"
       time_zones:
         | "Eastern"
@@ -1604,7 +1610,14 @@ export const Constants = {
         "other",
       ],
       job_status: ["scheduled", "in_progress", "completed", "cancelled"],
-      quote_status: ["draft", "sent", "accepted", "declined", "expired"],
+      quote_status: [
+        "requested",
+        "draft",
+        "sent",
+        "accepted",
+        "declined",
+        "expired",
+      ],
       time_entry_status: ["active", "pending_approval", "approved", "rejected"],
       time_zones: [
         "Eastern",
