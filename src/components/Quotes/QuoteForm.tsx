@@ -131,7 +131,7 @@ export function QuoteForm({
         customer_id: quote.customer_id,
         customer_name: quote.customer_name,
         title: quote.title,
-        status: quote.status,
+        status: quote.status === 'requested' ? 'draft' : quote.status,
         valid_until: quote.valid_until ? new Date(quote.valid_until) : undefined,
         estimated_start_date: quote.estimated_start_date ? new Date(quote.estimated_start_date) : undefined,
         estimated_completion_date: quote.estimated_completion_date ? new Date(quote.estimated_completion_date) : undefined,
