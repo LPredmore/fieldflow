@@ -68,7 +68,6 @@ export default function FinancialSettings() {
     if (settings) {
       const taxSettings = settings.tax_settings || {};
       const invoiceSettings = settings.invoice_settings || {};
-      const paymentSettings = settings.payment_settings || {};
 
       form.reset({
         tax_settings: {
@@ -84,11 +83,6 @@ export default function FinancialSettings() {
           default_payment_terms: invoiceSettings.default_payment_terms || "net_30",
           default_invoice_notes: invoiceSettings.default_invoice_notes || "",
           default_quote_terms: invoiceSettings.default_quote_terms || "Payment due within 30 days of acceptance",
-        },
-        payment_settings: {
-          paypal_me_link: paymentSettings.paypal_me_link || "",
-          venmo_handle: paymentSettings.venmo_handle || "",
-          other_instructions: paymentSettings.other_instructions || "",
         },
       });
     }
