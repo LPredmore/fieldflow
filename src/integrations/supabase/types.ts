@@ -443,6 +443,7 @@ export type Database = {
           avatar_url: string | null
           company_name: string | null
           created_at: string
+          default_hourly_rate: number | null
           email: string | null
           full_name: string | null
           id: string
@@ -455,6 +456,7 @@ export type Database = {
           avatar_url?: string | null
           company_name?: string | null
           created_at?: string
+          default_hourly_rate?: number | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -467,6 +469,7 @@ export type Database = {
           avatar_url?: string | null
           company_name?: string | null
           created_at?: string
+          default_hourly_rate?: number | null
           email?: string | null
           full_name?: string | null
           id?: string
@@ -873,6 +876,99 @@ export type Database = {
         }
         Relationships: []
       }
+      time_entries: {
+        Row: {
+          approved_at: string | null
+          approved_by_user_id: string | null
+          clock_in_accuracy_m: number | null
+          clock_in_at: string
+          clock_in_lat: number | null
+          clock_in_lng: number | null
+          clock_out_accuracy_m: number | null
+          clock_out_at: string | null
+          clock_out_lat: number | null
+          clock_out_lng: number | null
+          created_at: string
+          duration_seconds: number | null
+          hourly_rate_snapshot: number | null
+          id: string
+          job_occurrence_id: string | null
+          job_series_id: string | null
+          manual_entry: boolean
+          notes: string | null
+          rejection_reason: string | null
+          status: Database["public"]["Enums"]["time_entry_status"]
+          tenant_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          clock_in_accuracy_m?: number | null
+          clock_in_at?: string
+          clock_in_lat?: number | null
+          clock_in_lng?: number | null
+          clock_out_accuracy_m?: number | null
+          clock_out_at?: string | null
+          clock_out_lat?: number | null
+          clock_out_lng?: number | null
+          created_at?: string
+          duration_seconds?: number | null
+          hourly_rate_snapshot?: number | null
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id?: string | null
+          manual_entry?: boolean
+          notes?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["time_entry_status"]
+          tenant_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          approved_at?: string | null
+          approved_by_user_id?: string | null
+          clock_in_accuracy_m?: number | null
+          clock_in_at?: string
+          clock_in_lat?: number | null
+          clock_in_lng?: number | null
+          clock_out_accuracy_m?: number | null
+          clock_out_at?: string | null
+          clock_out_lat?: number | null
+          clock_out_lng?: number | null
+          created_at?: string
+          duration_seconds?: number | null
+          hourly_rate_snapshot?: number | null
+          id?: string
+          job_occurrence_id?: string | null
+          job_series_id?: string | null
+          manual_entry?: boolean
+          notes?: string | null
+          rejection_reason?: string | null
+          status?: Database["public"]["Enums"]["time_entry_status"]
+          tenant_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "time_entries_job_occurrence_id_fkey"
+            columns: ["job_occurrence_id"]
+            isOneToOne: false
+            referencedRelation: "job_occurrences"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "time_entries_job_series_id_fkey"
+            columns: ["job_series_id"]
+            isOneToOne: false
+            referencedRelation: "job_series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_permissions: {
         Row: {
           access_invoicing: boolean
@@ -1058,6 +1154,7 @@ export type Database = {
         | "other"
       job_status: "scheduled" | "in_progress" | "completed" | "cancelled"
       quote_status: "draft" | "sent" | "accepted" | "declined" | "expired"
+      time_entry_status: "active" | "pending_approval" | "approved" | "rejected"
       time_zones:
         | "Eastern"
         | "Central"
@@ -1208,6 +1305,7 @@ export const Constants = {
       ],
       job_status: ["scheduled", "in_progress", "completed", "cancelled"],
       quote_status: ["draft", "sent", "accepted", "declined", "expired"],
+      time_entry_status: ["active", "pending_approval", "approved", "rejected"],
       time_zones: [
         "Eastern",
         "Central",
