@@ -55,6 +55,7 @@ export default function Quotes() {
     shareQuote,
     sendQuoteEmail,
     convertToJob,
+    isConverting,
   } = useQuotes();
 
   const [searchTerm, setSearchTerm] = useState("");
