@@ -15,6 +15,7 @@ import { QuoteStatsCards } from "@/components/Quotes/QuoteStatsCards";
 import { QuoteCard } from "@/components/Quotes/QuoteCard";
 import { QuoteForm } from "@/components/Quotes/QuoteForm";
 import { QuotePreview } from "@/components/Quotes/QuotePreview";
+import { ConvertQuoteToJobDialog, type ConvertQuoteFormValues } from "@/components/Quotes/ConvertQuoteToJobDialog";
 import { useQuotes } from "@/hooks/useQuotes";
 
 interface Quote {
@@ -25,6 +26,10 @@ interface Quote {
   title: string;
   status: 'draft' | 'sent' | 'accepted' | 'declined';
   valid_until?: string;
+  estimated_start_date?: string;
+  is_emergency?: boolean;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other' | null;
+  job_id?: string | null;
   line_items: any[];
   tax_rate: number;
   notes?: string;
@@ -50,12 +55,15 @@ export default function Quotes() {
     shareQuote,
     sendQuoteEmail,
     convertToJob,
+    isConverting,
   } = useQuotes();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [showQuoteForm, setShowQuoteForm] = useState(false);
   const [showQuotePreview, setShowQuotePreview] = useState(false);
+  const [showConvertDialog, setShowConvertDialog] = useState(false);
+  const [quoteToConvert, setQuoteToConvert] = useState<Quote | null>(null);
   const [selectedQuote, setSelectedQuote] = useState<Quote | null>(null);
   const [formMode, setFormMode] = useState<"create" | "edit">("create");
 
@@ -76,6 +84,18 @@ export default function Quotes() {
     setSelectedQuote(null);
     setFormMode("create");
     setShowQuoteForm(true);
+  };
+
+  const handleConvertQuoteRequest = (quote: Quote) => {
+    setQuoteToConvert(quote);
+    setShowConvertDialog(true);
+  };
+
+  const handleConvertConfirm = (values: ConvertQuoteFormValues) => {
+    if (!quoteToConvert) return;
+    convertToJob({ quoteId: quoteToConvert.id, options: values });
+    setShowConvertDialog(false);
+    setQuoteToConvert(null);
   };
 
   const handleEditQuote = (quote: Quote) => {
@@ -177,7 +197,7 @@ export default function Quotes() {
                 onPreview={handlePreviewQuote}
                 onShare={shareQuote}
                 onSendEmail={handleSendQuoteEmail}
-                onConvertToJob={convertToJob}
+                onConvertToJob={handleConvertQuoteRequest}
               />
             ))}
           </div>
@@ -226,6 +246,18 @@ export default function Quotes() {
           open={showQuotePreview}
           onOpenChange={setShowQuotePreview}
           quote={selectedQuote}
+        />
+
+        {/* Convert Quote → Job dialog */}
+        <ConvertQuoteToJobDialog
+          open={showConvertDialog}
+          onOpenChange={(open) => {
+            setShowConvertDialog(open);
+            if (!open) setQuoteToConvert(null);
+          }}
+          quote={quoteToConvert}
+          onConfirm={handleConvertConfirm}
+          isSubmitting={isConverting}
         />
         </main>
       </div>

@@ -39,6 +39,19 @@ interface Quote {
   tenant_id: string;
   created_by_user_id: string;
   created_by_user_name?: string;
+  job_id?: string | null;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other' | null;
+}
+
+// Options for converting a quote to a job
+export interface ConvertToJobOptions {
+  start_date?: string; // yyyy-MM-dd
+  local_start_time?: string; // HH:mm:ss
+  duration_minutes?: number;
+  service_type?: 'plumbing' | 'electrical' | 'hvac' | 'cleaning' | 'landscaping' | 'general_maintenance' | 'other';
+  priority?: 'low' | 'medium' | 'high' | 'urgent';
+  assigned_to_user_id?: string | null;
+  timezone?: string;
 }
 
 interface QuoteFormData {
@@ -504,12 +517,18 @@ export const useQuotes = () => {
     },
   });
 
-  // Convert quote to job mutation
+  // Convert quote to job mutation — carries over line items, links both directions
   const convertToJobMutation = useMutation({
-    mutationFn: async (quoteId: string) => {
+    mutationFn: async ({
+      quoteId,
+      options = {},
+    }: {
+      quoteId: string;
+      options?: ConvertToJobOptions;
+    }) => {
       if (!user || !tenantId) throw new Error("Authentication required");
-      
-      // Get the quote details first
+
+      // Fetch the quote
       const { data: quote, error: quoteError } = await supabase
         .from("quotes")
         .select("*")
@@ -519,50 +538,75 @@ export const useQuotes = () => {
 
       if (quoteError || !quote) throw new Error("Quote not found");
 
-      // Create job series from quote (one-time job)
+      // Idempotency: if already linked to a job, return it
+      if ((quote as any).job_id) {
+        return { quote, jobId: (quote as any).job_id, alreadyLinked: true };
+      }
+
+      const startDate =
+        options.start_date ||
+        quote.estimated_start_date ||
+        format(new Date(), "yyyy-MM-dd");
+
+      // Insert job_series with carry-over of metadata
       const jobData = {
         title: quote.title,
         customer_id: quote.customer_id,
         customer_name: quote.customer_name,
-        priority: 'medium' as const,
-        start_date: quote.estimated_start_date || format(new Date(), 'yyyy-MM-dd'),
-        local_start_time: '09:00:00',
-        duration_minutes: 60,
-        timezone: 'America/New_York',
-        service_type: 'general_maintenance' as const,
-        description: `Job created from quote ${quote.quote_number}`,
+        priority: options.priority || (quote.is_emergency ? "urgent" : "medium"),
+        start_date: startDate,
+        local_start_time: options.local_start_time || "09:00:00",
+        duration_minutes: options.duration_minutes ?? 60,
+        timezone: options.timezone || "America/New_York",
+        service_type:
+          options.service_type ||
+          (quote as any).service_type ||
+          ("general_maintenance" as const),
+        description:
+          (quote.notes ? quote.notes + "\n\n" : "") +
+          `Converted from quote ${quote.quote_number}`,
         estimated_cost: quote.total_amount,
-        rrule: 'FREQ=DAILY;COUNT=1', // Single occurrence
-        is_recurring: false, // Mark as one-time job
+        rrule: "FREQ=DAILY;COUNT=1",
+        is_recurring: false,
         active: true,
+        assigned_to_user_id: options.assigned_to_user_id ?? null,
+        quote_id: quote.id,
         tenant_id: tenantId,
         created_by_user_id: user.id,
       };
 
-      const { error: jobError } = await supabase
+      const { data: createdJob, error: jobError } = await supabase
         .from("job_series")
-        .insert([jobData]);
+        .insert([jobData])
+        .select("id")
+        .single();
 
       if (jobError) throw jobError;
 
-      // Update quote status to accepted
+      // Stamp the quote: status accepted + back-link to job
       const { error: updateError } = await supabase
         .from("quotes")
-        .update({ status: 'accepted' })
+        .update({
+          status: "accepted",
+          job_id: createdJob.id,
+        })
         .eq("id", quoteId)
         .eq("tenant_id", tenantId);
 
       if (updateError) throw updateError;
-      
-      return quote;
+
+      return { quote, jobId: createdJob.id, alreadyLinked: false };
     },
-    onSuccess: (quote) => {
+    onSuccess: ({ quote, jobId, alreadyLinked }) => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
       queryClient.invalidateQueries({ queryKey: ["unified-jobs"] });
       queryClient.invalidateQueries({ queryKey: ["job-management"] });
+      queryClient.invalidateQueries({ queryKey: ["job-series"] });
       toast({
-        title: "Success",
-        description: `Job created from quote ${quote.quote_number}`,
+        title: alreadyLinked ? "Already converted" : "Job created",
+        description: alreadyLinked
+          ? `Quote ${quote.quote_number} is already linked to a job.`
+          : `Created job from quote ${quote.quote_number}.`,
       });
     },
     onError: (error: Error) => {
