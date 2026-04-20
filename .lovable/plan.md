@@ -1,153 +1,111 @@
 
 
-## Plan: Time Tracking + Job Photos/Attachments/Signatures
+## Plan: Job Costing & Profitability
 
-Two large features tackled as one cohesive "field operations" upgrade. Both share the same mobile-first surfaces (the contractor's job detail screen) and the same admin approval surfaces, so building them together avoids duplicate UI scaffolding.
+Introduces expense tracking, materials tracking, and a unified cost ledger so every job rolls up to a margin number, and those margins aggregate up to customer-level and service-type-level profitability views.
 
 ---
-
-## Feature A — Time Tracking & Timesheets
 
 ### Data model
 
-**New table: `time_entries`**
-- `id`, `tenant_id`, `created_at`, `updated_at`
-- `user_id` (the contractor who clocked in)
-- `job_occurrence_id` (nullable FK to `job_occurrences`) — the specific occurrence worked
-- `job_series_id` (nullable FK to `job_series`) — set for one-time jobs (since they live in `job_series`)
-- `clock_in_at` (timestamptz), `clock_out_at` (timestamptz, nullable while active)
-- `duration_seconds` (generated column = `EXTRACT(EPOCH FROM (clock_out_at - clock_in_at))`)
-- `clock_in_lat`, `clock_in_lng`, `clock_in_accuracy_m` (numeric, nullable)
-- `clock_out_lat`, `clock_out_lng`, `clock_out_accuracy_m` (numeric, nullable)
-- `notes` (text)
-- `status` enum `time_entry_status`: `active` | `pending_approval` | `approved` | `rejected`
-- `approved_by_user_id`, `approved_at`, `rejection_reason`
-- `manual_entry` (boolean, default false) — true if admin created it after the fact
+**New table: `job_expenses`** — all non-labor costs (materials, mileage, subcontractor fees, equipment rental, permits, misc).
+- `id`, `tenant_id`, `created_at`, `updated_at`, `created_by_user_id`
+- `job_series_id` (FK target — required; for one-time jobs this is the row in `job_series`, for recurring it's the parent series)
+- `job_occurrence_id` (nullable FK target — set when the expense belongs to a specific occurrence rather than the whole series)
+- `category` enum `expense_category`: `material` | `mileage` | `subcontractor` | `equipment` | `permit` | `other`
+- `description` (text, required)
+- `quantity` (numeric, default 1)
+- `unit_cost` (numeric, required) — cost to the business
+- `total_cost` (generated: `quantity * unit_cost`)
+- `markup_percent` (numeric, nullable) — for materials being re-billed to customer
+- `billable` (boolean, default true) — whether to roll into customer-facing invoice
+- `billed_to_invoice_id` (uuid, nullable) — once invoiced, link back so we don't double-bill
+- `expense_date` (date, default today)
+- `vendor` (text, nullable)
+- `receipt_file_id` (uuid, nullable — FK to `job_files` for the receipt photo/PDF)
+- `notes` (text, nullable)
 
-**RLS:**
-- Contractors: SELECT/INSERT/UPDATE their own rows where `tenant_id = get_user_tenant_id()` AND `user_id = auth.uid()`. Cannot update once `approved`.
-- Business admins: SELECT/INSERT/UPDATE/DELETE all rows in their tenant.
+RLS: tenant-scoped; admins full access; contractors INSERT/SELECT/UPDATE their own non-billed entries on jobs they're assigned to.
 
-**Constraints:**
-- Partial unique index: only one row per `user_id` where `clock_out_at IS NULL` (prevents double clock-in).
-- Validation trigger: on UPDATE, reject if `clock_out_at < clock_in_at` or if status was `approved` and someone non-admin tries to mutate.
+**New view: `job_cost_summary`** — single source of truth for job profitability. Aggregates per `job_series_id`:
+- `labor_hours` — sum of `time_entries.duration_seconds / 3600` where `status = 'approved'`
+- `labor_cost` — sum of `(duration_seconds/3600) * COALESCE(hourly_rate_snapshot, profile.default_hourly_rate, 0)`
+- `expense_total` — sum of `job_expenses.total_cost`
+- `revenue` — sum of `invoices.total_amount` for invoices linked to this job (via `invoices.job_id`)
+- `total_cost` = labor_cost + expense_total
+- `gross_margin` = revenue - total_cost
+- `margin_percent` = `gross_margin / NULLIF(revenue, 0) * 100`
 
-**Profile extension:**
-- Add `default_hourly_rate` (numeric, nullable) to `profiles` — used for labor cost roll-up onto invoices.
+Implemented as a SQL view (not a materialized view — needs to be live). Uses `SECURITY INVOKER` so existing RLS on underlying tables governs visibility.
 
-### Edge functions
-None required for v1 — all reads/writes are client-side via supabase-js with RLS protecting boundaries. (We can add a CSV export edge function if it gets too heavy in the browser; for v1, generate CSV client-side.)
+**Two reporting RPCs** (security definer, tenant-scoped):
+- `get_customer_profitability(date_from, date_to)` → per-customer revenue, cost, margin, job count.
+- `get_service_type_profitability(date_from, date_to)` → per-service-type revenue, cost, margin, job count.
+
+---
 
 ### UI
 
-**1. `<TimeClockWidget />`** — small floating panel shown in `Layout.tsx` for contractors only.
-- Shows: "Clocked in to [Job Title] · 1h 23m" with red pulsing dot, OR "Not clocked in" with a "Clock In" button.
-- When not clocked in: clicking "Clock In" opens a sheet listing today's assigned jobs → pick one → `navigator.geolocation.getCurrentPosition()` → insert `time_entries` row with `clock_in_at = now()` and lat/lng (graceful fallback if denied).
-- When clocked in: "Clock Out" button → confirms → captures GPS again → updates row with `clock_out_at` + `status='pending_approval'`.
+**1. New tab on `JobView.tsx`: "Costs & Profitability"**
 
-**2. New tab on `JobView.tsx`: "Time Entries"**
-- Lists all time entries for that job with contractor name, in/out times, duration, GPS pin (small Google Maps static image link), status badge, approve/reject buttons (admin only).
-- "+ Add manual entry" button (admin only) for retroactive entries.
+Top: KPI strip — Revenue · Labor Cost · Expense Cost · Total Cost · Margin $ · Margin %. Color-coded margin (green if positive, red if negative).
 
-**3. New page: `/timesheets` (admin only, added to nav)**
-- Filters: date range, contractor, status, job.
-- Table: contractor | job | clock in | clock out | duration | GPS | status | actions (approve/reject/edit).
-- Bulk approve checkbox column.
-- "Export CSV" button → generates `timesheets_YYYY-MM-DD.csv` with columns: contractor email, contractor name, job title, customer, clock in (ISO), clock out (ISO), duration hours, hourly rate, labor cost, status, approved by, approved at.
-- "Export for Payroll" button → simpler CSV: contractor name, employee_id (use auth uid), pay period start, pay period end, total hours, total pay (using `default_hourly_rate`).
+Middle: "Expenses" section with table (Date · Category · Description · Vendor · Qty · Unit Cost · Total · Billable · Receipt) and "+ Add Expense" button → dialog with all `job_expenses` fields, optional receipt upload using existing `useJobFiles` hook.
 
-**4. Invoice integration**
-- In `JobView.tsx` "Complete Job" flow: when admin marks job complete, if there are approved time entries with hourly rates set, offer to add a "Labor" line item to the auto-generated invoice (sum of hours × rate per contractor). Single line item: "Labor — X.XX hours @ $Y/hr".
-- Goes through existing `useInvoices.createInvoice` flow.
+Bottom: "Time Entries" summary (read from `time_entries`, links to existing Time Entries tab) and "Invoices" summary (revenue side).
 
----
+**2. New page: `/profitability` (admin-only, added to `Navigation.tsx`)**
 
-## Feature B — Job Photos, Attachments & Signatures
+Three tabs:
+- **By Job** — paginated table of all jobs with their `job_cost_summary` row; sortable by margin, filterable by date/customer/service type. Click row → opens JobView Costs tab.
+- **By Customer** — `get_customer_profitability` results, sortable by margin/revenue. Click row → links to that customer's detail.
+- **By Service Type** — `get_service_type_profitability` results as bar chart (revenue vs cost stacked) plus table.
 
-### Storage buckets
+Date range picker at top defaults to last 90 days. "Export CSV" button per tab.
 
-Create three private buckets via migration:
-- `job-photos` (private)
-- `job-attachments` (private — for PDFs, docs attached to jobs/quotes/invoices)
-- `signatures` (private)
+**3. Invoice integration enhancement**
 
-**Path conventions** (enforced by RLS):
-- `job-photos/{tenant_id}/{job_occurrence_id_or_series_id}/{before|after|during}/{uuid}.{ext}`
-- `job-attachments/{tenant_id}/{entity_type}/{entity_id}/{uuid}.{ext}`
-- `signatures/{tenant_id}/{job_occurrence_id_or_series_id}/{uuid}.png`
+In invoice creation flow (when generating from a completed job), surface a checklist of `job_expenses` where `billable = true AND billed_to_invoice_id IS NULL`. Each checked item becomes a line item:
+- Description: `[Material] {description}` 
+- Quantity: `quantity`
+- Unit price: `unit_cost * (1 + markup_percent/100)`
 
-**RLS on `storage.objects`** for each bucket:
-- SELECT: `(storage.foldername(name))[1]::uuid = get_user_tenant_id()` AND user has access (admin OR contractor assigned to that job — checked via subquery against `job_occurrences`/`job_series`).
-- INSERT: same logic, plus `bucket_id` matches.
-- DELETE: admin only, OR the uploader within 24h.
+On invoice creation, set `billed_to_invoice_id` on the included expenses to prevent double-billing.
 
-Public access is via short-lived signed URLs generated server-side, not via making the bucket public — protects PII in customer signatures and any sensitive docs.
+This composes with the labor-cost auto-injection from the prior plan — same dialog, two sections (Labor + Materials/Expenses).
 
-### Data model
+**4. Customer page enhancement**
 
-**New table: `job_files`** (the metadata index — storage holds the bytes, this row holds the searchable record)
-- `id`, `tenant_id`, `created_at`, `created_by_user_id`
-- `entity_type` enum: `job_occurrence` | `job_series` | `quote` | `invoice`
-- `entity_id` (uuid)
-- `file_kind` enum: `photo_before` | `photo_after` | `photo_during` | `attachment` | `signature`
-- `bucket_id` (text), `storage_path` (text)
-- `file_name`, `mime_type`, `size_bytes`
-- `caption` (text, nullable)
-- `signed_by_name` (nullable, only for signatures)
-- `signed_at` (nullable)
-
-**RLS:** SELECT/INSERT for tenant members; UPDATE/DELETE for admin or uploader.
-
-### UI
-
-**1. New tab on `JobView.tsx`: "Photos & Files"**
-- Two sections: "Before Photos" / "After Photos" with grid of thumbnails + "Upload" button (camera capture on mobile via `<input type="file" accept="image/*" capture="environment">`).
-- "Other Attachments" section below (any file type up to 10MB).
-- Each thumbnail has caption, uploader name, timestamp. Click → lightbox preview. Admin/uploader can delete.
-- All uploads go to `job-photos` bucket → row inserted into `job_files`.
-
-**2. `<SignatureCapture />`** — used on the "Complete Job" flow
-- When contractor (or admin on behalf of customer) marks a job complete:
-  - If `system_settings.require_job_photos` is true, block completion until at least one "After" photo is uploaded.
-  - New step: "Customer Signature" — full-screen canvas (use `react-signature-canvas`), text field for "Customer name", "Skip" button.
-  - On confirm: canvas → PNG blob → upload to `signatures` bucket → insert `job_files` row with `file_kind='signature'`, `signed_by_name`, `signed_at`.
-
-**3. Quote/Invoice attachments**
-- Add small "Attachments" section to `QuoteForm.tsx` and `InvoiceForm.tsx` (collapsible, default closed). Same upload pattern → `job-attachments` bucket → `job_files` row with appropriate `entity_type`.
-- Show attachment list on `QuotePreview.tsx` and `InvoicePreview.tsx` (and on the public token pages, with signed URLs generated server-side).
-
-**4. Public invoice/quote page enhancement**
-- New edge function `get-public-file-url` (no JWT) — takes share_token + file_id, validates the token belongs to the file's parent entity, returns a 1-hour signed URL. Prevents leaking internal storage paths.
-
-### Edge functions
-- **`get-public-file-url`** (no JWT) — used by `PublicInvoice.tsx`/`PublicQuote.tsx` to fetch signed URLs for attachments shown to the customer.
-- (Optional, deferred) **`compress-photo`** — auto-resize uploaded photos to max 1920px before storing. For v1, do this client-side with a Canvas resize before upload.
+Small "Lifetime Profitability" card on `Customers.tsx` detail view showing total revenue, total cost, lifetime margin $/% — pulled from `get_customer_profitability` filtered to that customer.
 
 ---
 
-## Build order
+### Hooks
 
-1. **Migration 1** — `time_entries` table + enum + RLS + unique active-entry index + validation trigger; `profiles.default_hourly_rate` column.
-2. **Migration 2** — `job_files` table + enums + RLS; create three storage buckets + storage RLS policies.
-3. **Hook**: `useTimeEntries` (live current entry, history, create/clock-out/approve/reject).
-4. **`<TimeClockWidget />`** in `Layout.tsx` (contractor-only).
-5. **JobView "Time Entries" tab**.
-6. **`/timesheets` page** + admin nav link + CSV export.
-7. **Hook**: `useJobFiles` (list/upload/delete, with client-side image resize).
-8. **JobView "Photos & Files" tab**.
-9. **`<SignatureCapture />` integrated into job completion flow** (respects `require_job_photos` setting).
-10. **Attachments on quote/invoice forms + previews**.
-11. **`get-public-file-url` edge function + wire into PublicInvoice/PublicQuote**.
-12. **Labor cost auto-injection** when invoice is created from a completed job with approved time entries.
-13. **End-to-end test pass**: contractor clocks in → adds photos → clocks out → admin approves → invoice auto-includes labor cost → customer signs on completion → public invoice shows attachments.
+- `useJobExpenses(jobSeriesId)` — list, create, update, delete; auto-uploads receipt to `job-attachments` bucket via existing `useJobFiles`.
+- `useJobCostSummary(jobSeriesId)` — single-row fetch from `job_cost_summary` view, refetches on time-entry/expense/invoice mutations.
+- `useProfitabilityReports(dateFrom, dateTo)` — wraps the two RPCs.
 
 ---
 
-## Things explicitly NOT in scope this round
+### Build order
 
-- Geofencing / auto-clock-out when leaving job site (needs background location, deferred).
-- OCR or auto-tagging of photos.
-- Real-time multi-contractor presence on a job.
-- DocuSign-style multi-party signatures.
-- QuickBooks/Gusto/ADP direct payroll integration (CSV export is the hook for now).
+1. Migration: `job_expenses` table + `expense_category` enum + RLS + indexes on `(tenant_id, job_series_id)` and `(billed_to_invoice_id)`.
+2. Migration: `job_cost_summary` view + `get_customer_profitability` + `get_service_type_profitability` RPCs.
+3. `useJobExpenses` + `useJobCostSummary` hooks.
+4. `<JobExpensesTab />` and `<JobCostSummaryCard />` inside `JobView.tsx`.
+5. `/profitability` page + nav link + CSV export.
+6. Invoice flow: expense-selection step in invoice creation; mark `billed_to_invoice_id` on use.
+7. Lifetime profitability card on customer detail.
+8. End-to-end test: log time + add expenses on a job → mark complete → create invoice with labor + materials checked → verify margin numbers match across job, customer, service-type views.
+
+---
+
+### Out of scope this round
+
+- Inventory/stock tracking (separate feature; expenses here are job-attached, not deducted from on-hand counts).
+- Multi-currency.
+- Tax-deductible flagging for accounting export — covered later in QuickBooks/Xero integration.
+- Forecasted vs actual comparison charts (post-MVP).
+- Profit goals / alerts when margin drops below threshold.
 
