@@ -415,31 +415,13 @@ export const useQuotes = () => {
     },
   });
 
-  // Best-effort SMS dispatch when "quote_sent" notification is enabled
-  const dispatchQuoteSms = async (quoteId: string, customerId: string, customerName: string, quoteNumber?: string) => {
+  // Server-side dispatch for "quote_sent" SMS — routes through dispatcher
+  // for per-channel idempotency, opt-out, and daily-cap enforcement.
+  // Prevents double-sends from rapid clicks.
+  const dispatchQuoteSms = async (quoteId: string) => {
     try {
-      if (!tenantId) return;
-      const { data: smsRow } = await supabase
-        .from("sms_settings")
-        .select("enabled, notification_events")
-        .eq("tenant_id", tenantId)
-        .maybeSingle();
-      const events = (smsRow?.notification_events ?? {}) as Record<string, boolean>;
-      if (!smsRow?.enabled || !events.quote_sent) return;
-      const { data: customer } = await supabase
-        .from("customers")
-        .select("phone_e164")
-        .eq("id", customerId)
-        .maybeSingle();
-      if (!customer?.phone_e164) return;
-      await supabase.functions.invoke("send-sms", {
-        body: {
-          to: customer.phone_e164,
-          body: `Hi ${customerName}, your quote ${quoteNumber ? "#" + quoteNumber + " " : ""}is ready. Check your email for details.`,
-          triggered_by: "quote_sent",
-          related_entity_type: "quote",
-          related_entity_id: quoteId,
-        },
+      await supabase.functions.invoke("dispatch-entity-sms", {
+        body: { kind: "quote", entity_id: quoteId },
       });
     } catch (e) {
       console.warn("Quote SMS dispatch skipped:", e);

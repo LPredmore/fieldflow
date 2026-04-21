@@ -512,6 +512,32 @@ export default function BusinessSettings() {
               </div>
             </div>
 
+            {/* Customer Portal URL */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium">Customer Portal URL</h3>
+                <p className="text-sm text-muted-foreground">
+                  Base URL used in links sent to customers (quote/invoice share links,
+                  follow-up notifications). Leave blank to use the default Lovable URL.
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="public_portal_base_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Portal Base URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://portal.yourdomain.com" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Must be a full URL including https://. No trailing slash needed.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Business Address</h3>
