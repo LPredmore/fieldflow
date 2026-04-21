@@ -1,7 +1,8 @@
 // Triggered by db trigger on time_entries clock-in.
-// Sends "on the way" SMS + email to the customer.
+// Sends "on the way" SMS + email to the customer via the shared dispatcher.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+import { dispatchNotification } from "../_shared/notification-dispatcher.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -28,19 +29,7 @@ Deno.serve(async (req) => {
     );
 
     const payload: Payload = await req.json();
-    const { tenant_id, job_occurrence_id, contractor_id } = payload;
-
-    // Idempotency
-    const eventKey = `on_the_way:${job_occurrence_id}`;
-    const { data: existing } = await admin
-      .from("notification_dispatches")
-      .select("id")
-      .eq("tenant_id", tenant_id)
-      .eq("event_key", eventKey)
-      .limit(1);
-    if (existing && existing.length > 0) {
-      return json({ ok: true, skipped: "already_dispatched" });
-    }
+    const { tenant_id, job_occurrence_id } = payload;
 
     // Load occurrence + customer + job + tenant
     const { data: occ } = await admin
@@ -80,66 +69,47 @@ Deno.serve(async (req) => {
     const jobTitle = series?.title || "your service appointment";
     const customerName = customer?.name || occ.customer_name;
     const smsBody =
-      `Hi ${customerName}, your technician from ${businessName} is on the way for ${jobTitle}. Reply STOP to opt out.`;
+      `Hi ${customerName}, your technician from ${businessName} is on the way for ${jobTitle}.`;
     const emailSubject = `Your ${businessName} technician is on the way`;
     const emailHtml =
       `<p>Hi ${customerName},</p><p>Your technician from <b>${businessName}</b> is on their way for <b>${jobTitle}</b>.</p><p>You'll see them shortly.</p>`;
 
-    let smsSent = false;
-    let emailSent = false;
+    const eventKey = `on_the_way:${job_occurrence_id}`;
+    const wantSms = smsSettings?.enabled
+      && smsEvents.on_the_way !== false
+      && !!customer?.phone_e164;
+    const wantEmail = notif.on_the_way_email !== false && !!customer?.email;
 
-    // SMS path
-    if (
-      smsSettings?.enabled &&
-      smsEvents.on_the_way !== false &&
-      customer?.phone_e164
-    ) {
-      const r = await admin.functions.invoke("send-sms", {
-        body: {
-          to: customer.phone_e164,
-          body: smsBody,
-          triggered_by: "on_the_way",
-          related_entity_type: "job_occurrence",
-          related_entity_id: job_occurrence_id,
-          bypass_business_hours: true,
-        },
-        headers: {
-          Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}`,
-        },
-      });
-      smsSent = !r.error && (r.data as { ok?: boolean })?.ok === true;
-      if (smsSent) {
-        await admin.from("notification_dispatches").insert({
-          tenant_id,
-          event_key: eventKey,
-          channel: "sms",
-        });
-      }
-    }
+    const result = await dispatchNotification(admin, {
+      tenantId: tenant_id,
+      eventKey,
+      sms: wantSms
+        ? {
+            to: customer!.phone_e164!,
+            body: smsBody,
+            triggeredBy: "on_the_way",
+            relatedEntityType: "job_occurrence",
+            relatedEntityId: job_occurrence_id,
+            bypassBusinessHours: true,
+          }
+        : null,
+      email: wantEmail
+        ? {
+            to: customer!.email!,
+            subject: emailSubject,
+            html: emailHtml,
+            triggeredBy: "on_the_way",
+            relatedEntityType: "job_occurrence",
+            relatedEntityId: job_occurrence_id,
+          }
+        : null,
+    });
 
-    // Email path
-    if (notif.on_the_way_email !== false && customer?.email) {
-      const r = await admin.functions.invoke("send-notification-email", {
-        body: {
-          to: customer.email,
-          subject: emailSubject,
-          html: emailHtml,
-          triggered_by: "on_the_way",
-          related_entity_type: "job_occurrence",
-          related_entity_id: job_occurrence_id,
-        },
-      });
-      emailSent = !r.error && (r.data as { ok?: boolean })?.ok === true;
-      if (emailSent) {
-        await admin.from("notification_dispatches").insert({
-          tenant_id,
-          event_key: eventKey,
-          channel: "email",
-        });
-      }
-    }
-
-    return json({ ok: true, sms_sent: smsSent, email_sent: emailSent });
+    return json({
+      ok: true,
+      sms: result.sms?.status ?? "not_attempted",
+      email: result.email?.status ?? "not_attempted",
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "unknown";
     console.error("notify-on-the-way error:", msg);

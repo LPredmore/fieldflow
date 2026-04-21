@@ -1,13 +1,15 @@
 // Single entry point for transactional notification emails (Resend).
 // Mirrors send-sms: tenant-scoped, logged, deduped, status-tracked.
+// Server-to-server callers (workers) MUST provide tenant_id AND the
+// X-Internal-Secret header. User-initiated calls derive tenant from JWT.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
-import { resolveEmailSender } from "../_shared/email-sender.ts";
+import { resolveEmailSender, logEmailMessage } from "../_shared/email-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-internal-secret",
 };
 
 interface SendEmailRequest {
@@ -50,7 +52,14 @@ Deno.serve(async (req) => {
     // Resolve tenant: explicit (server-side) or via auth (user-initiated)
     let tenantId = body.tenant_id || null;
     let userId: string | null = null;
-    if (!tenantId) {
+    if (tenantId) {
+      // Server-side path — require internal secret
+      const internalSecret = req.headers.get("x-internal-secret");
+      const expected = Deno.env.get("NOTIFICATION_INTERNAL_SECRET");
+      if (!expected || internalSecret !== expected) {
+        return json({ ok: false, error: "unauthorized_internal" }, 401);
+      }
+    } else {
       const auth = req.headers.get("Authorization");
       if (!auth?.startsWith("Bearer ")) {
         return json({ ok: false, error: "no_tenant_or_auth" }, 401);
@@ -77,19 +86,19 @@ Deno.serve(async (req) => {
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
-      await admin.from("email_messages").insert({
-        tenant_id: tenantId,
-        to_email: body.to,
-        from_email: sender.fromAddress,
+      await logEmailMessage(admin, {
+        tenantId,
+        to: body.to,
+        fromAddress: sender.fromAddress,
         subject: body.subject,
-        body_html: body.html ?? null,
-        body_text: body.text ?? null,
+        html: body.html,
+        text: body.text,
         status: "failed",
-        error_code: "resend_not_configured",
-        triggered_by: body.triggered_by,
-        related_entity_type: body.related_entity_type ?? null,
-        related_entity_id: body.related_entity_id ?? null,
-        triggered_by_user_id: userId,
+        errorCode: "resend_not_configured",
+        triggeredBy: body.triggered_by,
+        relatedEntityType: body.related_entity_type,
+        relatedEntityId: body.related_entity_id,
+        triggeredByUserId: userId,
       });
       return json({ ok: false, error: "resend_not_configured" }, 400);
     }
@@ -111,25 +120,21 @@ Deno.serve(async (req) => {
     });
     const resendData = await resendRes.json();
 
-    const { data: row } = await admin
-      .from("email_messages")
-      .insert({
-        tenant_id: tenantId,
-        to_email: body.to,
-        from_email: sender.fromAddress,
-        subject: body.subject,
-        body_html: body.html ?? null,
-        body_text: body.text ?? null,
-        resend_id: resendRes.ok ? resendData.id : null,
-        status: resendRes.ok ? "sent" : "failed",
-        error_code: resendRes.ok ? null : String(resendData?.name ?? resendData?.message ?? resendRes.status),
-        triggered_by: body.triggered_by,
-        related_entity_type: body.related_entity_type ?? null,
-        related_entity_id: body.related_entity_id ?? null,
-        triggered_by_user_id: userId,
-      })
-      .select("id")
-      .single();
+    const messageId = await logEmailMessage(admin, {
+      tenantId,
+      to: body.to,
+      fromAddress: sender.fromAddress,
+      subject: body.subject,
+      html: body.html,
+      text: body.text,
+      resendId: resendRes.ok ? resendData.id : null,
+      status: resendRes.ok ? "sent" : "failed",
+      errorCode: resendRes.ok ? null : String(resendData?.name ?? resendData?.message ?? resendRes.status),
+      triggeredBy: body.triggered_by,
+      relatedEntityType: body.related_entity_type,
+      relatedEntityId: body.related_entity_id,
+      triggeredByUserId: userId,
+    });
 
     // Track successful test sends so the UI can show a "verified" badge
     if (resendRes.ok && body.triggered_by === "sender_test" && sender.isCustomDomain) {
@@ -146,12 +151,12 @@ Deno.serve(async (req) => {
         error_code: resendData?.name ?? null,
         is_custom_domain: sender.isCustomDomain,
         from_address: sender.fromAddress,
-        message_id: row?.id,
+        message_id: messageId,
       }, 502);
     }
     return json({
       ok: true,
-      message_id: row?.id,
+      message_id: messageId,
       resend_id: resendData.id,
       is_custom_domain: sender.isCustomDomain,
       from_address: sender.fromAddress,

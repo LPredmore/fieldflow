@@ -61,10 +61,13 @@ export function CustomerSendSmsButton({
         <DialogHeader>
           <DialogTitle>Send SMS to {customerName}</DialogTitle>
           <DialogDescription>
-            Sending to <span className="font-mono">{phone}</span>. The first message to a new
-            recipient will include an opt-out disclosure.
+            Sending to <span className="font-mono">{phone}</span>.
           </DialogDescription>
         </DialogHeader>
+        <div className="rounded-md bg-muted/50 p-3 text-xs text-muted-foreground">
+          <strong>Heads up:</strong> the first message to a brand-new recipient
+          automatically appends a TCPA opt-out disclosure ("Reply STOP to opt out, HELP for help").
+        </div>
         <div className="space-y-2">
           <Label htmlFor="sms-body">Message</Label>
           <Textarea

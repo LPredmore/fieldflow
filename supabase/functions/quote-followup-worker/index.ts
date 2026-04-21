@@ -1,7 +1,10 @@
-// Daily worker. For each tenant, find sent quotes at day 3 and day 7 (since sent_date)
-// that are still in 'sent' status, and dispatch follow-up SMS+email.
+// Daily worker. For each tenant, find sent quotes that are now day 3 or day 7
+// past their sent_date in the TENANT's local timezone (not UTC) and dispatch
+// follow-up SMS+email through the shared dispatcher.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+import { dispatchNotification, ianaTimezone } from "../_shared/notification-dispatcher.ts";
+import { resolvePortalBaseUrl } from "../_shared/portal-url.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -10,6 +13,15 @@ const corsHeaders = {
 };
 
 const FOLLOWUP_DAYS = [3, 7];
+
+function tenantLocalDate(tz: string | null | undefined, utc: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ianaTimezone(tz),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).format(utc);
+}
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
@@ -23,103 +35,96 @@ Deno.serve(async (req) => {
     let totalSent = 0;
     let totalSkipped = 0;
 
-    for (const days of FOLLOWUP_DAYS) {
-      const target = new Date();
-      target.setUTCDate(target.getUTCDate() - days);
-      const dayStart = new Date(target);
-      dayStart.setUTCHours(0, 0, 0, 0);
-      const dayEnd = new Date(target);
-      dayEnd.setUTCHours(23, 59, 59, 999);
+    // Pull a wide UTC window (last 10 days) once, then bucket per tenant locally
+    const lookback = new Date();
+    lookback.setUTCDate(lookback.getUTCDate() - 10);
 
-      const { data: quotes } = await admin
-        .from("quotes")
-        .select("id, tenant_id, quote_number, customer_id, customer_name, total_amount, status, sent_date, share_token")
-        .eq("status", "sent")
-        .gte("sent_date", dayStart.toISOString())
-        .lte("sent_date", dayEnd.toISOString());
+    const { data: quotes } = await admin
+      .from("quotes")
+      .select("id, tenant_id, quote_number, customer_id, customer_name, total_amount, status, sent_date, share_token")
+      .eq("status", "sent")
+      .gte("sent_date", lookback.toISOString());
 
-      if (!quotes || quotes.length === 0) continue;
+    if (!quotes || quotes.length === 0) {
+      return json({ ok: true, sent: 0, skipped: 0 });
+    }
 
-      for (const q of quotes) {
-        const eventKey = `quote_followup:${q.id}:day${days}`;
-        const { data: prior } = await admin
-          .from("notification_dispatches")
-          .select("id")
-          .eq("tenant_id", q.tenant_id)
-          .eq("event_key", eventKey)
-          .limit(1);
-        if (prior && prior.length > 0) {
+    // Group by tenant for one settings lookup per tenant
+    const byTenant = new Map<string, typeof quotes>();
+    for (const q of quotes) {
+      if (!byTenant.has(q.tenant_id)) byTenant.set(q.tenant_id, []);
+      byTenant.get(q.tenant_id)!.push(q);
+    }
+
+    const now = new Date();
+
+    for (const [tenantId, tenantQuotes] of byTenant) {
+      const [{ data: settings }, { data: smsSettings }] = await Promise.all([
+        admin.from("settings").select("business_name, notification_settings, time_zone").eq("tenant_id", tenantId).maybeSingle(),
+        admin.from("sms_settings").select("enabled, notification_events").eq("tenant_id", tenantId).maybeSingle(),
+      ]);
+
+      const businessName = settings?.business_name || "your service provider";
+      const notif = (settings?.notification_settings || {}) as Record<string, boolean>;
+      const smsEvents = (smsSettings?.notification_events || {}) as Record<string, boolean>;
+      const tz = settings?.time_zone;
+      const portalBase = await resolvePortalBaseUrl(admin, tenantId);
+      const todayLocal = tenantLocalDate(tz, now);
+
+      for (const q of tenantQuotes) {
+        if (!q.sent_date) continue;
+        const sentLocal = tenantLocalDate(tz, new Date(q.sent_date));
+        const sentDateObj = new Date(sentLocal + "T00:00:00Z");
+        const todayObj = new Date(todayLocal + "T00:00:00Z");
+        const daysSince = Math.round((todayObj.getTime() - sentDateObj.getTime()) / 86400000);
+        if (!FOLLOWUP_DAYS.includes(daysSince)) continue;
+
+        const { data: customer } = await admin
+          .from("customers")
+          .select("phone_e164, email")
+          .eq("id", q.customer_id)
+          .maybeSingle();
+
+        const wantSms = smsSettings?.enabled
+          && smsEvents.quote_followup === true
+          && !!customer?.phone_e164;
+        const wantEmail = notif.quote_followup_email !== false && !!customer?.email;
+        if (!wantSms && !wantEmail) {
           totalSkipped++;
           continue;
         }
 
-        const [{ data: customer }, { data: settings }, { data: smsSettings }] = await Promise.all([
-          admin.from("customers").select("phone_e164, email").eq("id", q.customer_id).maybeSingle(),
-          admin.from("settings").select("business_name, notification_settings").eq("tenant_id", q.tenant_id).maybeSingle(),
-          admin.from("sms_settings").select("enabled, notification_events").eq("tenant_id", q.tenant_id).maybeSingle(),
-        ]);
-
-        const businessName = settings?.business_name || "your service provider";
-        const notif = (settings?.notification_settings || {}) as Record<string, boolean>;
-        const smsEvents = (smsSettings?.notification_events || {}) as Record<string, boolean>;
-
-        const smsOn = smsSettings?.enabled && smsEvents.quote_followup === true && customer?.phone_e164;
-        const emailOn = notif.quote_followup_email !== false && customer?.email;
-        if (!smsOn && !emailOn) {
-          totalSkipped++;
-          continue;
-        }
-
-        const link = q.share_token
-          ? `https://fieldflow.flo-pro.org/quote/${q.share_token}`
-          : "";
+        const link = q.share_token ? `${portalBase}/public-quote/${q.share_token}` : "";
         const total = `$${Number(q.total_amount).toFixed(2)}`;
 
-        if (smsOn) {
-          const body = `Just checking in — your ${businessName} quote ${q.quote_number} for ${total} is still available.${link ? ` View: ${link}` : ""} Reply STOP to opt out.`;
-          const r = await admin.functions.invoke("send-sms", {
-            body: {
-              to: customer!.phone_e164,
-              body,
-              triggered_by: "quote_followup",
-              related_entity_type: "quote",
-              related_entity_id: q.id,
-              bypass_business_hours: true,
-            },
-            headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}` },
-          });
-          if (!r.error && (r.data as { ok?: boolean })?.ok) {
-            await admin.from("notification_dispatches").insert({
-              tenant_id: q.tenant_id,
-              event_key: eventKey,
-              channel: "sms",
-            });
-            totalSent++;
-          }
-        }
-        if (emailOn) {
-          const subject = `Following up on your quote ${q.quote_number}`;
-          const html = `<p>Hi ${q.customer_name},</p><p>Just a friendly follow-up on the quote we sent you${days === 7 ? " a week ago" : " a few days ago"}.</p><p><b>Quote ${q.quote_number}</b> — Total: <b>${total}</b></p>${link ? `<p><a href="${link}">View your quote</a></p>` : ""}<p>Let us know if you have any questions.</p><p>— ${businessName}</p>`;
-          const r = await admin.functions.invoke("send-notification-email", {
-            body: {
-              to: customer!.email,
-              subject,
-              html,
-              triggered_by: "quote_followup",
-              related_entity_type: "quote",
-              related_entity_id: q.id,
-              tenant_id: q.tenant_id,
-            },
-          });
-          if (!r.error && (r.data as { ok?: boolean })?.ok) {
-            await admin.from("notification_dispatches").insert({
-              tenant_id: q.tenant_id,
-              event_key: eventKey,
-              channel: "email",
-            });
-            totalSent++;
-          }
-        }
+        const result = await dispatchNotification(admin, {
+          tenantId,
+          eventKey: `quote_followup:${q.id}:day${daysSince}`,
+          sms: wantSms
+            ? {
+                to: customer!.phone_e164!,
+                body: `Just checking in — your ${businessName} quote ${q.quote_number} for ${total} is still available.${link ? ` View: ${link}` : ""}`,
+                triggeredBy: "quote_followup",
+                relatedEntityType: "quote",
+                relatedEntityId: q.id,
+                bypassBusinessHours: true,
+              }
+            : null,
+          email: wantEmail
+            ? {
+                to: customer!.email!,
+                subject: `Following up on your quote ${q.quote_number}`,
+                html: `<p>Hi ${q.customer_name},</p><p>Just a friendly follow-up on the quote we sent you${daysSince === 7 ? " a week ago" : " a few days ago"}.</p><p><b>Quote ${q.quote_number}</b> — Total: <b>${total}</b></p>${link ? `<p><a href="${link}">View your quote</a></p>` : ""}<p>Let us know if you have any questions.</p><p>— ${businessName}</p>`,
+                triggeredBy: "quote_followup",
+                relatedEntityType: "quote",
+                relatedEntityId: q.id,
+              }
+            : null,
+        });
+
+        if (result.sms?.ok) totalSent++;
+        if (result.email?.ok) totalSent++;
+        if (result.sms?.status === "skipped" && result.email?.status === "skipped") totalSkipped++;
       }
     }
 

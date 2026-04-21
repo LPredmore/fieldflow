@@ -149,18 +149,19 @@ export default function BusinessSettings() {
       return;
     }
 
+    // Block test if form has unsaved changes — force explicit save first
+    if (form.formState.isDirty) {
+      toast({
+        variant: "destructive",
+        title: "Save your changes first",
+        description: "Please click \"Save Changes\" before sending a test email.",
+      });
+      return;
+    }
+
     setIsTestingEmail(true);
     setTestResult(null);
     try {
-      // Save current sender fields first so the test uses the latest values
-      const fromAddress = form.getValues("email_from_address");
-      const fromName = form.getValues("email_from_name");
-      if (settings && (fromAddress !== (settings.email_from_address || "") || fromName !== (settings.email_from_name || ""))) {
-        await updateSettings({
-          email_from_address: fromAddress || null,
-          email_from_name: fromName || null,
-        });
-      }
 
       const { data, error } = await supabase.functions.invoke("send-notification-email", {
         body: {
