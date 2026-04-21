@@ -210,7 +210,14 @@ export default function NotificationSettings() {
           SMS
         </TabsTrigger>
       </TabsList>
-      <TabsContent value="email" className="mt-6">
+      <TabsContent value="email" className="mt-6 space-y-4">
+        <div className="rounded-lg border bg-muted/40 p-4 text-sm text-muted-foreground">
+          <p>
+            <strong>Tip:</strong> SMS toggles for the same events live on the
+            SMS tab. Configure both so customers and crew receive the channels
+            they expect.
+          </p>
+        </div>
         <EmailNotificationSettings />
       </TabsContent>
       <TabsContent value="sms" className="mt-6">

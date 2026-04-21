@@ -55,9 +55,23 @@ export function useSmsSettings() {
       return;
     }
     setLoading(true);
+    // Resolve tenant before querying — defense-in-depth alongside RLS
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("id, role, parent_admin_id")
+      .eq("id", user.id)
+      .maybeSingle();
+    const tenantId =
+      profile?.role === "business_admin" ? profile.id : profile?.parent_admin_id;
+    if (!tenantId) {
+      setSettings(null);
+      setLoading(false);
+      return;
+    }
     const { data, error } = await supabase
       .from("sms_settings")
       .select("*")
+      .eq("tenant_id", tenantId)
       .maybeSingle();
     if (error && error.code !== "PGRST116") {
       console.error("Error loading sms_settings:", error);
