@@ -11,6 +11,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useCustomers, Customer, CustomerFormData } from "@/hooks/useCustomers";
 import { CustomerForm } from "@/components/Customers/CustomerForm";
 import { CustomerStatsCards } from "@/components/Customers/CustomerStatsCards";
+import { CustomerSendSmsButton } from "@/components/Customers/CustomerSendSmsButton";
 
 export default function Customers() {
   const { customers, loading, stats, createCustomer, updateCustomer, deleteCustomer } = useCustomers();
@@ -277,6 +278,13 @@ export default function Customers() {
                         </p>
                       </div>
                     )}
+
+                    <div className="pt-3 border-t border-border flex justify-end">
+                      <CustomerSendSmsButton
+                        customerName={customer.name}
+                        phone={customer.phone}
+                      />
+                    </div>
                   </CardContent>
                 </Card>
               ))}
