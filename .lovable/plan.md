@@ -1,164 +1,121 @@
 
 
-## Fix the hardcoded sender — use the tenant's verified Resend domain
+## End-to-End Review — Bugs Found After the SMS/Notifications Overhaul
 
-### The actual bug
+Below is the honest, prioritized list of issues I found by reading every new edge function, every cron-scheduled worker, the migrations, the UI hooks, and querying the live database. I'm separating **bugs that will silently break notifications** from **smaller correctness/UX issues**.
 
-Three edge functions hardcode `from: "<business name> <onboarding@resend.dev>"`:
+I have not changed any code yet — this is the diagnosis. Approve the plan and I'll fix everything in priority order in default mode.
 
-- `supabase/functions/send-quote-email/index.ts` (line 166)
-- `supabase/functions/send-invoice-email/index.ts` (line 275)
-- `supabase/functions/send-notification-email/index.ts` (line 81) — used by every notification worker (on-the-way, crew reminders, quote follow-up, invoice overdue)
+### CRITICAL — these will silently break notifications in production
 
-That means **every** email currently sent by the app goes out as `onboarding@resend.dev` regardless of who the tenant is. For your tenant (with `flo-pro.org` already verified in your Resend account), this is wrong — they should go from `info@flo-pro.org`.
+**1. Workers invoke `send-sms` with the anon key as if it were a user JWT — every cron-driven SMS will return 401.**
+`send-sms/index.ts` validates the bearer token via `supabase.auth.getClaims(token)` and requires `claims.sub` (a user id). The five workers (`notify-on-the-way`, `sms-crew-reminders`, `quote-followup-worker`, `invoice-overdue-worker`, plus the in-app `JobView` button works because it uses a real user JWT) call `send-sms` with `Authorization: Bearer ${SUPABASE_ANON_KEY}` — that token has no `sub` claim, so `getClaims` returns nothing and `send-sms` returns 401. Result: **every automated SMS we promised in the last overhaul will fail.** The fix is to add a service-role bypass in `send-sms` (e.g., accept an `internal: true` flag from the workers using the service role key, OR have the workers POST directly to the Twilio gateway like `sms-job-reminders` already does).
 
-### What "default" means in a multi-tenant app
+**2. The `email_from_address` seed in the latest migration matched zero tenants.**
+The migration targets rows where `business_email ILIKE '%@flo-pro.org'` OR `business_website ILIKE '%flo-pro.org%'`. Live DB shows the three existing tenants are `info@valorwell.org`, `info@test.com`, and `null`. None has `flo-pro.org`. Result: **every email — quotes, invoices, on-the-way, follow-ups, overdue — still goes from `onboarding@resend.dev`**, which is exactly what we set out to fix in the last loop. The fix is a small migration that updates the *correct* tenant (yours — `Lucas Predmore`'s `predmoreluke@gmail.com` admin row, tenant `7b369be5-679b-4750-8e33-6c95cb1f257c`) and leaves the rest alone.
 
-Important honesty point: this app is multi-tenant. There will eventually be other tenants who do **not** own `flo-pro.org`. So the fix can't just hardcode `info@flo-pro.org` everywhere — that would send other tenants' emails from your domain, which is both wrong and (depending on Resend's domain auth) would likely fail to send at all.
+**3. `sms_settings` table is empty for every tenant.**
+No row exists. That means: (a) the SMS wizard hasn't been initialized for anyone, (b) `sms-job-reminders` cron's `eq("enabled", true)` selects zero rows every hour and silently exits, (c) the workers' `notification_events` reads return `null`, and the workers continue without warning. Not a code bug per se, but the user needs a clear UX path. Fix: have `useSmsSettings.ensureExists()` actually run on first visit to Settings → Notifications → SMS (it does, but only if the user opens that tab) — and add a "Notifications need configuration" banner on the dashboard for admins so it's discoverable.
 
-The correct model is **per-tenant sender configuration** with a sensible fallback. Each tenant configures their own verified Resend sender; if they haven't configured one yet, we fall back to `onboarding@resend.dev` (which is the only "send from anywhere" address Resend allows without verification).
+**4. `notify-on-the-way` is invoked by a DB trigger that fires on EVERY `time_entries` insert, including manual entries and admin-created back-dated entries.**
+The trigger condition is `NEW.status = 'active' AND NEW.job_occurrence_id IS NOT NULL`. That fires for any insert with status active — including manual time entry corrections that admins make after a job is over. A customer who had a job last Tuesday could get an "on the way" SMS today if an admin enters their time. The fix: also check `NEW.manual_entry IS NOT TRUE` AND `NEW.clock_in_at > now() - interval '15 minutes'` so back-dated entries don't trigger.
 
-For your specific tenant, configuring `info@flo-pro.org` once means every email — quotes, invoices, on-the-way alerts, crew reminders, follow-ups, overdue nudges — goes from your verified domain.
+**5. `invoice-overdue-worker` mass-flips invoices to `overdue` without tenant filtering or logging.**
+Line 29 runs `UPDATE invoices SET status='overdue' WHERE due_date < today AND status='sent'` across **all tenants in one query**. That's not wrong technically (it respects the data), but it bypasses the `invoices_status_change` audit log path that the UI uses, and there's no notification or per-tenant reporting. Add tenant_id grouping, log the count per tenant, and skip tenants whose `notification_settings.invoice_overdue_email === false` AND whose SMS toggle is off (currently we flip even if they don't want notifications).
 
-### Definitive technical decision
+**6. `quote-followup-worker` window is ±24h on UTC `sent_date`.**
+Lines 27–32 compute `target = today - days days` and check `sent_date BETWEEN dayStart AND dayEnd` in **UTC**. A quote sent at 10pm Eastern lands on the next UTC day, so day 3 fires on what is locally day 2 or day 4. Switch to `sent_date::date = (now() at time zone tenant_tz - days * interval '1 day')::date` and add a small ±2h slop window. Same kind of issue exists in `sms-crew-reminders` for the 6pm hour boundary (currently uses `hour === 18` which is correct, but no check that the cron actually ran during that hour — fine as-is, just noting).
 
-**Add two columns to `settings` (`email_from_address`, `email_from_name`), build one shared `resolveEmailSender(tenantId)` helper, and replace every hardcoded `onboarding@resend.dev` with a call to that helper. Surface the configuration in Settings → Business as a single "Sender email" field with a verification status indicator.**
+### HIGH — wrong but not silently broken
 
-Why this and not the alternatives:
+**7. Idempotency only checks for ANY prior dispatch (any channel), not per-channel.**
+`notify-on-the-way` queries `notification_dispatches` by `event_key` only (no channel filter). If the SMS sent successfully but email failed, a retry can't send the email because the lookup sees the SMS row and skips both. Fix: filter by `(event_key, channel)` separately, OR record both channel attempts then check per-channel before dispatching that channel.
 
-1. **Per-tenant column, not env var.** An env var would force one sender for the whole platform — wrong for multi-tenancy, and would silently break the moment a second tenant signs up. Two columns on `settings` is the smallest correct change.
+**8. `email_messages` log is never written for failures inside `send-quote-email` or `send-invoice-email`.**
+Only `send-notification-email` writes to the audit table. The other two just throw. So the admin's email log shows automated notifications but no quote/invoice emails — confusing for the user trying to debug "did my quote actually go out?" Fix: extract the logging into the shared `_shared/email-sender.ts` helper or add an explicit `logEmailMessage` helper called from all three functions.
 
-2. **Two columns, not one.** `email_from_address` (e.g., `info@flo-pro.org`) and `email_from_name` (e.g., `Flo-Pro` — defaults to `business_name`). Splitting them lets the display name evolve independently of the address and matches Resend's API shape (`"Display Name <email@domain.com>"`).
+**9. `dispatchQuoteSms` and `dispatchInvoiceSms` (in `useQuotes`/`useInvoices`) bypass idempotency.**
+They fire SMS directly via `send-sms` from the browser, with no `notification_dispatches` row. If a user clicks "Send" twice in 2 seconds (or a network retry triggers), two SMS go out. Fix: route through a small server-side `dispatch-quote-sent` / `dispatch-invoice-sent` that writes the idempotency row.
 
-3. **One shared helper, not three copy-pasted resolutions.** A `_shared/email-sender.ts` module loaded by all three functions guarantees the fallback logic is identical everywhere. Today's bug exists *because* the resolution is duplicated and one branch (`send-notification-email`) was written with a TODO comment that was never followed up on.
+**10. `verify_jwt = false` on `send-notification-email` is a footgun.**
+Anyone on the internet who knows the URL can POST a notification email through your tenant. Today the function trusts `body.tenant_id` if provided — they could set any tenant_id and email any address. Server-to-server calls do need `verify_jwt = false`, but we should require an `X-Internal-Secret` header (stored in vault) for any call that supplies an explicit `tenant_id`. The user-initiated path that derives `tenantId` from auth is fine.
 
-4. **Don't try to verify the domain through our app.** Resend domain verification is DNS-based (SPF/DKIM/DMARC TXT records). The user already did this in their Resend dashboard for `flo-pro.org`. Building DNS verification into our app would duplicate Resend's UI badly. Instead, we surface a "Send test email" button — if Resend accepts the send, the domain is verified; if it rejects with `domain_not_verified`, we show the exact Resend error and link to their dashboard.
+**11. `BusinessSettings.handleSendTestEmail` says "data?.ok" but throws if `data` is `undefined`.**
+Line 174: `if (error || !data?.ok)`. When the function returns 502 with `{ ok: false, error: '...' }`, supabase-js puts the body on `data`, but on network failures `data` is `undefined`. The existing handler is fine for that case actually — but it shows `data?.error_code || error?.message` which on success-with-non-ok-body shows nothing useful. Cosmetic — surface the full server-side error message in the toast.
 
-5. **Fall back to `onboarding@resend.dev`, not fail.** New tenants who haven't configured their domain still need quote/invoice emails to work from day one. The fallback ensures that. A small in-app banner ("You're sending from the default Resend address — configure your domain to brand your emails") nudges them to set it up without breaking the feature.
+**12. `useSmsSettings` queries `sms_settings` without filtering by tenant.**
+Line 60: `.from("sms_settings").select("*").maybeSingle()`. Works because of RLS, but `maybeSingle()` will error if multiple rows match (impossible today because of UNIQUE on tenant_id, but fragile). Add `.eq('tenant_id', tenantId)`.
 
-6. **Honest scope note: this is not "Lovable Email domain" setup.** Your Resend account is your own — Lovable's built-in email domain feature would *replace* Resend entirely (different DNS records, different sender infrastructure). You explicitly already have `flo-pro.org` working in Resend. The right move is to *use* what you've already set up, not migrate you off it.
+### MEDIUM — UX and correctness improvements
 
-### Data model change
+**13. `CustomerSendSmsButton` doesn't show the standard opt-out confirmation.**
+It passes `bypass_business_hours: true` for manual sends, which is right, but the dialog doesn't warn the user that the first message to a brand-new recipient gets the auto-appended TCPA disclosure. Add a small inline note: "First message to this number will include a one-time opt-out disclosure."
 
-```text
-settings
-  + email_from_address    text     null   e.g., "info@flo-pro.org"
-  + email_from_name       text     null   e.g., "Flo-Pro" (display name; defaults to business_name)
-```
+**14. No unified notification settings page — toggles live in two places.**
+`Settings → Notifications → Email` controls per-event email toggles (`*_email` keys in `notification_settings`). `Settings → Notifications → SMS → Step 5` controls SMS toggles. Same events, two screens, no shared UI. Combine them into one matrix as planned (Email column + SMS column per event row) so users don't have to flip back and forth and miss a checkbox.
 
-Backfill: leave both `null` for existing rows — the resolver treats `null` as "use the platform default". Manually set your tenant's row to `info@flo-pro.org` / `Flo-Pro` as part of the migration so it works immediately for you without UI configuration.
+**15. Cron jobs use embedded plaintext anon key in one place, vault in another.**
+`20260421144216` (`sms-job-reminders-hourly`) embeds the anon key directly in the SQL string. The newer `20260421193840` jobs use the vault. Inconsistent and harder to rotate. Move all three crons to vault lookup.
 
-No RLS changes needed — `settings` is already tenant-scoped and admin-managed.
+**16. `email_messages.status` only ever becomes `sent` or `failed`.**
+Never `bounced` or `delivered`, because we don't subscribe to Resend webhooks. If a customer emails bounce, we keep "successfully sent" the audit log, which is misleading. Either add a Resend webhook handler later, or relabel `sent` to `accepted_by_resend` to be honest about what we actually know.
 
-### Shared resolver
+**17. `time_entries` RLS allows any contractor in the tenant to insert their own time entry — but the trigger fires `notify-on-the-way` from the contractor's session.**
+Service-role HTTP call from inside a `SECURITY DEFINER` trigger is fine, but if a contractor maliciously inserts a fake `time_entries` row pointing at any `job_occurrence_id` in the tenant, the customer gets a spam SMS. Add a check inside the trigger function: only fire if `NEW.user_id = (SELECT assigned_to_user_id FROM job_occurrences WHERE id = NEW.job_occurrence_id)`.
 
-```text
-supabase/functions/_shared/email-sender.ts          new
+**18. `quote-followup-worker` and `invoice-overdue-worker` send links to `https://fieldflow.flo-pro.org` hardcoded.**
+That's your custom domain. Other tenants signing up on `*.lovable.app` will get broken links. Read the public site URL from settings (or env) instead of hardcoding.
 
-  export async function resolveEmailSender(admin, tenantId): Promise<{
-    from: string                    // formatted "Name <email>" string for Resend
-    fromAddress: string             // bare email for logging
-    isCustomDomain: boolean         // true if tenant configured, false if fallback
-  }>
+**19. `BusinessSettings` "Send test email" still lets the user click before saving — the new sender values are saved as a side effect inside `handleSendTestEmail`.**
+That works but is non-obvious; when the test fails the user might re-edit, click again, and have stale values committed. Add an explicit "Save & test" button that runs `updateSettings` first, awaits success, then triggers the test.
 
-  Logic:
-    1. Load settings.email_from_address, email_from_name, business_name for tenantId
-    2. If email_from_address is set:
-         name = email_from_name || business_name || "Notifications"
-         return { from: `${name} <${email_from_address}>`, fromAddress: email_from_address, isCustomDomain: true }
-    3. Else (fallback):
-         name = business_name || "Notifications"
-         return { from: `${name} <onboarding@resend.dev>`, fromAddress: "onboarding@resend.dev", isCustomDomain: false }
-```
+### LOW — cleanups
 
-### Edge function changes
+**20. `supabase/functions/_shared/email-sender.ts` types `admin` as `any`.** Tighten to `SupabaseClient<Database>`.
 
-```text
-supabase/functions/send-notification-email/index.ts
-  - Replace inline `fromEmail` construction (line 81) with resolveEmailSender(admin, tenantId)
-  - Use the returned `from` in the Resend POST body
-  - Log `fromAddress` in email_messages.from_email (today it logs the formatted string, which is fine but isCustomDomain should also be captured for analytics)
+**21. The `ignore` table** in the schema appears unused and has no RLS. Drop it or document why it exists.
 
-supabase/functions/send-quote-email/index.ts
-  - Replace line 166 hardcoded `from` with resolveEmailSender(supabase, existingQuote.tenant_id)
-  - Note: this function currently uses `.single()` on settings without a tenant filter (line 156–158). That's a pre-existing bug — it returns whichever row Postgres feels like. Fix as part of this work: filter by tenant_id from the quote row.
+**22. `sms_settings.notification_events` default in the table doesn't match the TypeScript `DEFAULT_NOTIFICATION_EVENTS` perfectly** (DB has `invoice_overdue: true`, code has the same — actually matches; verified). Keep as-is.
 
-supabase/functions/send-invoice-email/index.ts
-  - Replace line 275 hardcoded `from` with resolveEmailSender(supabase, invoice.tenant_id)
-  - Already filters settings by tenant correctly (line 165) — just swap the from string.
-```
+**23. Unused `phone_e164` lookup vs raw `phone` in `CustomerSendSmsButton`.**
+The button passes `customer.phone` (free-text) instead of `customer.phone_e164` (the generated normalized column). Edge function normalizes again, so it works — but it's a redundant call and inconsistent with how `JobView.handleNotifyOnTheWay` does it (which uses `phone_e164`). Standardize on `phone_e164`.
 
-All three functions need redeployment after the change.
-
-### UI surface
+### Plan to fix (proposed order, batched)
 
 ```text
-src/components/Settings/BusinessSettings.tsx           add fields
-  Section: "Email sender"
-    [Email from address]   info@flo-pro.org              (text input, type=email)
-    [Display name]         Flo-Pro                       (text input, defaults to business name)
-    [Send test email]      → calls send-notification-email with triggered_by='sender_test'
-                             returns { ok, isCustomDomain, error? } — show success or Resend's exact error
+Batch 1 — Stop the silent failures
+  □ Add service-role bypass to send-sms; refactor 4 workers to use it
+  □ Re-seed email_from_address for the correct tenant (Lucas Predmore / predmoreluke@gmail.com)
+  □ Tighten on_the_way DB trigger (recent + assigned-only)
+  □ Per-channel idempotency in notify-on-the-way
 
-  Helper text below the field:
-    "Emails to your customers will be sent from this address. The address must
-     be verified in your Resend dashboard before it will work. If left blank,
-     emails go from the default Resend sender."
+Batch 2 — Honest audit logging + correctness
+  □ Centralize email logging across all three send-*-email functions
+  □ Server-side dispatch helpers for quote_sent / invoice_sent
+  □ X-Internal-Secret guard on send-notification-email when tenant_id is provided
+  □ Tenant-aware overdue flip + per-tenant skip if all channels off
+  □ Tenant-local quote-followup day math
 
-  Status badge next to the field:
-    - Green "Verified" if the most recent test_message_sent_at succeeded
-    - Amber "Not yet tested" if email_from_address is set but no successful test
-    - Gray "Using default sender" if email_from_address is null
+Batch 3 — UX consolidation
+  □ Unified Email × SMS notification matrix (one screen, one save)
+  □ "Save & test" pattern in BusinessSettings sender section
+  □ Dashboard banner for admins when sms_settings/email sender unconfigured
+  □ Standardize on customer.phone_e164 in send buttons
+
+Batch 4 — Cleanups
+  □ Move sms-job-reminders cron to vault key
+  □ Replace hardcoded fieldflow.flo-pro.org URL with settings-driven base
+  □ Tighten _shared/email-sender.ts types
+  □ Drop unused `ignore` table (confirm with you first)
 ```
 
-Hooked through existing `useSettings` — just add the two fields to the form schema and the update payload.
+### Required user input before I start
 
-### Migration
+Three quick decisions:
 
-```text
-supabase/migrations/<ts>_email_sender_per_tenant.sql
+1. **Confirm your tenant id.** Live DB shows `Lucas Predmore` (`predmoreluke@gmail.com`) at tenant `7b369be5-679b-4750-8e33-6c95cb1f257c` — is this the one that should send from `info@flo-pro.org`? Or is it the second `Lucas Predmore` row (`info@valorwell.org`, tenant `4ae1872d-…`)?
+2. **Public link base URL.** Should `fieldflow.flo-pro.org` stay as the default for all tenants, or should each tenant be able to override it (and we fall back to `fieldflow-customer-connect.lovable.app` for tenants without a custom domain)?
+3. **Drop `ignore` table?** It has no RLS and no apparent usage. Safe to remove?
 
-  ALTER TABLE public.settings
-    ADD COLUMN email_from_address text,
-    ADD COLUMN email_from_name text;
-
-  -- Seed the current tenant (your account) so it works immediately
-  UPDATE public.settings
-  SET email_from_address = 'info@flo-pro.org',
-      email_from_name    = COALESCE(business_name, 'Flo-Pro')
-  WHERE tenant_id = '<your-tenant-id>';   -- resolved at migration time
-```
-
-The `WHERE` clause in the seed will need your tenant_id. We can either look it up at migration time (one query against `profiles` joined to `settings`) or do it as a follow-up `UPDATE` after you confirm which tenant row is yours.
-
-### Edge cases handled
-
-- **Tenant sets an unverified domain.** First send fails with Resend `domain_not_verified` error. We log it to `email_messages` with `error_code='domain_not_verified'` and surface the exact error in the test-email button response. UI shows: "Resend rejected this address — verify it in your Resend dashboard."
-- **Tenant clears the field after using it.** Resolver falls back to `onboarding@resend.dev` automatically. No code path breaks.
-- **`reply_to` already uses `business_email`.** That stays as-is — `from` and `reply_to` are independent. Replies still go to your support inbox even if `from` is a no-reply alias.
-- **Resend API key shared across tenants.** Currently `RESEND_API_KEY` is one platform-level secret. As long as every tenant's `email_from_address` domain is verified in *that* Resend account, sends succeed. If a future tenant wants their own Resend account, that's a separate (much larger) feature — not in scope here.
-- **`send-quote-email` settings query bug.** Pre-existing `.single()` without tenant filter — fixed as a side-effect of this change because we now filter by the quote's tenant_id.
-- **Email logging.** `email_messages.from_email` continues to record what was actually sent, so the audit log accurately reflects whether each message went out as your domain or the fallback.
-
-### Files to create / change
-
-```text
-supabase/migrations/<ts>_email_sender_per_tenant.sql            new
-supabase/functions/_shared/email-sender.ts                      new
-supabase/functions/send-notification-email/index.ts             use resolver
-supabase/functions/send-quote-email/index.ts                    use resolver + fix tenant filter
-supabase/functions/send-invoice-email/index.ts                  use resolver
-src/components/Settings/BusinessSettings.tsx                    add 2 fields + test button + status badge
-src/hooks/useSettings.tsx                                       extend schema with the 2 new fields
-```
-
-### Required user action
-
-1. **Confirm `flo-pro.org` is fully verified in your Resend dashboard** (SPF, DKIM, DMARC all green). If it is, no further DNS work is needed.
-2. **Confirm `info@flo-pro.org` is the address you want as the default**, or specify a different one (e.g., `notifications@flo-pro.org`, `quotes@flo-pro.org`).
-3. After deploy: click "Send test email" in Business Settings to confirm a real send succeeds.
-
-### Honest tradeoff
-
-This fix uses your *existing* Resend account and your *existing* verified domain. It does **not** replace Resend with Lovable's built-in email infrastructure. That alternative path would also work — and is arguably simpler long-term — but would require: (a) removing your current Resend integration, (b) setting up a Lovable email domain (NS delegation), (c) waiting for DNS propagation, (d) rewriting all three email functions to use the Lovable email API instead of Resend. That's a much bigger change than what you asked for. If you'd rather go that route, say so and I'll write a separate plan. Otherwise, this plan keeps Resend and just makes the sender configurable per tenant — which is what the bug actually requires.
+Answer those three and I'll execute Batches 1–4 in order.
 
