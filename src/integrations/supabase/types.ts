@@ -147,13 +147,97 @@ export type Database = {
         }
         Relationships: []
       }
+      invoice_schedules: {
+        Row: {
+          auto_send: boolean
+          billing_mode: Database["public"]["Enums"]["invoice_billing_mode"]
+          created_at: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          due_days_after_issue: number
+          id: string
+          last_issued_at: string | null
+          last_issued_invoice_id: string | null
+          line_items_template: Json
+          linked_job_series_ids: string[]
+          name: string
+          next_issue_at: string | null
+          notes_template: string | null
+          payment_terms: string
+          rrule: string
+          start_date: string
+          status: Database["public"]["Enums"]["invoice_schedule_status"]
+          tax_rate: number
+          tenant_id: string
+          timezone: string
+          until_date: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          auto_send?: boolean
+          billing_mode?: Database["public"]["Enums"]["invoice_billing_mode"]
+          created_at?: string
+          created_by_user_id: string
+          customer_id: string
+          customer_name: string
+          due_days_after_issue?: number
+          id?: string
+          last_issued_at?: string | null
+          last_issued_invoice_id?: string | null
+          line_items_template?: Json
+          linked_job_series_ids?: string[]
+          name: string
+          next_issue_at?: string | null
+          notes_template?: string | null
+          payment_terms?: string
+          rrule: string
+          start_date: string
+          status?: Database["public"]["Enums"]["invoice_schedule_status"]
+          tax_rate?: number
+          tenant_id: string
+          timezone?: string
+          until_date?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          auto_send?: boolean
+          billing_mode?: Database["public"]["Enums"]["invoice_billing_mode"]
+          created_at?: string
+          created_by_user_id?: string
+          customer_id?: string
+          customer_name?: string
+          due_days_after_issue?: number
+          id?: string
+          last_issued_at?: string | null
+          last_issued_invoice_id?: string | null
+          line_items_template?: Json
+          linked_job_series_ids?: string[]
+          name?: string
+          next_issue_at?: string | null
+          notes_template?: string | null
+          payment_terms?: string
+          rrule?: string
+          start_date?: string
+          status?: Database["public"]["Enums"]["invoice_schedule_status"]
+          tax_rate?: number
+          tenant_id?: string
+          timezone?: string
+          until_date?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       invoices: {
         Row: {
+          billing_period_end: string | null
+          billing_period_start: string | null
           created_at: string
           created_by_user_id: string
           customer_id: string
           customer_name: string
           due_date: string
+          generated_from_schedule_id: string | null
           id: string
           invoice_number: string
           issue_date: string
@@ -181,11 +265,14 @@ export type Database = {
           venmo_handle: string | null
         }
         Insert: {
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           created_at?: string
           created_by_user_id: string
           customer_id: string
           customer_name: string
           due_date: string
+          generated_from_schedule_id?: string | null
           id?: string
           invoice_number: string
           issue_date: string
@@ -213,11 +300,14 @@ export type Database = {
           venmo_handle?: string | null
         }
         Update: {
+          billing_period_end?: string | null
+          billing_period_start?: string | null
           created_at?: string
           created_by_user_id?: string
           customer_id?: string
           customer_name?: string
           due_date?: string
+          generated_from_schedule_id?: string | null
           id?: string
           invoice_number?: string
           issue_date?: string
@@ -257,6 +347,13 @@ export type Database = {
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_generated_from_schedule_id_fkey"
+            columns: ["generated_from_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "invoice_schedules"
             referencedColumns: ["id"]
           },
           {
@@ -1437,6 +1534,8 @@ export type Database = {
         | "photo_during"
         | "attachment"
         | "signature"
+      invoice_billing_mode: "flat_fee" | "per_visit_rollup"
+      invoice_schedule_status: "active" | "paused" | "ended"
       invoice_status: "draft" | "sent" | "paid" | "overdue" | "cancelled"
       job_priority: "low" | "medium" | "high" | "urgent"
       job_service_type:
@@ -1609,6 +1708,8 @@ export const Constants = {
         "attachment",
         "signature",
       ],
+      invoice_billing_mode: ["flat_fee", "per_visit_rollup"],
+      invoice_schedule_status: ["active", "paused", "ended"],
       invoice_status: ["draft", "sent", "paid", "overdue", "cancelled"],
       job_priority: ["low", "medium", "high", "urgent"],
       job_service_type: [
