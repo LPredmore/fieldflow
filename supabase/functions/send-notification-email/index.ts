@@ -2,6 +2,7 @@
 // Mirrors send-sms: tenant-scoped, logged, deduped, status-tracked.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+import { resolveEmailSender } from "../_shared/email-sender.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -71,21 +72,15 @@ Deno.serve(async (req) => {
       if (!tenantId) return json({ ok: false, error: "no_tenant" }, 400);
     }
 
-    // Tenant business name + email-from
-    const { data: settings } = await admin
-      .from("settings")
-      .select("business_name, business_email")
-      .eq("tenant_id", tenantId)
-      .maybeSingle();
-    const businessName = settings?.business_name || "Notifications";
-    const fromEmail = `${businessName} <onboarding@resend.dev>`; // safe default; tenant verified domain support is a later upgrade
+    // Resolve per-tenant sender (custom verified domain or fallback)
+    const sender = await resolveEmailSender(admin, tenantId);
 
     const RESEND_API_KEY = Deno.env.get("RESEND_API_KEY");
     if (!RESEND_API_KEY) {
       await admin.from("email_messages").insert({
         tenant_id: tenantId,
         to_email: body.to,
-        from_email: fromEmail,
+        from_email: sender.fromAddress,
         subject: body.subject,
         body_html: body.html ?? null,
         body_text: body.text ?? null,
@@ -106,12 +101,12 @@ Deno.serve(async (req) => {
         Authorization: `Bearer ${RESEND_API_KEY}`,
       },
       body: JSON.stringify({
-        from: fromEmail,
+        from: sender.from,
         to: [body.to],
         subject: body.subject,
         html: body.html,
         text: body.text,
-        reply_to: body.reply_to || settings?.business_email || undefined,
+        reply_to: body.reply_to || sender.replyTo || undefined,
       }),
     });
     const resendData = await resendRes.json();
@@ -121,13 +116,13 @@ Deno.serve(async (req) => {
       .insert({
         tenant_id: tenantId,
         to_email: body.to,
-        from_email: fromEmail,
+        from_email: sender.fromAddress,
         subject: body.subject,
         body_html: body.html ?? null,
         body_text: body.text ?? null,
         resend_id: resendRes.ok ? resendData.id : null,
         status: resendRes.ok ? "sent" : "failed",
-        error_code: resendRes.ok ? null : String(resendData?.message ?? resendRes.status),
+        error_code: resendRes.ok ? null : String(resendData?.name ?? resendData?.message ?? resendRes.status),
         triggered_by: body.triggered_by,
         related_entity_type: body.related_entity_type ?? null,
         related_entity_id: body.related_entity_id ?? null,
@@ -136,10 +131,31 @@ Deno.serve(async (req) => {
       .select("id")
       .single();
 
-    if (!resendRes.ok) {
-      return json({ ok: false, error: "resend_error", message: resendData?.message, message_id: row?.id }, 502);
+    // Track successful test sends so the UI can show a "verified" badge
+    if (resendRes.ok && body.triggered_by === "sender_test" && sender.isCustomDomain) {
+      await admin.from("settings")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("tenant_id", tenantId);
     }
-    return json({ ok: true, message_id: row?.id, resend_id: resendData.id });
+
+    if (!resendRes.ok) {
+      return json({
+        ok: false,
+        error: "resend_error",
+        message: resendData?.message ?? "Resend rejected the send",
+        error_code: resendData?.name ?? null,
+        is_custom_domain: sender.isCustomDomain,
+        from_address: sender.fromAddress,
+        message_id: row?.id,
+      }, 502);
+    }
+    return json({
+      ok: true,
+      message_id: row?.id,
+      resend_id: resendData.id,
+      is_custom_domain: sender.isCustomDomain,
+      from_address: sender.fromAddress,
+    });
   } catch (err: unknown) {
     const msg = err instanceof Error ? err.message : "unknown";
     console.error("send-notification-email error:", msg);
