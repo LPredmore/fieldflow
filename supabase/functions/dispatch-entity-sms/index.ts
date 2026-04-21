@@ -1,8 +1,8 @@
 // Browser-initiated SMS dispatch for quote_sent / invoice_sent events.
 // Routes through the centralized notification dispatcher so per-channel
-// idempotency, opt-outs, and daily caps are honored — preventing the
-// double-send that was possible from rapid button clicks.
-import { createClient } from "https://esm.sh/@supabase/supabase-js@2.49.4";
+// idempotency, opt-outs, and daily caps are honored — preventing double-sends
+// from rapid button clicks.
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
 import { dispatchNotification } from "../_shared/notification-dispatcher.ts";
 
 const corsHeaders = {
@@ -24,7 +24,6 @@ Deno.serve(async (req) => {
   }
 
   try {
-    // Validate user JWT — this endpoint is user-initiated only
     const authHeader = req.headers.get("Authorization");
     if (!authHeader?.startsWith("Bearer ")) {
       return json({ error: "Unauthorized" }, 401);
@@ -53,7 +52,7 @@ Deno.serve(async (req) => {
 
     const admin = createClient(supabaseUrl, serviceRoleKey);
 
-    // Resolve tenant from caller's profile (defense in depth alongside RLS)
+    // Resolve tenant from caller's profile (defense in depth)
     const { data: profile } = await admin
       .from("profiles")
       .select("id, role, parent_admin_id")
@@ -65,11 +64,19 @@ Deno.serve(async (req) => {
       return json({ error: "Tenant not resolved" }, 403);
     }
 
-    // Load entity + verify tenant ownership + extract phone target
-    const eventKey =
-      body.kind === "quote" ? `quote_sent:${body.entity_id}` : `invoice_sent:${body.entity_id}`;
-    const category = body.kind === "quote" ? "quote_sent" : "invoice_sent";
+    // Check per-event toggle in sms_settings.notification_events
+    const { data: smsRow } = await admin
+      .from("sms_settings")
+      .select("enabled, notification_events")
+      .eq("tenant_id", tenantId)
+      .maybeSingle();
+    const events = (smsRow?.notification_events ?? {}) as Record<string, boolean>;
+    const eventToggleKey = body.kind === "quote" ? "quote_sent" : "invoice_sent";
+    if (!smsRow?.enabled || !events[eventToggleKey]) {
+      return json({ ok: true, sms: { status: "skipped", reason: "event_disabled" } });
+    }
 
+    // Load entity + verify tenant ownership + extract phone target
     let smsBody = "";
     let toPhone: string | null = null;
     let customerName = "Customer";
@@ -112,21 +119,19 @@ Deno.serve(async (req) => {
     }
 
     if (!toPhone) {
-      return json({ ok: true, sms: "skipped:no_phone" });
+      return json({ ok: true, sms: { status: "skipped", reason: "no_phone" } });
     }
 
-    const result = await dispatchNotification({
-      admin,
+    const result = await dispatchNotification(admin, {
       tenantId,
-      eventKey,
-      eventCategory: category,
-      channels: { sms: true, email: false },
-      smsBody,
-      toPhone,
-      relatedEntityType: body.kind,
-      relatedEntityId: body.entity_id,
-      triggeredByUserId: userId,
-      triggeredBy: category,
+      eventKey: `${eventToggleKey}:${body.entity_id}`,
+      sms: {
+        to: toPhone,
+        body: smsBody,
+        triggeredBy: eventToggleKey,
+        relatedEntityType: body.kind,
+        relatedEntityId: body.entity_id,
+      },
     });
 
     return json({ ok: true, ...result });
