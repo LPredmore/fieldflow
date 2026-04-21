@@ -204,21 +204,6 @@ export type Database = {
         }
         Relationships: []
       }
-      ignore: {
-        Row: {
-          created_at: string
-          today: string | null
-        }
-        Insert: {
-          created_at?: string
-          today?: string | null
-        }
-        Update: {
-          created_at?: string
-          today?: string | null
-        }
-        Relationships: []
-      }
       invoice_schedules: {
         Row: {
           auto_send: boolean
@@ -1156,6 +1141,7 @@ export type Database = {
           logo_url: string | null
           notification_settings: Json | null
           payment_settings: Json | null
+          public_portal_base_url: string | null
           service_settings: Json | null
           system_settings: Json | null
           tax_settings: Json | null
@@ -1182,6 +1168,7 @@ export type Database = {
           logo_url?: string | null
           notification_settings?: Json | null
           payment_settings?: Json | null
+          public_portal_base_url?: string | null
           service_settings?: Json | null
           system_settings?: Json | null
           tax_settings?: Json | null
@@ -1208,6 +1195,7 @@ export type Database = {
           logo_url?: string | null
           notification_settings?: Json | null
           payment_settings?: Json | null
+          public_portal_base_url?: string | null
           service_settings?: Json | null
           system_settings?: Json | null
           tax_settings?: Json | null
