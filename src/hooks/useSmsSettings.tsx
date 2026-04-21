@@ -5,8 +5,10 @@ import { toast } from "@/hooks/use-toast";
 
 export interface SmsNotificationEvents {
   job_reminder_24h: boolean;
+  job_reminder_crew: boolean;
   on_the_way: boolean;
   quote_sent: boolean;
+  quote_followup: boolean;
   invoice_sent: boolean;
   invoice_overdue: boolean;
 }
@@ -33,10 +35,12 @@ export interface SmsSettings {
 
 export const DEFAULT_NOTIFICATION_EVENTS: SmsNotificationEvents = {
   job_reminder_24h: true,
+  job_reminder_crew: true,
   on_the_way: true,
   quote_sent: false,
+  quote_followup: false,
   invoice_sent: false,
-  invoice_overdue: false,
+  invoice_overdue: true,
 };
 
 export function useSmsSettings() {
