@@ -24,6 +24,11 @@ const formSchema = z.object({
   text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
   email_from_address: z.string().email("Invalid email address").optional().or(z.literal("")),
   email_from_name: z.string().max(100).optional().or(z.literal("")),
+  public_portal_base_url: z
+    .string()
+    .url("Must be a full URL like https://portal.yourdomain.com")
+    .optional()
+    .or(z.literal("")),
   business_address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -64,6 +69,7 @@ export default function BusinessSettings() {
       text_color: "#FFFFFF",
       email_from_address: "",
       email_from_name: "",
+      public_portal_base_url: "",
       business_address: {
         street: "",
         city: "",
@@ -127,6 +133,7 @@ export default function BusinessSettings() {
         text_color: settings.text_color || "#FFFFFF",
         email_from_address: settings.email_from_address || "",
         email_from_name: settings.email_from_name || "",
+        public_portal_base_url: settings.public_portal_base_url || "",
         business_address: settings.business_address || {
           street: "",
           city: "",
@@ -505,6 +512,32 @@ export default function BusinessSettings() {
               </div>
             </div>
 
+            {/* Customer Portal URL */}
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-medium">Customer Portal URL</h3>
+                <p className="text-sm text-muted-foreground">
+                  Base URL used in links sent to customers (quote/invoice share links,
+                  follow-up notifications). Leave blank to use the default Lovable URL.
+                </p>
+              </div>
+              <FormField
+                control={form.control}
+                name="public_portal_base_url"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Portal Base URL</FormLabel>
+                    <FormControl>
+                      <Input placeholder="https://portal.yourdomain.com" {...field} />
+                    </FormControl>
+                    <FormDescription>
+                      Must be a full URL including https://. No trailing slash needed.
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
 
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Business Address</h3>
