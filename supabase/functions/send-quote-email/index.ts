@@ -1,10 +1,9 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
-import { Resend } from "https://esm.sh/resend@4.0.0";
-import { resolveEmailSender, logEmailMessage } from "../_shared/email-sender.ts";
+import { resolveEmailSender } from "../_shared/email-sender.ts";
 import { resolvePortalBaseUrl } from "../_shared/portal-url.ts";
+import { dispatchNotification } from "../_shared/notification-dispatcher.ts";
 
-const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const supabase = createClient(
   Deno.env.get("SUPABASE_URL")!,
   Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
@@ -20,6 +19,11 @@ interface SendQuoteEmailRequest {
   customerEmail?: string;
   customerName?: string;
   generateTokenOnly?: boolean;
+  /**
+   * When true, bypasses the dispatcher idempotency ledger so the user can
+   * explicitly resend the same quote. The "Resend" button sets this.
+   */
+  forceResend?: boolean;
 }
 
 async function checkRateLimit(identifier: string, endpoint: string): Promise<boolean> {
@@ -47,6 +51,18 @@ async function logSharedAccess(contentType: string, contentId: string, shareToke
   });
 }
 
+// Minimal HTML escape — prevents customer-supplied or tenant-supplied strings
+// from breaking the template or smuggling markup into the email body.
+function escapeHtml(input: unknown): string {
+  if (input === null || input === undefined) return '';
+  return String(input)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -62,12 +78,12 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    const { quoteId, customerEmail, customerName, generateTokenOnly }: SendQuoteEmailRequest = await req.json();
-    console.log("[send-quote-email] Request received:", { quoteId, generateTokenOnly, hasEmail: !!customerEmail });
+    const { quoteId, customerEmail, customerName, generateTokenOnly, forceResend }: SendQuoteEmailRequest = await req.json();
+    console.log("[send-quote-email] Request received:", { quoteId, generateTokenOnly, forceResend, hasEmail: !!customerEmail });
 
     const { data: existingQuote, error: fetchError } = await supabase
       .from('quotes')
-      .select('share_token, quote_number, title, total_amount, tenant_id')
+      .select('share_token, quote_number, title, total_amount, tenant_id, status')
       .eq('id', quoteId)
       .single();
 
@@ -90,10 +106,6 @@ const handler = async (req: Request): Promise<Response> => {
         .update({
           share_token: shareToken,
           share_token_expires_at: expiresAt.toISOString(),
-          ...(generateTokenOnly ? {} : {
-            status: 'sent',
-            sent_date: new Date().toISOString()
-          })
         })
         .eq('id', quoteId);
       if (updateError) throw new Error(`Failed to update quote: ${updateError.message}`);
@@ -124,65 +136,80 @@ const handler = async (req: Request): Promise<Response> => {
     const businessName = settings?.business_name || 'Your Business';
     const sender = await resolveEmailSender(supabase, existingQuote.tenant_id);
     const subject = `Quote ${existingQuote.quote_number} - ${existingQuote.title}`;
+    const safeBusiness = escapeHtml(businessName);
+    const safeQuoteNumber = escapeHtml(existingQuote.quote_number);
+    const safeTitle = escapeHtml(existingQuote.title);
+    const safeName = escapeHtml(customerName);
+    const safeAmount = Number(existingQuote.total_amount).toFixed(2);
+
     const html = `
         <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-          <h1 style="color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px;">${businessName}</h1>
-          <h2 style="color: #0066cc;">Quote ${existingQuote.quote_number}</h2>
-          <p>Dear ${customerName},</p>
-          <p>We're pleased to provide you with a quote for <strong>${existingQuote.title}</strong>.</p>
+          <h1 style="color: #333; border-bottom: 2px solid #0066cc; padding-bottom: 10px;">${safeBusiness}</h1>
+          <h2 style="color: #0066cc;">Quote ${safeQuoteNumber}</h2>
+          <p>Dear ${safeName},</p>
+          <p>We're pleased to provide you with a quote for <strong>${safeTitle}</strong>.</p>
           <div style="background-color: #f8f9fa; padding: 20px; border-radius: 8px; margin: 20px 0;">
             <h3 style="margin-top: 0; color: #333;">Quote Summary</h3>
-            <p><strong>Quote Number:</strong> ${existingQuote.quote_number}</p>
-            <p><strong>Service:</strong> ${existingQuote.title}</p>
-            <p><strong>Total Amount:</strong> $${existingQuote.total_amount}</p>
+            <p><strong>Quote Number:</strong> ${safeQuoteNumber}</p>
+            <p><strong>Service:</strong> ${safeTitle}</p>
+            <p><strong>Total Amount:</strong> $${safeAmount}</p>
           </div>
           <div style="text-align: center; margin: 30px 0;">
-            <a href="${publicUrl}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Quote &amp; Respond</a>
+            <a href="${escapeHtml(publicUrl)}" style="background-color: #0066cc; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold;">View Quote &amp; Respond</a>
           </div>
           <p>Please click the button above to view the complete quote details and let us know if you'd like to accept or decline this quote.</p>
           <p>If you have any questions, please don't hesitate to contact us.</p>
           <div style="border-top: 1px solid #ddd; padding-top: 20px; margin-top: 30px; color: #666;">
-            <p><strong>${businessName}</strong></p>
-            ${settings?.business_email ? `<p>Email: ${settings.business_email}</p>` : ''}
-            ${settings?.business_phone ? `<p>Phone: ${settings.business_phone}</p>` : ''}
+            <p><strong>${safeBusiness}</strong></p>
+            ${settings?.business_email ? `<p>Email: ${escapeHtml(settings.business_email)}</p>` : ''}
+            ${settings?.business_phone ? `<p>Phone: ${escapeHtml(settings.business_phone)}</p>` : ''}
           </div>
         </div>`;
 
     console.log("[send-quote-email] Sending to:", customerEmail, "from:", sender.fromAddress);
-    const emailResponse = await resend.emails.send({
-      from: sender.from,
-      reply_to: sender.replyTo,
-      to: [customerEmail],
-      subject,
-      html,
-    });
 
-    // Always log to email_messages — success and failure
-    await logEmailMessage(supabase, {
+    // Route through the centralized dispatcher so per-channel idempotency,
+    // opt-out, and logging are enforced uniformly. forceResend lets the user
+    // explicitly resend by suffixing the event key with a timestamp.
+    const eventKey = forceResend
+      ? `quote_sent:${quoteId}:resend:${Date.now()}`
+      : `quote_sent:${quoteId}`;
+
+    const result = await dispatchNotification(supabase, {
       tenantId: existingQuote.tenant_id,
-      to: customerEmail,
-      fromAddress: sender.fromAddress,
-      subject,
-      html,
-      resendId: emailResponse.error ? null : (emailResponse.data?.id ?? null),
-      status: emailResponse.error ? "failed" : "sent",
-      errorCode: emailResponse.error
-        ? String(emailResponse.error.name ?? emailResponse.error.message ?? "resend_error")
-        : null,
-      triggeredBy: "quote_sent",
-      relatedEntityType: "quote",
-      relatedEntityId: quoteId,
+      eventKey,
+      email: {
+        to: customerEmail,
+        subject,
+        html,
+        triggeredBy: "quote_sent",
+        relatedEntityType: "quote",
+        relatedEntityId: quoteId,
+        replyTo: sender.replyTo,
+      },
     });
 
-    if (emailResponse.error) {
-      console.error("[send-quote-email] Resend error:", emailResponse.error);
-      throw new Error(`Failed to send email: ${emailResponse.error.message || 'Unknown Resend error'}`);
+    const emailResult = result.email;
+    const wasSent = emailResult?.status === "sent";
+
+    // Side effect: only stamp status='sent' + sent_date on the first
+    // successful dispatch. Resends do not overwrite the original sent_date.
+    if (wasSent && existingQuote.status !== 'sent' && existingQuote.status !== 'accepted' && existingQuote.status !== 'declined') {
+      await supabase
+        .from('quotes')
+        .update({ status: 'sent', sent_date: new Date().toISOString() })
+        .eq('id', quoteId);
     }
 
-    return new Response(JSON.stringify({ success: true, shareToken, publicUrl }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    return new Response(
+      JSON.stringify({
+        success: wasSent,
+        shareToken,
+        publicUrl,
+        email: emailResult,
+      }),
+      { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }
+    );
   } catch (error: any) {
     console.error("Error in send-quote-email function:", error);
     return new Response(
