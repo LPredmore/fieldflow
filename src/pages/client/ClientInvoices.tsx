@@ -69,14 +69,18 @@ export default function ClientInvoices() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('invoices')
-          .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
-          .eq('customer_id', customer.id)
-          .order('issue_date', { ascending: false });
+        const [{ data, error }, { data: stripeData }] = await Promise.all([
+          supabase
+            .from('invoices')
+            .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
+            .eq('customer_id', customer.id)
+            .order('issue_date', { ascending: false }),
+          supabase.rpc('is_stripe_enabled_for_customer', { _customer_id: customer.id }),
+        ]);
 
         if (error) throw error;
         setInvoices(data || []);
+        setStripeEnabled(Boolean(stripeData));
       } catch (err) {
         console.error('Error fetching invoices:', err);
       } finally {
