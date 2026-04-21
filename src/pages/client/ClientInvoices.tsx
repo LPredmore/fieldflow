@@ -25,6 +25,7 @@ export default function ClientInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
+  const [stripeEnabled, setStripeEnabled] = useState<boolean | null>(null);
 
   const handlePayNow = async (invoice: Invoice) => {
     if (!invoice.share_token) {
@@ -68,14 +69,18 @@ export default function ClientInvoices() {
       }
 
       try {
-        const { data, error } = await supabase
-          .from('invoices')
-          .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
-          .eq('customer_id', customer.id)
-          .order('issue_date', { ascending: false });
+        const [{ data, error }, { data: stripeData }] = await Promise.all([
+          supabase
+            .from('invoices')
+            .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
+            .eq('customer_id', customer.id)
+            .order('issue_date', { ascending: false }),
+          supabase.rpc('is_stripe_enabled_for_customer', { _customer_id: customer.id }),
+        ]);
 
         if (error) throw error;
         setInvoices(data || []);
+        setStripeEnabled(Boolean(stripeData));
       } catch (err) {
         console.error('Error fetching invoices:', err);
       } finally {
@@ -170,9 +175,9 @@ export default function ClientInvoices() {
                 </div>
                 
                 {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                  <div className="flex flex-wrap gap-2">
-                    {invoice.share_token && (
-                      <>
+                  <div className="space-y-2">
+                    <div className="flex flex-wrap gap-2">
+                      {invoice.share_token && stripeEnabled && (
                         <Button
                           size="sm"
                           onClick={() => handlePayNow(invoice)}
@@ -190,6 +195,8 @@ export default function ClientInvoices() {
                             </>
                           )}
                         </Button>
+                      )}
+                      {invoice.share_token && (
                         <Button asChild variant="outline" size="sm">
                           <a
                             href={`/public-invoice/${invoice.share_token}`}
@@ -200,7 +207,12 @@ export default function ClientInvoices() {
                             View Invoice
                           </a>
                         </Button>
-                      </>
+                      )}
+                    </div>
+                    {invoice.share_token && stripeEnabled === false && (
+                      <p className="text-xs text-muted-foreground">
+                        Online card payments are not available for this invoice. Please contact your service provider for payment instructions.
+                      </p>
                     )}
                   </div>
                 )}

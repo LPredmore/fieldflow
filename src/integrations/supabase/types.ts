@@ -1407,6 +1407,10 @@ export type Database = {
         Args: { _customer_id: string }
         Returns: boolean
       }
+      is_stripe_enabled_for_customer: {
+        Args: { _customer_id: string }
+        Returns: boolean
+      }
       validate_quote_response_input: {
         Args: {
           _customer_comments?: string
