@@ -401,12 +401,6 @@ export const useInvoices = () => {
         throw new Error('Customer email not found. Please update customer information first.');
       }
 
-      const { data: invoiceRow } = await supabase
-        .from('invoices')
-        .select('invoice_number, total_amount')
-        .eq('id', invoiceId)
-        .maybeSingle();
-
       // Send the email
       sendInvoiceEmailMutation.mutate({
         invoiceId,
@@ -414,14 +408,9 @@ export const useInvoices = () => {
         customerName,
       });
 
-      // Fire-and-forget SMS notification
-      void dispatchInvoiceSms(
-        invoiceId,
-        customerId,
-        customerName,
-        invoiceRow?.invoice_number,
-        invoiceRow?.total_amount ? Number(invoiceRow.total_amount) : undefined,
-      );
+      // Fire-and-forget SMS notification (server-side dispatcher honors
+      // tenant settings, opt-outs, daily caps, and per-channel idempotency)
+      void dispatchInvoiceSms(invoiceId);
     } catch (error: any) {
       toast({
         title: "Error",
