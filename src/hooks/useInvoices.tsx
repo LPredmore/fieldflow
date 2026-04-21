@@ -375,6 +375,38 @@ export const useInvoices = () => {
     },
   });
 
+  // Best-effort SMS dispatch when "invoice_sent" notification is enabled
+  const dispatchInvoiceSms = async (invoiceId: string, customerId: string, customerName: string, invoiceNumber?: string, totalAmount?: number) => {
+    try {
+      if (!tenantId) return;
+      const { data: smsRow } = await supabase
+        .from("sms_settings")
+        .select("enabled, notification_events")
+        .eq("tenant_id", tenantId)
+        .maybeSingle();
+      const events = (smsRow?.notification_events ?? {}) as Record<string, boolean>;
+      if (!smsRow?.enabled || !events.invoice_sent) return;
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("phone_e164")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (!customer?.phone_e164) return;
+      const amount = typeof totalAmount === "number" ? `$${totalAmount.toFixed(2)} ` : "";
+      await supabase.functions.invoke("send-sms", {
+        body: {
+          to: customer.phone_e164,
+          body: `Hi ${customerName}, invoice ${invoiceNumber ? "#" + invoiceNumber + " " : ""}${amount}is ready. Check your email to view & pay.`,
+          triggered_by: "invoice_sent",
+          related_entity_type: "invoice",
+          related_entity_id: invoiceId,
+        },
+      });
+    } catch (e) {
+      console.warn("Invoice SMS dispatch skipped:", e);
+    }
+  };
+
   // Enhanced send invoice email function that fetches customer email
   const sendInvoiceWithCustomerEmail = async (invoiceId: string, customerName: string, customerId: string) => {
     try {
@@ -389,12 +421,27 @@ export const useInvoices = () => {
         throw new Error('Customer email not found. Please update customer information first.');
       }
 
+      const { data: invoiceRow } = await supabase
+        .from('invoices')
+        .select('invoice_number, total_amount')
+        .eq('id', invoiceId)
+        .maybeSingle();
+
       // Send the email
       sendInvoiceEmailMutation.mutate({
         invoiceId,
         customerEmail: customer.email,
         customerName,
       });
+
+      // Fire-and-forget SMS notification
+      void dispatchInvoiceSms(
+        invoiceId,
+        customerId,
+        customerName,
+        invoiceRow?.invoice_number,
+        invoiceRow?.total_amount ? Number(invoiceRow.total_amount) : undefined,
+      );
     } catch (error: any) {
       toast({
         title: "Error",
