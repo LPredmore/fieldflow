@@ -17,16 +17,24 @@ interface Props {
 
 const EVENT_LABELS: Record<keyof SmsNotificationEvents, { title: string; description: string }> = {
   job_reminder_24h: {
-    title: "Job reminders",
-    description: "Send a reminder 24 hours before each scheduled visit.",
+    title: "Customer job reminders (24h)",
+    description: "Send the customer a reminder 24 hours before their scheduled visit.",
+  },
+  job_reminder_crew: {
+    title: "Crew schedule reminders",
+    description: "Text each contractor their next-day schedule at 6pm tenant-local.",
   },
   on_the_way: {
     title: "On-the-way alerts",
-    description: "Notify the customer when the contractor clocks in for their job.",
+    description: "Notify the customer automatically when the contractor clocks in.",
   },
   quote_sent: {
     title: "Quote sent",
     description: "Text the customer a link when a new quote is sent to them.",
+  },
+  quote_followup: {
+    title: "Quote follow-ups",
+    description: "Auto-nudge the customer on day 3 and day 7 if a sent quote sits unaccepted.",
   },
   invoice_sent: {
     title: "Invoice sent",
@@ -34,7 +42,7 @@ const EVENT_LABELS: Record<keyof SmsNotificationEvents, { title: string; descrip
   },
   invoice_overdue: {
     title: "Invoice overdue reminders",
-    description: "Notify the customer when an invoice becomes past due.",
+    description: "Nudge the customer at 1, 7, 14, and 30 days past due.",
   },
 };
 
