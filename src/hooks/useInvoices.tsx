@@ -343,10 +343,11 @@ export const useInvoices = () => {
 
   // Send invoice email mutation
   const sendInvoiceEmailMutation = useMutation({
-    mutationFn: async ({ invoiceId, customerEmail, customerName }: {
+    mutationFn: async ({ invoiceId, customerEmail, customerName, forceResend }: {
       invoiceId: string;
       customerEmail?: string;
       customerName?: string;
+      forceResend?: boolean;
     }) => {
       const { data, error } = await supabase.functions.invoke('send-invoice-email', {
         body: {
@@ -354,6 +355,7 @@ export const useInvoices = () => {
           customerEmail,
           customerName,
           generateTokenOnly: false,
+          forceResend: forceResend ?? false,
         },
       });
 
@@ -363,12 +365,21 @@ export const useInvoices = () => {
 
       return data;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["invoices"] });
-      toast({
-        title: "Invoice Sent",
-        description: "Invoice has been sent to customer via email",
-      });
+      // Differentiate skipped (already-dispatched) from sent so the user
+      // understands why a second click was a no-op.
+      if (data?.email?.status === "skipped" && data.email.reason === "already_dispatched") {
+        toast({
+          title: "Already sent",
+          description: "This invoice was already emailed. Use Resend to send it again.",
+        });
+      } else {
+        toast({
+          title: "Invoice Sent",
+          description: "Invoice has been sent to customer via email",
+        });
+      }
     },
     onError: (error: any) => {
       toast({
@@ -392,7 +403,12 @@ export const useInvoices = () => {
   };
 
   // Enhanced send invoice email function that fetches customer email
-  const sendInvoiceWithCustomerEmail = async (invoiceId: string, customerName: string, customerId: string) => {
+  const sendInvoiceWithCustomerEmail = async (
+    invoiceId: string,
+    customerName: string,
+    customerId: string,
+    options?: { forceResend?: boolean }
+  ) => {
     try {
       // Fetch customer email from database
       const { data: customer, error: customerError } = await supabase
@@ -405,15 +421,17 @@ export const useInvoices = () => {
         throw new Error('Customer email not found. Please update customer information first.');
       }
 
-      // Send the email
+      // Send the email (dispatcher enforces idempotency unless forceResend)
       sendInvoiceEmailMutation.mutate({
         invoiceId,
         customerEmail: customer.email,
         customerName,
+        forceResend: options?.forceResend,
       });
 
       // Fire-and-forget SMS notification (server-side dispatcher honors
-      // tenant settings, opt-outs, daily caps, and per-channel idempotency)
+      // tenant settings, opt-outs, daily caps, and per-channel idempotency).
+      // SMS dispatcher uses its own ledger; not affected by email forceResend.
       void dispatchInvoiceSms(invoiceId);
     } catch (error: any) {
       toast({
