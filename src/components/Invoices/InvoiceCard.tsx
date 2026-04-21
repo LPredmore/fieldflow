@@ -10,7 +10,8 @@ import {
   Eye,
   Share2,
   Send,
-  CheckCheck
+  CheckCheck,
+  Repeat
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -113,6 +114,12 @@ export function InvoiceCard({
               <StatusIcon className="h-3 w-3 mr-1" />
               {statusInfo.label}
             </Badge>
+            {(invoice as any).generated_from_schedule_id && (
+              <Badge variant="outline" className="text-xs">
+                <Repeat className="h-3 w-3 mr-1" />
+                Recurring
+              </Badge>
+            )}
             {invoice.status === 'paid' && (invoice as any).payment_method_used && (
               <Badge variant="outline" className="text-xs">
                 via {String((invoice as any).payment_method_used).replace('stripe_', 'Stripe ').replace('_', ' ')}
