@@ -14,10 +14,12 @@ import SMSSettings from "@/components/Settings/SMSSettings";
 const formSchema = z.object({
   notification_settings: z.object({
     email_notifications: z.boolean(),
-    job_reminders: z.boolean(),
-    quote_followups: z.boolean(),
-    overdue_invoice_alerts: z.boolean(),
-    daily_summary: z.boolean(),
+    job_reminder_crew_email: z.boolean(),
+    on_the_way_email: z.boolean(),
+    quote_sent_email: z.boolean(),
+    quote_followup_email: z.boolean(),
+    invoice_sent_email: z.boolean(),
+    invoice_overdue_email: z.boolean(),
   }),
 });
 
@@ -26,29 +28,39 @@ type FormData = z.infer<typeof formSchema>;
 const NOTIFICATION_OPTIONS = [
   {
     key: 'email_notifications' as const,
-    title: 'Email Notifications',
-    description: 'Master toggle for all email notifications',
+    title: 'Email notifications',
+    description: 'Master toggle. When off, no email notifications are sent.',
     isMaster: true,
   },
   {
-    key: 'job_reminders' as const,
-    title: 'Job Reminders',
-    description: 'Receive notifications for upcoming scheduled jobs',
+    key: 'job_reminder_crew_email' as const,
+    title: 'Crew schedule emails',
+    description: "Email each contractor their next-day schedule at 6pm tenant-local.",
   },
   {
-    key: 'quote_followups' as const,
-    title: 'Quote Follow-ups',
-    description: 'Get notified when quotes need attention or follow-up',
+    key: 'on_the_way_email' as const,
+    title: 'On-the-way emails',
+    description: 'Email the customer when the contractor clocks in for their job.',
   },
   {
-    key: 'overdue_invoice_alerts' as const,
-    title: 'Overdue Invoice Alerts',
-    description: 'Receive alerts for invoices that are past their due date',
+    key: 'quote_sent_email' as const,
+    title: 'Quote sent',
+    description: 'Email the customer a link when a quote is sent (in addition to existing send-quote-email flow).',
   },
   {
-    key: 'daily_summary' as const,
-    title: 'Daily Summary',
-    description: 'Get a daily email with your schedule and key metrics',
+    key: 'quote_followup_email' as const,
+    title: 'Quote follow-ups',
+    description: 'Auto-email the customer on day 3 and day 7 if a sent quote sits unaccepted.',
+  },
+  {
+    key: 'invoice_sent_email' as const,
+    title: 'Invoice sent',
+    description: 'Email the customer a link when an invoice is sent.',
+  },
+  {
+    key: 'invoice_overdue_email' as const,
+    title: 'Invoice overdue',
+    description: 'Email the customer at 1, 7, 14, and 30 days past due.',
   },
 ];
 
@@ -61,25 +73,28 @@ function EmailNotificationSettings() {
     defaultValues: {
       notification_settings: {
         email_notifications: true,
-        job_reminders: true,
-        quote_followups: true,
-        overdue_invoice_alerts: true,
-        daily_summary: false,
+        job_reminder_crew_email: true,
+        on_the_way_email: false,
+        quote_sent_email: false,
+        quote_followup_email: true,
+        invoice_sent_email: false,
+        invoice_overdue_email: true,
       },
     },
   });
 
   useEffect(() => {
     if (settings) {
-      const notificationSettings = settings.notification_settings || {};
-
+      const n = settings.notification_settings || {};
       form.reset({
         notification_settings: {
-          email_notifications: notificationSettings.email_notifications ?? true,
-          job_reminders: notificationSettings.job_reminders ?? true,
-          quote_followups: notificationSettings.quote_followups ?? true,
-          overdue_invoice_alerts: notificationSettings.overdue_invoice_alerts ?? true,
-          daily_summary: notificationSettings.daily_summary ?? false,
+          email_notifications: n.email_notifications ?? true,
+          job_reminder_crew_email: n.job_reminder_crew_email ?? true,
+          on_the_way_email: n.on_the_way_email ?? false,
+          quote_sent_email: n.quote_sent_email ?? false,
+          quote_followup_email: n.quote_followup_email ?? true,
+          invoice_sent_email: n.invoice_sent_email ?? false,
+          invoice_overdue_email: n.invoice_overdue_email ?? true,
         },
       });
     }
