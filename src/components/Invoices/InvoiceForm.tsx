@@ -35,7 +35,7 @@ const formSchema = z.object({
   due_date: z.date({
     required_error: "Due date is required",
   }),
-  status: z.enum(["draft", "sent", "paid", "cancelled"]),
+  status: z.enum(["draft", "sent", "paid", "overdue", "cancelled"]),
   line_items: z.array(lineItemSchema).min(1, "At least one line item is required"),
   tax_rate: z.number().min(0).max(100),
   notes: z.string().optional(),
