@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.sms-job-reminders]
 verify_jwt = false
+
+[functions.dispatch-entity-sms]
+verify_jwt = true

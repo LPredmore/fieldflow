@@ -42,10 +42,35 @@ const ERROR_LABELS: Record<string, string> = {
   twilio_error: "Twilio rejected the message.",
 };
 
+// Events that are owned by the centralized server-side dispatcher.
+// They MUST go through their dedicated edge function (dispatch-entity-sms,
+// quote-followup-worker, invoice-overdue-worker, etc.) so that per-channel
+// idempotency (notification_dispatches) is enforced. Calling send-sms
+// directly for these would bypass the ledger and risk double-sends.
+const DISPATCHER_OWNED_EVENTS = new Set<SendSmsArgs["triggered_by"]>([
+  "quote_sent",
+  "invoice_sent",
+  "invoice_overdue",
+  "on_the_way",
+  "job_reminder",
+]);
+
 export function useSendSms() {
   const [sending, setSending] = useState(false);
 
   const send = useCallback(async (args: SendSmsArgs): Promise<SendSmsResult> => {
+    if (DISPATCHER_OWNED_EVENTS.has(args.triggered_by)) {
+      const message = `useSendSms cannot send '${args.triggered_by}' — it is owned by the server-side dispatcher. Call the appropriate edge function (e.g. dispatch-entity-sms) instead.`;
+      console.error(message);
+      if (!args.silent) {
+        toast({
+          title: "SMS not sent",
+          description: "This message type is sent automatically by the system.",
+          variant: "destructive",
+        });
+      }
+      return { ok: false, error: "dispatcher_owned_event", message };
+    }
     setSending(true);
     try {
       const { data, error } = await supabase.functions.invoke("send-sms", {

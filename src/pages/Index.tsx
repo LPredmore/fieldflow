@@ -22,9 +22,11 @@ import { useQuotes } from "@/hooks/useQuotes";
 import { QuoteForm } from "@/components/Quotes/QuoteForm";
 import { CustomerForm } from "@/components/Customers/CustomerForm";
 import { useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { toast } from "sonner";
 
 const Index = () => {
+  const navigate = useNavigate();
   const { stats: customerStats, createCustomer } = useCustomers();
   const { unifiedJobs: jobs } = useUnifiedJobs();
   const { stats: invoiceStats } = useInvoices();
@@ -126,7 +128,7 @@ const Index = () => {
               <Button 
                 variant="outline" 
                 className="shadow-material-sm hover:shadow-material-md transition-shadow duration-fast"
-                onClick={() => window.location.href = '/calendar'}
+                onClick={() => navigate('/calendar')}
               >
                 <Calendar className="h-4 w-4 mr-2" />
                 Schedule
@@ -238,7 +240,7 @@ const Index = () => {
                 <Button 
                   variant="outline" 
                   className="w-full mt-4"
-                  onClick={() => window.location.href = '/calendar'}
+                  onClick={() => navigate('/calendar')}
                 >
                   View Full Calendar
                 </Button>

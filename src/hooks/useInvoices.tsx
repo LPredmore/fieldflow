@@ -19,7 +19,7 @@ export interface Invoice {
   job_id?: string;
   issue_date: string;
   due_date: string;
-  status: 'draft' | 'sent' | 'paid' | 'cancelled';
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   line_items: LineItem[];
   subtotal: number;
   tax_rate: number;
@@ -44,7 +44,7 @@ export interface InvoiceFormData {
   job_id?: string;
   issue_date: string;
   due_date: string;
-  status: 'draft' | 'sent' | 'paid' | 'cancelled';
+  status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
   line_items: LineItem[];
   tax_rate: number;
   notes?: string;
@@ -81,8 +81,11 @@ export const useInvoices = () => {
     },
   });
 
-  // Helper function to check if invoice is overdue
+  // Helper function to check if invoice is overdue (status-aware: trusts the
+  // 'overdue' enum if the worker has flipped it, otherwise falls back to
+  // due-date comparison for 'sent' invoices that haven't been swept yet).
   const isOverdue = (invoice: Invoice): boolean => {
+    if (invoice.status === 'overdue') return true;
     if (invoice.status !== 'sent') return false;
     const dueDate = new Date(invoice.due_date);
     const today = new Date();
@@ -91,11 +94,12 @@ export const useInvoices = () => {
     return today > dueDate;
   };
 
-  // Calculate statistics
+  // Calculate statistics — outstanding A/R = sent + overdue (anything unpaid
+  // that has been issued to the customer).
   const stats: InvoiceStats = {
     total_billed: invoices.reduce((sum, invoice) => sum + invoice.total_amount, 0),
     outstanding: invoices
-      .filter(invoice => invoice.status === 'sent' || isOverdue(invoice))
+      .filter(invoice => invoice.status === 'sent' || invoice.status === 'overdue' || isOverdue(invoice))
       .reduce((sum, invoice) => sum + invoice.total_amount, 0),
     overdue: invoices
       .filter(invoice => isOverdue(invoice))
@@ -266,7 +270,7 @@ export const useInvoices = () => {
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, additionalData }: { 
       id: string; 
-      status: 'draft' | 'sent' | 'paid' | 'cancelled';
+      status: 'draft' | 'sent' | 'paid' | 'overdue' | 'cancelled';
       additionalData?: { sent_date?: string; paid_date?: string; }
     }) => {
       const updateData: any = { status };

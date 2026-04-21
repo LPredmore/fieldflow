@@ -7,19 +7,23 @@ import { Button } from "@/components/ui/button";
 import { AlertCircle, X } from "lucide-react";
 import { Link } from "react-router-dom";
 
-const DISMISS_KEY = "fieldflow.setup_banner_dismissed_v1";
+// Tenant-scoped dismissal so a contractor admin who manages multiple tenants
+// gets independent banner state per tenant. Old global key is migrated lazily.
+const dismissKey = (tenantId: string) =>
+  `fieldflow.setup_banner_dismissed_v2.${tenantId}`;
 
 export function SetupBanner() {
-  const { isAdmin } = useAuth();
+  const { isAdmin, tenantId } = useAuth();
   const { settings, loading: settingsLoading } = useSettings();
   const { settings: smsSettings, loading: smsLoading } = useSmsSettings();
   const [dismissed, setDismissed] = useState<boolean>(false);
 
   useEffect(() => {
-    setDismissed(typeof window !== "undefined" && !!localStorage.getItem(DISMISS_KEY));
-  }, []);
+    if (!tenantId || typeof window === "undefined") return;
+    setDismissed(!!localStorage.getItem(dismissKey(tenantId)));
+  }, [tenantId]);
 
-  if (!isAdmin || settingsLoading || smsLoading || dismissed) return null;
+  if (!isAdmin || !tenantId || settingsLoading || smsLoading || dismissed) return null;
 
   const missingEmail = !settings?.email_from_address;
   const missingSms = !smsSettings || !smsSettings.from_number_e164 || !smsSettings.enabled;
@@ -27,7 +31,7 @@ export function SetupBanner() {
   if (!missingEmail && !missingSms) return null;
 
   const handleDismiss = () => {
-    localStorage.setItem(DISMISS_KEY, "1");
+    localStorage.setItem(dismissKey(tenantId), "1");
     setDismissed(true);
   };
 
