@@ -57,9 +57,52 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const userTimezone = useUserTimezone();
+  const { send: sendSms, sending: sendingSms } = useSendSms();
 
   // For one-time jobs, unified jobs, and job series, use the same editing logic
   const unifiedJob = job as UnifiedJob | OneTimeJob | JobSeries;
+
+  const handleNotifyOnTheWay = async () => {
+    try {
+      const customerId = (unifiedJob as { customer_id?: string }).customer_id;
+      if (!customerId) {
+        toast({ title: "No customer linked", variant: "destructive" });
+        return;
+      }
+      const { data: customer } = await supabase
+        .from("customers")
+        .select("phone_e164, name")
+        .eq("id", customerId)
+        .maybeSingle();
+      if (!customer?.phone_e164) {
+        toast({
+          title: "No mobile number on file",
+          description: "Add a phone number to this customer to send SMS.",
+          variant: "destructive",
+        });
+        return;
+      }
+      const occurrenceId =
+        "job_type" in unifiedJob && unifiedJob.job_type === "recurring_instance"
+          ? unifiedJob.id
+          : null;
+      const result = await sendSms({
+        to: customer.phone_e164,
+        body: `Hi ${customer.name || unifiedJob.customer_name}, your technician is on the way for "${unifiedJob.title}".`,
+        triggered_by: "on_the_way",
+        related_entity_type: occurrenceId ? "job_occurrence" : null,
+        related_entity_id: occurrenceId,
+      });
+      if (result.ok) {
+        toast({
+          title: "SMS sent",
+          description: `Notified ${customer.name || unifiedJob.customer_name}.`,
+        });
+      }
+    } catch (e) {
+      console.error("Notify on the way failed:", e);
+    }
+  };
 
   const handleEdit = () => {
     setIsEditing(true);
