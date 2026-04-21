@@ -1,162 +1,243 @@
 
 
-## Route Optimization & Dispatch Board
+## SMS Notifications with Guided Twilio Onboarding
 
 ### What changes for the user
 
-A new **Dispatch** page (`/dispatch`) for business admins, designed for "morning planning" of one day at a time:
+A new **Settings → Notifications → SMS** section that walks the tenant admin through Twilio setup as a 5-step checklist, then turns on customer-facing SMS for the events they choose. Once configured, the system can send:
 
-- **Left rail**: a day picker, contractor list (one swimlane per contractor + an "Unassigned" lane), and an "Optimize day" button per lane.
-- **Center**: a day timeline with each contractor's jobs as draggable cards. Drag a card vertically to change its time, drag horizontally between lanes to **reassign to a different contractor**. Each card shows ETA from previous stop and a small drive-time pill.
-- **Right**: a **map** of all of today's jobs, color-coded by contractor, with numbered pins matching the timeline order. Selecting a card highlights its pin (and vice versa).
-- **Per-lane "Optimize"**: re-sequences that contractor's day by nearest-neighbor from their start location, recomputes start times honoring duration + drive-time + a configurable buffer, and lets the admin **Preview → Apply** before any DB write.
-- Customers and contractors get **geocoded once** when their address changes; a banner shows how many addresses still need geocoding and offers a "Geocode all" action.
-- ETAs are computed from a real routing service (driving distance, not straight line) and cached so we don't re-bill the API on every render.
+- **Job reminders** (24 h before scheduled visits)
+- **"On the way" alerts** (when a contractor clocks in)
+- **Quote sent / accepted notifications** to customers
+- **Invoice sent / overdue reminders** to customers
+- **Custom one-off SMS** from the customer detail page (admin-triggered)
 
-The existing `/calendar` page remains untouched — Dispatch is the day-planning tool, Calendar is the week/month overview.
+Customers get TCPA-compliant **STOP / HELP** keyword handling automatically. Opted-out numbers are blocked at the database level — no message can go out to a number on the suppression list.
+
+The setup wizard does the hand-holding work: pre-fills A2P 10DLC campaign descriptions using the tenant's actual business name, deep-links to the right Twilio Console pages, validates pasted credentials in real time by hitting Twilio's API, polls campaign approval status, and provides a **Send test SMS** button before any customer receives anything.
 
 ### Definitive technical decision
 
-**Build a tenant-installable Mapbox-backed dispatch board: store lat/lng on `customers` and `profiles`, use Mapbox Geocoding + Mapbox Directions Matrix for ETAs, render with `react-map-gl` + `mapbox-gl`, and run the optimizer client-side as nearest-neighbor with 2-opt polish. No new edge function for the optimizer; one new edge function for geocoding/matrix proxying so the Mapbox token never ships to the browser.**
+**Use the Lovable Twilio connector (not raw API keys), persist a per-tenant `sms_settings` row pointing at the connection, build the wizard as a stateful checklist that calls Twilio's REST API through the connector gateway for live validation, gate every outbound send through a single `send-sms` edge function that enforces opt-out + rate limits, and run a daily `sms-job-reminders` cron worker for proactive notifications.**
 
 Why this and not the alternatives:
 
-1. **Mapbox over Google Maps / OpenStreetMap+OSRM.**
-   - Google Maps: best data, but its Terms of Service forbid persisting geocoded results, which makes the "geocode once, cache forever" pattern non-compliant. It also requires a billing account up front and a much heavier JS bundle.
-   - OSRM/Nominatim (free OSM): no per-call cost, but Nominatim's usage policy caps at ~1 req/sec and forbids bulk geocoding without a self-hosted instance — a non-starter for a dispatch board where an admin may geocode 200 customers in one go. OSRM also has no first-class React bindings.
-   - **Mapbox**: explicitly permits caching geocoding results indefinitely for paying customers, has a generous free tier (100k geocodes/mo, 100k matrix elements/mo), an official `react-map-gl` binding, a single Matrix API call returns an N×N drive-time grid (perfect for nearest-neighbor), and a single token model that's easy to gate behind an edge function. It is the right fit.
+1. **Connector over raw API key paste.** The Lovable Twilio connector gives us automatic OAuth-style credential storage, gateway-side rate limiting, credential rotation without code changes, and — critically — a `verify_credentials` endpoint that returns `verified | failed | skipped` without us hitting Twilio's billing endpoints. Raw API key paste would force us to encrypt + decrypt secrets in our own table, manage rotation manually, and risk leaking the Account SID through logs. The connector also means tenants who already use Twilio elsewhere in their workspace can reuse one connection across projects.
 
-2. **Persist `lat`/`lng` on `customers` (and `profiles` for contractors), don't geocode on the fly.** Geocoding is rate-limited and metered. Storing the coordinates means the dispatch board, optimizer, map markers, and ETA matrix all read from the database with zero external calls in the steady state. We re-geocode only when the address text actually changes (detected in a trigger).
+2. **One `send-sms` edge function, multiple callers.** Every SMS path (job reminder cron, on-the-way trigger, quote/invoice events, manual one-off) flows through one validated entry point. That entry point owns: opt-out check, rate limiting (`enhanced_rate_limit_check` per tenant, 200/hr default), tenant-scoped `from_number` resolution, message logging to `sms_messages`, and error normalization. Splitting per use case would duplicate compliance logic and guarantee one path eventually forgets the STOP-list check — which is a TCPA fine waiting to happen.
 
-3. **Edge function proxy for Mapbox, not a public token in the browser.** A public `pk.*` Mapbox token can be domain-restricted but still leaks tenant-level usage to anyone who views source. A short-lived proxy through `mapbox-proxy` edge function lets us (a) keep one secret server-side, (b) per-tenant rate-limit using the existing `enhanced_rate_limit_check` function, (c) log usage, and (d) swap providers later without touching the client. The map *tiles* still need a token in the browser — we'll mint a temporary, scoped public token via the proxy on session start so it's never hard-coded.
+3. **Inbound webhook for STOP/HELP, even in v1.** US carriers *require* STOP/HELP/UNSUBSCRIBE keyword response. Twilio handles the auto-reply, but we still need to record the opt-out in our database so future sends are blocked. A `twilio-inbound` edge function with `verify_jwt = false` (Twilio signs requests, we verify the signature) is mandatory for compliance, not optional. Skipping this in v1 = shipping a feature that will get the tenant's number suspended within weeks.
 
-4. **Client-side optimizer (nearest-neighbor + 2-opt) over a server-side TSP solver.** A typical contractor's day is 4–12 stops. NN+2-opt on ≤15 nodes runs in microseconds in the browser, lets the admin see "what if I reassign job X to Bob?" instantly, and avoids a network round-trip per drag. The Mapbox Matrix call (one per lane, on demand) provides the drive-time distances; the optimizer is pure TypeScript. A real OR-tools server-side solver would be overkill at this scale and would block the snappy drag UX.
+4. **Daily cron at 9 AM tenant-local for reminders, not realtime polling.** Job reminders are inherently scheduled — a `pg_cron` job that runs hourly and dispatches reminders for jobs starting in 23–25 hours from each tenant's local "morning" is the canonical pattern (matches `extend-horizon`). Realtime triggers are reserved for *event-driven* SMS (clock-in, quote sent, invoice paid) which fire from existing flows.
 
-5. **Single new "Dispatch" page, NOT a new view inside FullCalendar.** FullCalendar resource-timeline (the swimlane view) is a paid Premium plugin (~$480/yr per dev) and FullCalendar has no concept of a side-by-side map. Building a purpose-made grid (CSS grid + `@dnd-kit/core`) is cheaper, fully owned, and matches the bespoke dispatch UIs in ServiceTitan / Jobber that the user is implicitly modeling against.
+5. **Suppression list as a dedicated table, not a flag on `customers`.** A phone number can belong to multiple customer records (spouse, business + personal, old + new entries). Opt-out is a property of the **phone number**, not the customer row. A `sms_opt_outs (tenant_id, phone_e164, opted_out_at, reason)` table with a unique index on `(tenant_id, phone_e164)` is the only correct model — and it's queried by the `send-sms` function before every send.
 
-6. **`@dnd-kit/core` over `react-beautiful-dnd` or HTML5 native DnD.** `react-beautiful-dnd` is unmaintained (Atlassian archived it Apr 2024) and conflicts with React 18 strict mode. HTML5 native DnD has terrible mobile support and no keyboard accessibility. `@dnd-kit` is actively maintained, accessible, mobile-friendly, ~10kb, and is what the rest of the modern React ecosystem is converging on.
+6. **E.164 normalization at write time, not send time.** Customer phones in this app are free-text. Storing the normalized E.164 form (`+15558675309`) in a generated column on `customers` lets us index it, dedupe against the opt-out list, and reject malformed numbers at form submission. Normalizing at send time means every reminder cron does the work redundantly and inconsistencies leak through.
 
-7. **Reassignment writes through existing `job_occurrences.assigned_to_user_id`.** The RLS policy already allows admins to update any tenant occurrence ("Allow authenticated users to update within their tenant" + role check via profiles join). No schema change needed for the reassignment path itself — drag-and-drop calls the same `useCalendarJobs.updateJob` already used elsewhere, plus a time shift via `start_at` / `end_at`.
+7. **No fallback SMS provider in v1.** The plan-mode discussion floated Telnyx + Plivo adapters. Honest assessment: they add ~40% to the scope (a second wizard, a second STOP/HELP webhook, an adapter abstraction) for a hypothetical future where a tenant prefers Telnyx. Twilio is the dominant provider, the connector exists, and the abstraction can be added later without breaking the schema. Build the right thing once.
 
 ### Data model
 
 ```text
-customers:
-  + lat                 numeric  null
-  + lng                 numeric  null
-  + geocoded_at         timestamptz null
-  + geocoding_status    text     null   ('ok' | 'failed' | 'manual' | null)
-  + address_hash        text     null   (md5 of normalized address; trigger sets this)
+sms_settings                   one row per tenant
+  id                  uuid pk
+  tenant_id           uuid     unique, RLS by tenant
+  twilio_connection_id text    null until wizard step 5 complete
+  from_number_e164    text     null (selected Twilio number)
+  messaging_service_sid text   null (preferred over from_number for A2P)
+  campaign_status     text     'not_started' | 'pending' | 'approved' | 'rejected'
+  campaign_status_checked_at timestamptz
+  test_message_sent_at timestamptz
+  enabled             boolean  default false
+  notification_events jsonb    default '{
+    "job_reminder_24h": true,
+    "on_the_way": true,
+    "quote_sent": false,
+    "invoice_sent": false,
+    "invoice_overdue": false
+  }'
+  daily_send_cap      integer  default 500
+  created_at, updated_at
 
-profiles:
-  + home_base_address   jsonb    null   (contractor "start of day" location)
-  + home_base_lat       numeric  null
-  + home_base_lng       numeric  null
-  + geocoded_at         timestamptz null
+sms_opt_outs
+  id                  uuid pk
+  tenant_id           uuid
+  phone_e164          text
+  opted_out_at        timestamptz default now()
+  reason              text     'stop_keyword' | 'help_request' | 'manual' | 'bounce'
+  unique (tenant_id, phone_e164)
 
-job_occurrences:
-  + dispatch_sequence   integer  null   (1-based order within day for the assignee)
-  + drive_minutes_from_prev integer null  (cached ETA for display; recomputed on optimize)
+sms_messages                   audit log of every outbound + inbound
+  id                  uuid pk
+  tenant_id           uuid
+  direction           text     'outbound' | 'inbound'
+  to_number_e164      text
+  from_number_e164    text
+  body                text
+  twilio_sid          text     null until provider responds
+  status              text     'queued' | 'sent' | 'delivered' | 'failed' | 'received'
+  error_code          text     null
+  triggered_by        text     'job_reminder' | 'on_the_way' | 'quote_sent' | ...
+  related_entity_type text     null  ('job_occurrence' | 'invoice' | 'quote')
+  related_entity_id   uuid     null
+  created_at          timestamptz default now()
 
-settings.system_settings (jsonb):
-  + dispatch: { default_buffer_minutes: 10, day_start_hour: 8 }
+customers
+  + phone_e164        text     generated column, normalized from `phone`
+                               (using a stable normalization function)
+                               indexed for opt-out lookups
 ```
 
-Triggers:
-- `customers_address_hash_trigger` — on insert/update, normalize street+city+state+zip, hash, and if the hash changed clear `lat/lng/geocoded_at` so the worker re-geocodes.
-- Same for `profiles.home_base_address`.
+RLS: all three tables tenant-scoped, admin-only write, admin read. `sms_messages` also readable by the contractor whose triggered event produced the message (for the "on-the-way" case). Public-facing inbound webhook bypasses RLS via service role.
 
-RPC: `get_unbatched_geocoding_targets(_limit int)` returns rows where `lat is null` for the caller's tenant — used by the geocoding worker so we never ship the customer list to the edge function.
+### Wizard flow (Settings → Notifications → SMS tab)
+
+```text
+Step 1  Connect Twilio          → calls standard_connectors--connect for twilio
+                                  ✓ when sms_settings.twilio_connection_id set
+
+Step 2  Buy a phone number       → deep-link to console.twilio.com/us1/develop/phone-numbers/manage/search
+                                  → "I bought one" button → fetch /IncomingPhoneNumbers.json via gateway
+                                  → dropdown to select; saves to from_number_e164
+                                  ✓ when from_number_e164 set
+
+Step 3  Register A2P 10DLC       → deep-link to messaging campaign setup
+                                  → wizard pre-fills:
+                                     • Brand: tenant business_name + EIN field
+                                     • Campaign use case: "Customer Care"
+                                     • Sample messages: generated from notification_events
+                                       (e.g. "Reminder: We'll be at {address} tomorrow at 2pm. Reply STOP to opt out.")
+                                     • Opt-in description: copy-paste-ready paragraph
+                                  → "I submitted my campaign" → polls every 6h via gateway
+                                  ✓ when campaign_status = 'approved'
+
+Step 4  Send a test SMS          → admin enters their own number
+                                  → send-sms function with triggered_by='test'
+                                  → ✓ when test_message_sent_at populated
+
+Step 5  Choose what to send      → toggle list mirroring notification_events
+                                  → Save sets sms_settings.enabled = true
+                                  ✓ ready
+```
+
+Each step has a green check, a "what does this mean?" expandable, and a copy-button for any pasteable text. Steps 1 and 4 happen entirely in-app; steps 2 and 3 require Twilio Console with our deep-link + pre-fill assistance.
 
 ### Edge functions
 
 ```text
-mapbox-proxy/index.ts        single function with three actions:
-  - { action: 'mint_tile_token' }     -> short-lived public token for map tiles
-  - { action: 'geocode', addresses }  -> server-side Mapbox Geocoding, writes lat/lng back
-  - { action: 'matrix', coordinates } -> Mapbox Directions Matrix, returns N×N minutes
+supabase/functions/send-sms/index.ts
+  POST { to: phone, body: text, triggered_by, related_entity_type?, related_entity_id? }
+  - JWT auth, tenant resolved from caller
+  - Validates: sms_settings.enabled, body length ≤ 1600, to is E.164
+  - Checks sms_opt_outs for (tenant_id, normalized to)
+  - enhanced_rate_limit_check(tenant_id, 'send-sms', 200, 60)
+  - Counts today's sms_messages for daily_send_cap
+  - Calls Twilio Messages API via connector gateway
+  - Inserts sms_messages row with twilio_sid + status
+  - Returns { ok, message_id, twilio_sid } or { error, code }
 
-  All three: JWT-auth, tenant-scoped, rate-limited via enhanced_rate_limit_check,
-  CORS via @supabase/supabase-js/cors, Zod-validated input.
+supabase/functions/twilio-inbound/index.ts          verify_jwt = false
+  POST application/x-www-form-urlencoded from Twilio
+  - Verifies X-Twilio-Signature against TWILIO_AUTH_TOKEN
+    (read from connector secrets via service role)
+  - Resolves tenant via from_number_e164 lookup
+  - If body matches /^STOP$|UNSUBSCRIBE|END|QUIT|CANCEL/i:
+      insert into sms_opt_outs, return TwiML auto-reply
+  - If body matches /^HELP|INFO/i:
+      return TwiML with tenant business_name + support contact
+  - Otherwise: log to sms_messages with direction='inbound'
+  - Returns TwiML XML
+
+supabase/functions/sms-job-reminders/index.ts        cron: every hour
+  - For each tenant where notification_events.job_reminder_24h:
+      find job_occurrences where start_at between now()+23h and now()+25h
+      AND tenant local time-of-day is between 8am and 8pm
+      AND no prior reminder logged in sms_messages for that occurrence
+      → call send-sms
+
+supabase/functions/sms-twilio-validate/index.ts      wizard helper
+  - Action 'list_numbers'   → GET /IncomingPhoneNumbers.json
+  - Action 'campaign_status' → GET messaging service campaign
+  - Action 'verify'          → POST /verify_credentials
+  - All via gateway, returns sanitized response to wizard UI
 ```
 
-No cron is needed: geocoding is invoked from the UI (Dispatch banner "Geocode 12 customers") or implicitly from the customer form when an admin saves a new address. Matrix is invoked on demand when the user clicks Optimize or first opens the dispatch board for a day.
+Hooked into existing flows (no new edge functions needed):
+
+- **On-the-way**: `time_entries` insert trigger (or client-side after `clockIn`) calls `send-sms` with `triggered_by='on_the_way'`.
+- **Quote sent**: `useQuotes.sendQuote` already exists — add a parallel `send-sms` call when the customer has `phone_e164` and `notification_events.quote_sent`.
+- **Invoice sent**: same pattern in `useInvoices.sendInvoice`.
+- **Invoice overdue**: piggyback on the existing daily worker that flips overdue status; emit one SMS per newly-overdue invoice.
 
 ### UI surface
 
 ```text
-src/pages/Dispatch.tsx                     new page, admin-only
-src/components/Dispatch/
-  DispatchBoard.tsx                        layout shell
-  ContractorLane.tsx                       one row per contractor + Unassigned
-  JobCard.tsx                              draggable job, shows time + drive ETA
-  DispatchMap.tsx                          react-map-gl wrapper
-  GeocodingBanner.tsx                      "12 customers need geocoding"
-  OptimizeButton.tsx                       per-lane "Optimize" with preview dialog
-src/hooks/
-  useDispatchDay.tsx                       loads jobs + contractors + lat/lng for a date
-  useMapboxProxy.tsx                       wraps the edge function (mint, geocode, matrix)
-  useRouteOptimizer.tsx                    pure TS NN + 2-opt; takes Matrix output
-src/lib/
-  geocoding.ts                             address normalization + hash helpers
-  routeOptimizer.ts                        nearest-neighbor + 2-opt, fully unit-testable
+src/components/Settings/SMSSettings.tsx              new — the wizard + post-setup config
+src/components/Settings/SMS/
+  TwilioConnectStep.tsx                              step 1
+  PhoneNumberStep.tsx                                step 2
+  CampaignRegistrationStep.tsx                       step 3 with pre-filled copy
+  TestMessageStep.tsx                                step 4
+  NotificationEventsStep.tsx                         step 5
+  SMSStatusBadge.tsx                                 reused across steps
+  SMSMessageLog.tsx                                  post-setup: recent message history
+src/components/Settings/NotificationSettings.tsx     refactor: add "SMS" sub-tab
+src/hooks/useSmsSettings.tsx                         CRUD on sms_settings
+src/hooks/useSendSms.tsx                             wraps send-sms function
+src/lib/phoneNormalization.ts                        E.164 helpers (libphonenumber-js)
+src/components/Customers/CustomerSendSmsButton.tsx   one-off SMS from customer detail
 ```
-
-Navigation: add **Dispatch** item between Jobs and Calendar in `Navigation.tsx`, gated by `canAccessSettings(userRole)` (admin-only — contractors don't dispatch other contractors).
-
-### "Other route-optimization improvements" found in the review
-
-These come out of reading the existing system and are folded into the same feature so we don't make a half-step:
-
-1. **Customer form: capture lat/lng at entry.** Add a "Verify address on map" mini-map to `CustomerForm.tsx` that calls the geocoder and shows a draggable pin. Stops bad addresses from polluting the dispatch board later.
-2. **Job creation: show drive distance from previously-scheduled job for the same contractor on the same day.** Tiny line in `JobForm.tsx`: "Adds ~14 min drive from prior job."
-3. **Calendar (existing): color jobs by contractor**, not by status. Status is already conveyed by an icon; contractor color is the dispatch signal an admin needs at a glance. Behind a toggle so today's behavior is preserved.
-4. **`time_entries.clock_in_lat/lng` is already collected — surface "last known location" of each contractor on the dispatch map** as a faded marker, so an admin can see where each crew currently is. Free reuse of existing data, no new ingestion.
-5. **Customer search by proximity.** With lat/lng populated, the Customers page gains a "near address X" filter (uses Haversine in SQL via a simple RPC; no Mapbox call). Useful when scheduling a new request near an existing route.
-6. **Per-tenant Mapbox usage cap in `settings`.** Surface a small counter ("8.4k of 100k geocodes used this month") on the Dispatch page so a busy tenant isn't surprised by an overage; the proxy enforces the cap.
 
 ### Edge cases handled
 
-- **No Mapbox key configured for the project.** Dispatch page renders, but map area shows "Add a Mapbox token in Settings → System to enable map view and ETAs." The drag-and-drop reassignment swimlane still works (it doesn't need the map). This keeps the feature functional for tenants who haven't onboarded the integration yet.
-- **Customer with no address.** Pin omitted from map; card shows "📍 No address — won't be optimized" and is excluded from the matrix call. Admin can still drag it.
-- **Geocoding fails for an address.** `geocoding_status='failed'` is stored; banner offers manual pin-drop on the verify-address mini-map.
-- **Contractor with no `home_base_*`.** Optimizer falls back to "start at the first scheduled job's location"; admin sees a one-time tooltip suggesting they set a home base in their profile for better ETAs.
-- **>15 stops in one lane.** Optimizer caps NN+2-opt at 15 nodes; for larger days it greedy-batches by region (k-means on coords with k = ceil(n/12)) then optimizes within each batch. This is rare and the cap message tells the admin.
-- **Reassignment crosses tenants/roles.** Impossible by RLS — the swimlanes only render contractors in `get_user_tenant_id()`, and the update goes through the existing tenant-scoped policy.
-- **Time-zone correctness.** All scheduling math uses Luxon with `job_series.timezone`, identical to `useCalendarJobs`. Optimizer outputs `start_at` in UTC.
-- **Concurrent edits.** The Optimize "Preview → Apply" dialog re-fetches the day right before applying; if anything changed (other admin moved a job) we abort and show a diff. Cheap, prevents lost updates.
-- **Mapbox quota exhausted.** Proxy returns 429; UI degrades to "ETAs unavailable, drag to manually re-time" and disables Optimize for the rest of the billing cycle. Reassignment still works.
+- **Number not yet opted in / first-time recipient.** The very first SMS to any customer includes a one-time opt-in line: `"You're receiving this from {business}. Reply STOP to opt out, HELP for help."` Tracked via `sms_messages.triggered_by='first_contact'` so it appears once per (tenant, phone).
+- **Customer in multiple tenants' systems.** Opt-outs are tenant-scoped (`unique (tenant_id, phone_e164)`), which is the legally correct model — opting out of plumber A doesn't mute plumber B.
+- **Phone number missing or unparseable.** `customers.phone_e164` generated column returns `NULL` on parse failure; `send-sms` returns `{ error: 'no_valid_phone' }` and skips silently for batch operations (so one bad number doesn't kill a 50-job reminder run).
+- **Twilio campaign rejected.** Wizard surfaces the rejection reason from Twilio's API, offers a "fix and resubmit" path with re-pre-filled fields. `sms_settings.enabled` stays false until approved.
+- **Campaign approved but tenant disconnects Twilio connection.** `send-sms` checks connection presence on every call; gracefully degrades by setting `enabled=false` and showing an in-app banner.
+- **Daily cap exceeded.** `send-sms` returns `{ error: 'daily_cap_exceeded' }`. Cron skips remaining sends, logs to audit, banner appears in admin UI.
+- **Twilio API outage.** `send-sms` catches 5xx, logs to `sms_messages` with `status='failed'`, returns clear error. Reminder cron retries on next hourly tick (safe because we check "no prior reminder" gate).
+- **Contractor clock-in fires "on the way" outside business hours.** Hard-coded 7am–9pm tenant-local guard inside `send-sms` for non-admin-initiated messages. Admin one-off sends bypass this (admin chose to send).
+- **Inbound STOP from a number we don't recognize.** Still recorded in `sms_opt_outs` with a fabricated tenant lookup via `from_number_e164` reverse lookup. Prevents future sends regardless of customer record state.
+- **Twilio webhook signature missing/invalid.** Returns 403 immediately, logs to audit_logs as `'twilio_inbound_signature_failed'`. Critical to prevent spoofed STOPs from being injected.
 
 ### Files to create / change
 
 ```text
-supabase/migrations/<ts>_dispatch_geocoding.sql        new (columns, triggers, RPC, RLS unchanged)
-supabase/functions/mapbox-proxy/index.ts               new (geocode + matrix + tile token)
+supabase/migrations/<ts>_sms_notifications.sql         new
+supabase/functions/send-sms/index.ts                   new
+supabase/functions/twilio-inbound/index.ts             new (verify_jwt = false in config.toml)
+supabase/functions/sms-job-reminders/index.ts          new (pg_cron hourly)
+supabase/functions/sms-twilio-validate/index.ts        new
+supabase/config.toml                                   add verify_jwt=false for twilio-inbound
 
-src/pages/Dispatch.tsx                                 new
-src/components/Dispatch/*.tsx                          new (6 files listed above)
-src/hooks/useDispatchDay.tsx                           new
-src/hooks/useMapboxProxy.tsx                           new
-src/lib/routeOptimizer.ts                              new
-src/lib/geocoding.ts                                   new
+src/components/Settings/SMSSettings.tsx                new
+src/components/Settings/SMS/*.tsx                      new (6 step + helper components)
+src/components/Settings/NotificationSettings.tsx       add SMS sub-tab
+src/components/Customers/CustomerSendSmsButton.tsx     new
+src/hooks/useSmsSettings.tsx                           new
+src/hooks/useSendSms.tsx                               new
+src/lib/phoneNormalization.ts                          new
 
-src/App.tsx                                            add /dispatch route, lazy-loaded, admin-gated
-src/components/Layout/Navigation.tsx                   add Dispatch nav item (admin-only)
-src/components/Customers/CustomerForm.tsx              add mini-map address verifier
-src/components/Jobs/JobForm.tsx                        add "drive from prior job" hint
-src/components/Calendar/EnhancedCalendar.tsx           optional "color by contractor" toggle
-src/components/Settings/SystemSettings.tsx             add Mapbox token field + dispatch defaults
-package.json                                           add mapbox-gl, react-map-gl, @dnd-kit/core, @dnd-kit/sortable
+src/hooks/useQuotes.tsx                                add SMS dispatch on send
+src/hooks/useInvoices.tsx                              add SMS dispatch on send
+src/components/Jobs/JobView.tsx                        add "Notify customer I'm on the way" button
+package.json                                           add libphonenumber-js
 ```
 
-### Required user action before this works
+### Required user action
 
-The user will need to provide a **`MAPBOX_ACCESS_TOKEN`** secret (a server-side `sk.*` token with Geocoding, Directions Matrix, and Tilesets:Read scopes). I'll request it via the secrets tool as the first step of implementation, before deploying `mapbox-proxy`. No other external accounts are needed — Stripe, Resend, OpenAI, etc. remain untouched.
+1. **Approve the Twilio connector connection** (one click in the wizard, step 1).
+2. **Have an EIN and a business website ready** before starting step 3 (A2P 10DLC won't accept submissions without them).
+3. **Set the inbound webhook URL** in their Twilio number settings — the wizard generates the exact URL (`https://zqohnagvnvpczduoizdh.supabase.co/functions/v1/twilio-inbound`) with a copy button. This is a one-time paste.
 
-### Explicitly NOT included (and why)
+No new project secrets are needed — the connector handles `TWILIO_API_KEY` automatically. `LOVABLE_API_KEY` is already configured.
 
-- **Live GPS tracking of contractors mid-route.** Requires a mobile app or background-geolocation web flow (battery, permissions, privacy review). The "last clock-in location" surfacing gives 80% of the value for 0% of the new infrastructure.
-- **Customer-facing "your tech is N minutes away" notifications.** Requires the live tracking above, plus SMS/Resend integration design. Belongs in a follow-up.
-- **Multi-day route planning / week-view optimization.** Out of scope; the dispatch board is explicitly a one-day morning-planning tool, which is the dominant SMB-trade workflow.
-- **Skill-based assignment constraints** (e.g., "only HVAC-certified contractors can take HVAC jobs). The data model doesn't yet have skills/certifications; tackle when that's introduced.
+### Explicitly NOT in v1 (and why)
+
+- **Two-way conversation inbox.** Inbound non-keyword messages are logged to `sms_messages` but not surfaced as a chat UI. Would require realtime, threading, unread counts, notifications — a separate feature. The data is captured so the inbox can be built later without backfill.
+- **MMS / image attachments.** Doubles per-message cost, requires storage URL signing for media, edge-cases TCPA differently. Add when a customer needs it.
+- **Multi-provider abstraction (Telnyx / Plivo).** Discussed above — premature.
+- **Customer-self-service opt-in via web form.** US carriers prefer this for compliance, but the existing client portal already serves as proof of relationship; we can add a checkbox on `ClientProfile.tsx` later.
+- **Scheduled SMS campaigns / marketing blasts.** Different compliance regime (A2P 10DLC "Marketing" use case requires separate registration). Out of scope; this is transactional SMS only.
 
