@@ -1,111 +1,57 @@
 
 
-## Plan: Job Costing & Profitability
+## Refresh & Harden Stripe Availability Check on Client Invoices
 
-Introduces expense tracking, materials tracking, and a unified cost ledger so every job rolls up to a margin number, and those margins aggregate up to customer-level and service-type-level profitability views.
+### What changes for the user
+On `/client/invoices`, add a small "Refresh payment availability" button next to the page header that re-runs the Stripe connectivity check without a full page reload. While that check is running (or if it returns false), every "Pay Now" button on the page is disabled and shows a spinner with appropriate label, so a client can never click Pay during an unknown/negative Stripe state.
 
----
+### Definitive technical decision
 
-### Data model
+**Extract the Stripe availability state into a dedicated hook (`useStripeAvailability`) and tri-state it as `'loading' | 'enabled' | 'disabled'`, instead of keeping the current `boolean | null` inline in `ClientInvoices.tsx`.**
 
-**New table: `job_expenses`** — all non-labor costs (materials, mileage, subcontractor fees, equipment rental, permits, misc).
-- `id`, `tenant_id`, `created_at`, `updated_at`, `created_by_user_id`
-- `job_series_id` (FK target — required; for one-time jobs this is the row in `job_series`, for recurring it's the parent series)
-- `job_occurrence_id` (nullable FK target — set when the expense belongs to a specific occurrence rather than the whole series)
-- `category` enum `expense_category`: `material` | `mileage` | `subcontractor` | `equipment` | `permit` | `other`
-- `description` (text, required)
-- `quantity` (numeric, default 1)
-- `unit_cost` (numeric, required) — cost to the business
-- `total_cost` (generated: `quantity * unit_cost`)
-- `markup_percent` (numeric, nullable) — for materials being re-billed to customer
-- `billable` (boolean, default true) — whether to roll into customer-facing invoice
-- `billed_to_invoice_id` (uuid, nullable) — once invoiced, link back so we don't double-bill
-- `expense_date` (date, default today)
-- `vendor` (text, nullable)
-- `receipt_file_id` (uuid, nullable — FK to `job_files` for the receipt photo/PDF)
-- `notes` (text, nullable)
+Why this and not the alternatives:
 
-RLS: tenant-scoped; admins full access; contractors INSERT/SELECT/UPDATE their own non-billed entries on jobs they're assigned to.
+1. **Tri-state over boolean | null**: Today the page conflates "still checking" with "unknown" by using `null`. The two requirements explicitly require distinct UI for *loading* (spinner on Pay Now) and *disabled/false* (Pay Now hidden + helper text). A typed enum makes that distinction explicit and impossible to mis-render. This is also what the existing `payingInvoiceId` pattern already does for the per-invoice payment redirect, so the page stays internally consistent.
 
-**New view: `job_cost_summary`** — single source of truth for job profitability. Aggregates per `job_series_id`:
-- `labor_hours` — sum of `time_entries.duration_seconds / 3600` where `status = 'approved'`
-- `labor_cost` — sum of `(duration_seconds/3600) * COALESCE(hourly_rate_snapshot, profile.default_hourly_rate, 0)`
-- `expense_total` — sum of `job_expenses.total_cost`
-- `revenue` — sum of `invoices.total_amount` for invoices linked to this job (via `invoices.job_id`)
-- `total_cost` = labor_cost + expense_total
-- `gross_margin` = revenue - total_cost
-- `margin_percent` = `gross_margin / NULLIF(revenue, 0) * 100`
+2. **Custom hook over inline state + React Query**: React Query isn't currently used anywhere in the client portal pages (`ClientInvoices`, `ClientQuotes`, `ClientJobs`, `ClientServiceRequest` all use `useState` + `useEffect` + direct `supabase` calls). Introducing it just for this single RPC would create a stylistic split inside the portal. A small custom hook keeps the portal's existing fetch idiom while giving us a clean `refresh()` function to wire to the new button. If the portal later migrates to React Query wholesale, this hook is a one-file swap.
 
-Implemented as a SQL view (not a materialized view — needs to be live). Uses `SECURITY INVOKER` so existing RLS on underlying tables governs visibility.
+3. **Re-check only Stripe, not the whole invoice list**: The user explicitly asked to refresh "without reloading the whole page". The current `useEffect` fetches invoices and Stripe status together in `Promise.all`. Splitting the Stripe RPC into its own hook means the refresh button only re-hits `is_stripe_enabled_for_customer` — fast, cheap, and won't blink the invoice cards.
 
-**Two reporting RPCs** (security definer, tenant-scoped):
-- `get_customer_profitability(date_from, date_to)` → per-customer revenue, cost, margin, job count.
-- `get_service_type_profitability(date_from, date_to)` → per-service-type revenue, cost, margin, job count.
+4. **Disable, not hide, Pay Now during loading**: Today Pay Now is *conditionally rendered* only when `stripeEnabled === true`. During a refresh that would cause the button to disappear and reappear, which is jarring. Instead, when the hook is in `'loading'` state, render the button in a disabled+spinner state (matching the existing `payingInvoiceId` spinner pattern). When it's `'disabled'`, fall back to the existing helper-text path. This keeps layout stable and matches how the rest of the app handles async actions.
 
----
+### Implementation
 
-### UI
+**1. New hook: `src/hooks/useStripeAvailability.tsx`**
+- Signature: `useStripeAvailability(customerId: string | undefined)` → `{ status: 'loading' | 'enabled' | 'disabled', refresh: () => Promise<void>, lastCheckedAt: Date | null }`.
+- Internally calls `supabase.rpc('is_stripe_enabled_for_customer', { _customer_id })`.
+- Initial state `'loading'` when a `customerId` is present; `'disabled'` (with a no-op refresh) when no customer is loaded yet.
+- `refresh()` sets status back to `'loading'`, awaits the RPC, sets `'enabled'` / `'disabled'` based on the boolean result, updates `lastCheckedAt`, and toasts on RPC error (using existing `useToast`).
+- On error from the RPC, treat as `'disabled'` (fail-closed) so we never offer Pay Now on an indeterminate state.
 
-**1. New tab on `JobView.tsx`: "Costs & Profitability"**
+**2. Refactor `src/pages/client/ClientInvoices.tsx`**
+- Remove the `stripeEnabled` `useState` and the second item in the existing `Promise.all`. The `useEffect` now only fetches invoices.
+- Call `const { status: stripeStatus, refresh: refreshStripe, lastCheckedAt } = useStripeAvailability(customer?.id)`.
+- Add a header row with title + a `Button variant="outline" size="sm"` labeled "Refresh payment availability" with a `RefreshCw` icon. Disabled while `stripeStatus === 'loading'`; icon spins via `animate-spin` during loading. Below it, a muted `lastCheckedAt` timestamp ("Checked 2:14 PM") for transparency.
+- Pay Now rendering rules per invoice (only for unpaid/non-cancelled with a `share_token`):
+  - `stripeStatus === 'loading'` → render Pay Now disabled, with `Loader2` spinner and label "Checking payment availability…".
+  - `stripeStatus === 'enabled'` → current behavior (clickable Pay Now, spinner swaps to "Starting payment…" once `payingInvoiceId === invoice.id`).
+  - `stripeStatus === 'disabled'` → do not render Pay Now; show the existing "Online card payments are not available…" helper text (currently only shown when `stripeEnabled === false`).
+- Keep the existing "View Invoice" button untouched — it's independent of Stripe.
 
-Top: KPI strip — Revenue · Labor Cost · Expense Cost · Total Cost · Margin $ · Margin %. Color-coded margin (green if positive, red if negative).
+**3. No database, RLS, or edge function changes**
+The existing `is_stripe_enabled_for_customer` RPC and its grant to `authenticated` already cover this; we're just calling it more often and presenting its result more carefully.
 
-Middle: "Expenses" section with table (Date · Category · Description · Vendor · Qty · Unit Cost · Total · Billable · Receipt) and "+ Add Expense" button → dialog with all `job_expenses` fields, optional receipt upload using existing `useJobFiles` hook.
+### Edge cases handled
 
-Bottom: "Time Entries" summary (read from `time_entries`, links to existing Time Entries tab) and "Invoices" summary (revenue side).
+- **Refresh while a payment redirect is in flight**: `payingInvoiceId` is independent of `stripeStatus`. If the user clicks Refresh after clicking Pay Now, the page is already redirecting to Stripe Checkout via `window.location.href`, so the re-check result is irrelevant. No coordination needed.
+- **Refresh with no customer loaded yet**: Hook returns `'disabled'` and refresh is a no-op — the header button is disabled until the customer profile resolves.
+- **RPC error (network blip)**: Toast + `'disabled'`. Clicking Refresh again retries. Fail-closed prevents accidental Pay Now clicks against a stale "enabled" state.
+- **Stale state across tab focus**: Out of scope for this change. If desired later, the hook can be extended with a `visibilitychange` listener — flagged but not built now.
 
-**2. New page: `/profitability` (admin-only, added to `Navigation.tsx`)**
+### Files touched
 
-Three tabs:
-- **By Job** — paginated table of all jobs with their `job_cost_summary` row; sortable by margin, filterable by date/customer/service type. Click row → opens JobView Costs tab.
-- **By Customer** — `get_customer_profitability` results, sortable by margin/revenue. Click row → links to that customer's detail.
-- **By Service Type** — `get_service_type_profitability` results as bar chart (revenue vs cost stacked) plus table.
-
-Date range picker at top defaults to last 90 days. "Export CSV" button per tab.
-
-**3. Invoice integration enhancement**
-
-In invoice creation flow (when generating from a completed job), surface a checklist of `job_expenses` where `billable = true AND billed_to_invoice_id IS NULL`. Each checked item becomes a line item:
-- Description: `[Material] {description}` 
-- Quantity: `quantity`
-- Unit price: `unit_cost * (1 + markup_percent/100)`
-
-On invoice creation, set `billed_to_invoice_id` on the included expenses to prevent double-billing.
-
-This composes with the labor-cost auto-injection from the prior plan — same dialog, two sections (Labor + Materials/Expenses).
-
-**4. Customer page enhancement**
-
-Small "Lifetime Profitability" card on `Customers.tsx` detail view showing total revenue, total cost, lifetime margin $/% — pulled from `get_customer_profitability` filtered to that customer.
-
----
-
-### Hooks
-
-- `useJobExpenses(jobSeriesId)` — list, create, update, delete; auto-uploads receipt to `job-attachments` bucket via existing `useJobFiles`.
-- `useJobCostSummary(jobSeriesId)` — single-row fetch from `job_cost_summary` view, refetches on time-entry/expense/invoice mutations.
-- `useProfitabilityReports(dateFrom, dateTo)` — wraps the two RPCs.
-
----
-
-### Build order
-
-1. Migration: `job_expenses` table + `expense_category` enum + RLS + indexes on `(tenant_id, job_series_id)` and `(billed_to_invoice_id)`.
-2. Migration: `job_cost_summary` view + `get_customer_profitability` + `get_service_type_profitability` RPCs.
-3. `useJobExpenses` + `useJobCostSummary` hooks.
-4. `<JobExpensesTab />` and `<JobCostSummaryCard />` inside `JobView.tsx`.
-5. `/profitability` page + nav link + CSV export.
-6. Invoice flow: expense-selection step in invoice creation; mark `billed_to_invoice_id` on use.
-7. Lifetime profitability card on customer detail.
-8. End-to-end test: log time + add expenses on a job → mark complete → create invoice with labor + materials checked → verify margin numbers match across job, customer, service-type views.
-
----
-
-### Out of scope this round
-
-- Inventory/stock tracking (separate feature; expenses here are job-attached, not deducted from on-hand counts).
-- Multi-currency.
-- Tax-deductible flagging for accounting export — covered later in QuickBooks/Xero integration.
-- Forecasted vs actual comparison charts (post-MVP).
-- Profit goals / alerts when margin drops below threshold.
+```text
+src/hooks/useStripeAvailability.tsx   (new)
+src/pages/client/ClientInvoices.tsx   (refactor)
+```
 
