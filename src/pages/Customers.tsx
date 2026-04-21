@@ -282,7 +282,7 @@ export default function Customers() {
                     <div className="pt-3 border-t border-border flex justify-end">
                       <CustomerSendSmsButton
                         customerName={customer.name}
-                        phone={customer.phone_e164 || customer.phone}
+                        phone={customer.phone}
                       />
                     </div>
                   </CardContent>
