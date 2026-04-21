@@ -6,8 +6,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
-import { Loader2 } from "lucide-react";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2, Mail, MessageSquare } from "lucide-react";
 import { useSettings } from "@/hooks/useSettings";
+import SMSSettings from "@/components/Settings/SMSSettings";
 
 const formSchema = z.object({
   notification_settings: z.object({
@@ -50,7 +52,7 @@ const NOTIFICATION_OPTIONS = [
   },
 ];
 
-export default function NotificationSettings() {
+function EmailNotificationSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { settings, loading, updateSettings, createSettings } = useSettings();
 
@@ -116,7 +118,7 @@ export default function NotificationSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Notification Settings</CardTitle>
+        <CardTitle>Email notifications</CardTitle>
         <CardDescription>
           Configure your email and alert preferences
         </CardDescription>
@@ -177,5 +179,28 @@ export default function NotificationSettings() {
         </Form>
       </CardContent>
     </Card>
+  );
+}
+
+export default function NotificationSettings() {
+  return (
+    <Tabs defaultValue="email" className="w-full">
+      <TabsList className="grid w-full max-w-md grid-cols-2">
+        <TabsTrigger value="email" className="gap-2">
+          <Mail className="h-4 w-4" />
+          Email
+        </TabsTrigger>
+        <TabsTrigger value="sms" className="gap-2">
+          <MessageSquare className="h-4 w-4" />
+          SMS
+        </TabsTrigger>
+      </TabsList>
+      <TabsContent value="email" className="mt-6">
+        <EmailNotificationSettings />
+      </TabsContent>
+      <TabsContent value="sms" className="mt-6">
+        <SMSSettings />
+      </TabsContent>
+    </Tabs>
   );
 }
