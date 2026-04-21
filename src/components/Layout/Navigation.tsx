@@ -13,7 +13,8 @@ import {
   Wrench,
   User,
   LogOut,
-  TrendingUp
+  TrendingUp,
+  Map as MapIcon
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
@@ -31,6 +32,7 @@ const navigationItems = [
   { name: "Quotes", href: "/quotes", icon: FileText },
   { name: "Invoices", href: "/invoices", icon: Receipt },
   { name: "Calendar", href: "/calendar", icon: Calendar },
+  { name: "Dispatch", href: "/dispatch", icon: MapIcon },
   { name: "Profitability", href: "/profitability", icon: TrendingUp },
   { name: "Profile", href: "/profile", icon: User },
   { name: "Settings", href: "/settings", icon: Settings },
@@ -97,6 +99,11 @@ export default function Navigation() {
               
               // Profitability is admin-only
               if (item.name === 'Profitability' && !canAccessSettings(userRole)) {
+                return null;
+              }
+              
+              // Dispatch is admin-only
+              if (item.name === 'Dispatch' && !canAccessSettings(userRole)) {
                 return null;
               }
               

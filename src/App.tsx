@@ -30,6 +30,7 @@ const PublicInvoice = lazy(() => import("./pages/PublicInvoice"));
 const Calendar = lazy(() => import("./pages/Calendar"));
 const NotFound = lazy(() => import("./pages/NotFound"));
 const Profitability = lazy(() => import("./pages/Profitability"));
+const Dispatch = lazy(() => import("./pages/Dispatch"));
 
 // Client portal pages
 const ClientDashboard = lazy(() => import("./pages/client/ClientDashboard"));
@@ -146,6 +147,17 @@ const App = () => (
               } />
               <Route path="/quotes" element={<ProtectedRoute><Layout><Quotes /></Layout></ProtectedRoute>} />
               <Route path="/calendar" element={<ProtectedRoute><Layout><Suspense fallback={<PageLoadingFallback />}><Calendar /></Suspense></Layout></ProtectedRoute>} />
+              <Route path="/dispatch" element={
+                <ProtectedRoute>
+                  <Layout>
+                    <AdminProtectedRoute>
+                      <Suspense fallback={<PageLoadingFallback />}>
+                        <Dispatch />
+                      </Suspense>
+                    </AdminProtectedRoute>
+                  </Layout>
+                </ProtectedRoute>
+              } />
               <Route path="/profile" element={<ProtectedRoute><Layout><Profile /></Layout></ProtectedRoute>} />
               <Route path="/settings" element={<ProtectedRoute><Layout><AdminProtectedRoute><Settings /></AdminProtectedRoute></Layout></ProtectedRoute>} />
               <Route path="/profitability" element={

@@ -59,13 +59,18 @@ export type Database = {
       customers: {
         Row: {
           address: Json | null
+          address_hash: string | null
           assigned_to_user_id: string | null
           client_user_id: string | null
           created_at: string
           created_by_user_id: string
           customer_type: Database["public"]["Enums"]["customer_type"]
           email: string | null
+          geocoded_at: string | null
+          geocoding_status: string | null
           id: string
+          lat: number | null
+          lng: number | null
           name: string
           notes: string | null
           phone: string
@@ -76,13 +81,18 @@ export type Database = {
         }
         Insert: {
           address?: Json | null
+          address_hash?: string | null
           assigned_to_user_id?: string | null
           client_user_id?: string | null
           created_at?: string
           created_by_user_id: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
           email?: string | null
+          geocoded_at?: string | null
+          geocoding_status?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name: string
           notes?: string | null
           phone: string
@@ -93,13 +103,18 @@ export type Database = {
         }
         Update: {
           address?: Json | null
+          address_hash?: string | null
           assigned_to_user_id?: string | null
           client_user_id?: string | null
           created_at?: string
           created_by_user_id?: string
           customer_type?: Database["public"]["Enums"]["customer_type"]
           email?: string | null
+          geocoded_at?: string | null
+          geocoding_status?: string | null
           id?: string
+          lat?: number | null
+          lng?: number | null
           name?: string
           notes?: string | null
           phone?: string
@@ -539,6 +554,8 @@ export type Database = {
           created_at: string
           customer_id: string
           customer_name: string
+          dispatch_sequence: number | null
+          drive_minutes_from_prev: number | null
           end_at: string
           id: string
           override_description: string | null
@@ -560,6 +577,8 @@ export type Database = {
           created_at?: string
           customer_id: string
           customer_name?: string
+          dispatch_sequence?: number | null
+          drive_minutes_from_prev?: number | null
           end_at: string
           id?: string
           override_description?: string | null
@@ -581,6 +600,8 @@ export type Database = {
           created_at?: string
           customer_id?: string
           customer_name?: string
+          dispatch_sequence?: number | null
+          drive_minutes_from_prev?: number | null
           end_at?: string
           id?: string
           override_description?: string | null
@@ -730,6 +751,11 @@ export type Database = {
           default_hourly_rate: number | null
           email: string | null
           full_name: string | null
+          home_base_address: Json | null
+          home_base_address_hash: string | null
+          home_base_geocoded_at: string | null
+          home_base_lat: number | null
+          home_base_lng: number | null
           id: string
           parent_admin_id: string | null
           phone: string | null
@@ -743,6 +769,11 @@ export type Database = {
           default_hourly_rate?: number | null
           email?: string | null
           full_name?: string | null
+          home_base_address?: Json | null
+          home_base_address_hash?: string | null
+          home_base_geocoded_at?: string | null
+          home_base_lat?: number | null
+          home_base_lng?: number | null
           id?: string
           parent_admin_id?: string | null
           phone?: string | null
@@ -756,6 +787,11 @@ export type Database = {
           default_hourly_rate?: number | null
           email?: string | null
           full_name?: string | null
+          home_base_address?: Json | null
+          home_base_address_hash?: string | null
+          home_base_geocoded_at?: string | null
+          home_base_lat?: number | null
+          home_base_lng?: number | null
           id?: string
           parent_admin_id?: string | null
           phone?: string | null
@@ -1479,6 +1515,14 @@ export type Database = {
           total_cost: number
         }[]
       }
+      get_unbatched_geocoding_targets: {
+        Args: { _limit?: number }
+        Returns: {
+          address: Json
+          id: string
+          name: string
+        }[]
+      }
       get_user_permissions: {
         Args: { target_user_id: string }
         Returns: {
@@ -1508,6 +1552,7 @@ export type Database = {
         Args: { _customer_id: string }
         Returns: boolean
       }
+      normalize_address_jsonb: { Args: { _addr: Json }; Returns: string }
       validate_quote_response_input: {
         Args: {
           _customer_comments?: string
