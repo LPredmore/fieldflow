@@ -1,7 +1,9 @@
 // Hourly worker. For each tenant where it's currently 6pm tenant-local,
 // SMS+email each contractor a list of tomorrow's assigned jobs.
+// Uses the shared notification dispatcher for both channels.
 import "jsr:@supabase/functions-js/edge-runtime.d.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.95.0";
+import { dispatchNotification, ianaTimezone, tenantLocalHour } from "../_shared/notification-dispatcher.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -9,34 +11,13 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
-const TZ_MAP: Record<string, string> = {
-  Eastern: "America/New_York",
-  Central: "America/Chicago",
-  Mountain: "America/Denver",
-  Pacific: "America/Los_Angeles",
-  Arizona: "America/Phoenix",
-  Alaska: "America/Anchorage",
-  "Hawaii Aleutian": "Pacific/Honolulu",
-};
-
-function tenantLocalHour(tz: string, now: Date): number {
-  const ianaTz = TZ_MAP[tz] || "America/New_York";
-  return parseInt(
-    new Intl.DateTimeFormat("en-US", { timeZone: ianaTz, hour: "2-digit", hour12: false }).format(now),
-    10,
-  );
-}
-
-function tenantLocalDateString(tz: string, d: Date): string {
-  const ianaTz = TZ_MAP[tz] || "America/New_York";
-  // returns YYYY-MM-DD
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: ianaTz,
+function tenantLocalDateString(tz: string | null | undefined, d: Date): string {
+  return new Intl.DateTimeFormat("en-CA", {
+    timeZone: ianaTimezone(tz),
     year: "numeric",
     month: "2-digit",
     day: "2-digit",
   }).format(d);
-  return parts;
 }
 
 Deno.serve(async (req) => {
@@ -49,7 +30,6 @@ Deno.serve(async (req) => {
     );
     const now = new Date();
 
-    // Pull all tenants with settings; filter by 6pm local
     const { data: tenants } = await admin
       .from("settings")
       .select("tenant_id, business_name, time_zone, notification_settings");
@@ -61,8 +41,7 @@ Deno.serve(async (req) => {
       time_zone: string | null;
       notification_settings: Record<string, boolean> | null;
     }>) {
-      const hour = tenantLocalHour(t.time_zone || "Eastern", now);
-      if (hour !== 18) continue; // 6pm local
+      if (tenantLocalHour(t.time_zone, now) !== 18) continue;
 
       const { data: smsSettings } = await admin
         .from("sms_settings")
@@ -74,12 +53,12 @@ Deno.serve(async (req) => {
       const emailEnabled = (t.notification_settings || {}).job_reminder_crew_email !== false;
       if (!smsEnabled && !emailEnabled) continue;
 
-      // Tomorrow in tenant local
-      const tomorrowLocal = new Date(now.getTime() + 24 * 60 * 60 * 1000);
-      const tomorrowKey = tenantLocalDateString(t.time_zone || "Eastern", tomorrowLocal);
+      const tomorrowKey = tenantLocalDateString(
+        t.time_zone,
+        new Date(now.getTime() + 24 * 60 * 60 * 1000),
+      );
 
-      // Find tomorrow's occurrences grouped by contractor
-      // Window: cover any UTC slice that maps to tomorrow's local date — a 36h window comfortably covers all US zones.
+      // Wide window covers any UTC slice mapping to tomorrow's local date
       const startWin = new Date(now.getTime() + 6 * 60 * 60 * 1000).toISOString();
       const endWin = new Date(now.getTime() + 42 * 60 * 60 * 1000).toISOString();
 
@@ -94,15 +73,11 @@ Deno.serve(async (req) => {
 
       if (!occs || occs.length === 0) continue;
 
-      // Filter to tenant-local "tomorrow"
-      const ianaTz = TZ_MAP[t.time_zone || "Eastern"] || "America/New_York";
-      const tomorrowOccs = occs.filter((o) => {
-        const localDay = tenantLocalDateString(t.time_zone || "Eastern", new Date(o.start_at));
-        return localDay === tomorrowKey;
-      });
+      const tomorrowOccs = occs.filter((o) =>
+        tenantLocalDateString(t.time_zone, new Date(o.start_at)) === tomorrowKey
+      );
       if (tomorrowOccs.length === 0) continue;
 
-      // Group by contractor
       const byContractor = new Map<string, typeof tomorrowOccs>();
       for (const o of tomorrowOccs) {
         const k = o.assigned_to_user_id as string;
@@ -113,16 +88,6 @@ Deno.serve(async (req) => {
       for (const [contractorId, jobs] of byContractor) {
         const eventKey = `crew_reminder:${contractorId}:${tomorrowKey}`;
 
-        // Skip if already dispatched today
-        const { data: prior } = await admin
-          .from("notification_dispatches")
-          .select("id")
-          .eq("tenant_id", t.tenant_id)
-          .eq("event_key", eventKey)
-          .limit(1);
-        if (prior && prior.length > 0) continue;
-
-        // Resolve contractor contact
         const { data: profile } = await admin
           .from("profiles")
           .select("full_name, email, phone")
@@ -133,7 +98,7 @@ Deno.serve(async (req) => {
         const sortedJobs = jobs.sort((a, b) => a.start_at.localeCompare(b.start_at));
         const lines = sortedJobs.map((o) => {
           const time = new Intl.DateTimeFormat("en-US", {
-            timeZone: ianaTz,
+            timeZone: ianaTimezone(t.time_zone),
             hour: "numeric",
             minute: "2-digit",
             hour12: true,
@@ -145,48 +110,35 @@ Deno.serve(async (req) => {
         const subject = `Tomorrow: ${jobs.length} ${jobs.length === 1 ? "job" : "jobs"} — ${t.business_name || "your schedule"}`;
         const html = `<p>Hi ${profile.full_name || "there"},</p><p>Your schedule for tomorrow (${tomorrowKey}):</p><ul>${lines.map((l) => `<li>${l}</li>`).join("")}</ul>`;
 
-        // Normalize phone: profile.phone is free-text; rely on db function via admin
+        // Normalize phone via DB function (profiles.phone is free-text)
+        let phoneE164: string | null = null;
         if (smsEnabled && profile.phone) {
           const { data: e164 } = await admin.rpc("normalize_phone_e164", { _phone: profile.phone });
-          if (e164) {
-            const r = await admin.functions.invoke("send-sms", {
-              body: {
-                to: e164,
+          phoneE164 = (e164 as string | null) ?? null;
+        }
+
+        const result = await dispatchNotification(admin, {
+          tenantId: t.tenant_id,
+          eventKey,
+          sms: smsEnabled && phoneE164
+            ? {
+                to: phoneE164,
                 body,
-                triggered_by: "job_reminder",
-                bypass_business_hours: true,
-              },
-              headers: { Authorization: `Bearer ${Deno.env.get("SUPABASE_ANON_KEY")}` },
-            });
-            if (!r.error && (r.data as { ok?: boolean })?.ok) {
-              await admin.from("notification_dispatches").insert({
-                tenant_id: t.tenant_id,
-                event_key: eventKey,
-                channel: "sms",
-              });
-              totalSent++;
-            }
-          }
-        }
-        if (emailEnabled && profile.email) {
-          const r = await admin.functions.invoke("send-notification-email", {
-            body: {
-              to: profile.email,
-              subject,
-              html,
-              triggered_by: "job_reminder_crew",
-              tenant_id: t.tenant_id,
-            },
-          });
-          if (!r.error && (r.data as { ok?: boolean })?.ok) {
-            await admin.from("notification_dispatches").insert({
-              tenant_id: t.tenant_id,
-              event_key: eventKey,
-              channel: "email",
-            });
-            totalSent++;
-          }
-        }
+                triggeredBy: "job_reminder",
+                bypassBusinessHours: true,
+              }
+            : null,
+          email: emailEnabled && profile.email
+            ? {
+                to: profile.email,
+                subject,
+                html,
+                triggeredBy: "job_reminder_crew",
+              }
+            : null,
+        });
+        if (result.sms?.ok) totalSent++;
+        if (result.email?.ok) totalSent++;
       }
     }
 
