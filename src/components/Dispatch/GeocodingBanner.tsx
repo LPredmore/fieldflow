@@ -26,11 +26,13 @@ export function GeocodingBanner({ count, onComplete }: Props) {
       );
       if (error) throw error;
       const payload = (targets || [])
-        .map((t: { id: string; address: Record<string, string> | null }) => ({
+        .map((t) => ({
           customer_id: t.id,
-          query: formatAddressOneLine(t.address),
+          query: formatAddressOneLine(
+            t.address as Record<string, string | null> | null
+          ),
         }))
-        .filter((p: { query: string }) => p.query.length > 3);
+        .filter((p) => p.query.length > 3);
       if (payload.length === 0) {
         toast({ title: 'Nothing to geocode' });
         return;

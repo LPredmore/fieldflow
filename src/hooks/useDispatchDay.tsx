@@ -89,52 +89,75 @@ export function useDispatchDay(): UseDispatchDayResult {
           home_base_lng: p.home_base_lng,
         }));
 
-      // Day occurrences with series and customer joined
+      // Day occurrences (no FK to customers, so we fetch + stitch)
       const { data: occs, error: oErr } = await supabase
         .from('job_occurrences')
         .select(
           `id, series_id, customer_id, customer_name, start_at, end_at,
            assigned_to_user_id, status, dispatch_sequence, drive_minutes_from_prev,
-           override_title,
-           job_series:series_id ( title ),
-           customers:customer_id ( lat, lng, address )`
+           override_title`
         )
         .gte('start_at', dayBounds.startISO)
         .lte('start_at', dayBounds.endISO)
         .order('start_at', { ascending: true });
       if (oErr) throw oErr;
 
-      const dispatchJobs: DispatchJob[] = (occs || []).map((o: {
-        id: string;
-        series_id: string;
-        customer_id: string;
-        customer_name: string;
-        start_at: string;
-        end_at: string;
-        assigned_to_user_id: string | null;
-        status: string;
-        dispatch_sequence: number | null;
-        drive_minutes_from_prev: number | null;
-        override_title: string | null;
-        job_series?: { title?: string } | null;
-        customers?: { lat: number | null; lng: number | null; address: Record<string, string | null> | null } | null;
-      }) => ({
-        id: o.id,
-        series_id: o.series_id,
-        customer_id: o.customer_id,
-        customer_name: o.customer_name,
-        start_at: o.start_at,
-        end_at: o.end_at,
-        assigned_to_user_id: o.assigned_to_user_id,
-        status: o.status,
-        dispatch_sequence: o.dispatch_sequence,
-        drive_minutes_from_prev: o.drive_minutes_from_prev,
-        override_title: o.override_title,
-        series_title: o.job_series?.title ?? null,
-        customer_lat: o.customers?.lat ?? null,
-        customer_lng: o.customers?.lng ?? null,
-        customer_address: o.customers?.address ?? null,
-      }));
+      const seriesIds = Array.from(new Set((occs || []).map((o) => o.series_id)));
+      const customerIds = Array.from(new Set((occs || []).map((o) => o.customer_id)));
+
+      const [{ data: seriesRows }, { data: customerRows }] = await Promise.all([
+        seriesIds.length
+          ? supabase.from('job_series').select('id, title').in('id', seriesIds)
+          : Promise.resolve({ data: [] as { id: string; title: string }[] }),
+        customerIds.length
+          ? supabase
+              .from('customers')
+              .select('id, lat, lng, address')
+              .in('id', customerIds)
+          : Promise.resolve({
+              data: [] as {
+                id: string;
+                lat: number | null;
+                lng: number | null;
+                address: unknown;
+              }[],
+            }),
+      ]);
+
+      const seriesMap = new Map(
+        (seriesRows || []).map((s) => [s.id, s.title as string])
+      );
+      const customerMap = new Map(
+        (customerRows || []).map((c) => [
+          c.id,
+          {
+            lat: (c.lat as number | null) ?? null,
+            lng: (c.lng as number | null) ?? null,
+            address: c.address as Record<string, string | null> | null,
+          },
+        ])
+      );
+
+      const dispatchJobs: DispatchJob[] = (occs || []).map((o) => {
+        const cust = customerMap.get(o.customer_id);
+        return {
+          id: o.id,
+          series_id: o.series_id,
+          customer_id: o.customer_id,
+          customer_name: o.customer_name,
+          start_at: o.start_at,
+          end_at: o.end_at,
+          assigned_to_user_id: o.assigned_to_user_id,
+          status: o.status,
+          dispatch_sequence: o.dispatch_sequence,
+          drive_minutes_from_prev: o.drive_minutes_from_prev,
+          override_title: o.override_title,
+          series_title: seriesMap.get(o.series_id) ?? null,
+          customer_lat: cust?.lat ?? null,
+          customer_lng: cust?.lng ?? null,
+          customer_address: cust?.address ?? null,
+        };
+      });
 
       // Last known location per contractor (most recent clock_in_at with coords)
       const ids = contractorList.map((c) => c.id);
