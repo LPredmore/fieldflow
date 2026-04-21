@@ -3,21 +3,27 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Upload, Mail, CheckCircle2, AlertCircle, Send } from "lucide-react";
 import { hexToHsl } from "@/lib/colorUtils";
 import { useSettings } from "@/hooks/useSettings";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   business_name: z.string().min(1, "Business name is required"),
   business_phone: z.string().optional(),
-  business_email: z.string().email("Invalid email address").optional(),
+  business_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   business_website: z.string().optional(),
   logo_url: z.string().optional(),
   brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
   text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
+  email_from_address: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email_from_name: z.string().max(100).optional().or(z.literal("")),
   business_address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
@@ -40,7 +46,11 @@ const US_STATES = [
 export default function BusinessSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; isCustomDomain?: boolean } | null>(null);
   const { settings, loading, updateSettings, createSettings } = useSettings();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -52,6 +62,8 @@ export default function BusinessSettings() {
       logo_url: "",
       brand_color: "#3B82F6",
       text_color: "#FFFFFF",
+      email_from_address: "",
+      email_from_name: "",
       business_address: {
         street: "",
         city: "",
@@ -113,6 +125,8 @@ export default function BusinessSettings() {
         logo_url: settings.logo_url || "",
         brand_color: settings.brand_color || "#3B82F6",
         text_color: settings.text_color || "#FFFFFF",
+        email_from_address: settings.email_from_address || "",
+        email_from_name: settings.email_from_name || "",
         business_address: settings.business_address || {
           street: "",
           city: "",
@@ -123,6 +137,66 @@ export default function BusinessSettings() {
       });
     }
   }, [settings, form]);
+
+  const handleSendTestEmail = async () => {
+    const emailAddress = user?.email || form.getValues("business_email");
+    if (!emailAddress) {
+      toast({
+        variant: "destructive",
+        title: "No email address",
+        description: "Add a business email or sign in to receive the test message.",
+      });
+      return;
+    }
+
+    setIsTestingEmail(true);
+    setTestResult(null);
+    try {
+      // Save current sender fields first so the test uses the latest values
+      const fromAddress = form.getValues("email_from_address");
+      const fromName = form.getValues("email_from_name");
+      if (settings && (fromAddress !== (settings.email_from_address || "") || fromName !== (settings.email_from_name || ""))) {
+        await updateSettings({
+          email_from_address: fromAddress || null,
+          email_from_name: fromName || null,
+        });
+      }
+
+      const { data, error } = await supabase.functions.invoke("send-notification-email", {
+        body: {
+          to: emailAddress,
+          subject: "Test email from your sender configuration",
+          html: `<p>This is a test message confirming your sender configuration works.</p><p>If you received this, your "From" address is correctly verified with Resend.</p>`,
+          triggered_by: "sender_test",
+        },
+      });
+
+      if (error || !data?.ok) {
+        const message = data?.message || data?.error_code || error?.message || "Send failed";
+        setTestResult({ ok: false, message, isCustomDomain: data?.is_custom_domain });
+        toast({
+          variant: "destructive",
+          title: "Test email failed",
+          description: message,
+        });
+      } else {
+        setTestResult({ ok: true, message: `Sent from ${data.from_address}`, isCustomDomain: data.is_custom_domain });
+        toast({
+          title: "Test email sent",
+          description: `Check ${emailAddress}.`,
+        });
+      }
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err?.message || "Unexpected error" });
+      toast({
+        variant: "destructive",
+        title: "Test email failed",
+        description: err?.message || "Unexpected error",
+      });
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -343,7 +417,94 @@ export default function BusinessSettings() {
               </div>
             </div>
 
-            {/* Address */}
+            {/* Email Sender */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Email Sender
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Branded "From" address for outgoing customer emails (quotes, invoices, notifications).
+                  </p>
+                </div>
+                {settings?.email_from_address ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Custom domain configured
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1 text-muted-foreground">
+                    <AlertCircle className="h-3 w-3" />
+                    Using default sender
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="email_from_address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>From Email Address</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="info@yourdomain.com" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Must be verified in your Resend dashboard. Leave blank to use the default sender.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="email_from_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Display Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder={form.watch("business_name") || "Your Business"} {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Friendly name shown in the recipient's inbox. Defaults to your business name.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSendTestEmail}
+                  disabled={isTestingEmail}
+                >
+                  {isTestingEmail ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending test...</>
+                  ) : (
+                    <><Send className="mr-2 h-4 w-4" /> Send test email</>
+                  )}
+                </Button>
+                {testResult && (
+                  <div className={`text-sm flex items-center gap-2 ${testResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                    {testResult.ok ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <span>{testResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Business Address</h3>
               

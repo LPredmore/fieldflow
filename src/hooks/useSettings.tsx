@@ -16,6 +16,8 @@ export interface Settings {
   logo_url: string | null;
   brand_color: string | null;
   text_color: string | null;
+  email_from_address: string | null;
+  email_from_name: string | null;
   tax_settings: any | null;
   payment_settings: any | null;
   invoice_settings: any | null;

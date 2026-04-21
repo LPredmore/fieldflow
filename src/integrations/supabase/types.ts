@@ -1149,6 +1149,8 @@ export type Database = {
           business_website: string | null
           created_at: string
           created_by_user_id: string
+          email_from_address: string | null
+          email_from_name: string | null
           id: string
           invoice_settings: Json | null
           logo_url: string | null
@@ -1173,6 +1175,8 @@ export type Database = {
           business_website?: string | null
           created_at?: string
           created_by_user_id: string
+          email_from_address?: string | null
+          email_from_name?: string | null
           id?: string
           invoice_settings?: Json | null
           logo_url?: string | null
@@ -1197,6 +1201,8 @@ export type Database = {
           business_website?: string | null
           created_at?: string
           created_by_user_id?: string
+          email_from_address?: string | null
+          email_from_name?: string | null
           id?: string
           invoice_settings?: Json | null
           logo_url?: string | null

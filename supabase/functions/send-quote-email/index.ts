@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { resolveEmailSender } from "../_shared/email-sender.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const supabase = createClient(
@@ -80,7 +81,7 @@ const handler = async (req: Request): Promise<Response> => {
     // First check if quote already has a share token
     const { data: existingQuote, error: fetchError } = await supabase
       .from('quotes')
-      .select('share_token, quote_number, title, total_amount')
+      .select('share_token, quote_number, title, total_amount, tenant_id')
       .eq('id', quoteId)
       .single();
 
@@ -151,19 +152,24 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Customer email and name are required for sending emails");
     }
 
-    // Get business settings for branding
+    // Get business settings for branding (filtered by tenant — fixes prior cross-tenant bug)
     const { data: settings } = await supabase
       .from('settings')
       .select('business_name, business_email, business_phone')
-      .single();
+      .eq('tenant_id', existingQuote.tenant_id)
+      .maybeSingle();
 
     const businessName = settings?.business_name || 'Your Business';
 
-    console.log("[send-quote-email] Sending email to:", customerEmail);
+    // Resolve per-tenant verified sender (falls back to onboarding@resend.dev)
+    const sender = await resolveEmailSender(supabase, existingQuote.tenant_id);
+
+    console.log("[send-quote-email] Sending email to:", customerEmail, "from:", sender.fromAddress);
 
     // Send email
     const emailResponse = await resend.emails.send({
-      from: `${businessName} <onboarding@resend.dev>`,
+      from: sender.from,
+      reply_to: sender.replyTo,
       to: [customerEmail],
       subject: `Quote ${existingQuote.quote_number} - ${existingQuote.title}`,
       html: `

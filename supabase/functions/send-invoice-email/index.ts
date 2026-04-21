@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { resolveEmailSender } from "../_shared/email-sender.ts";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -262,17 +263,22 @@ serve(async (req) => {
       );
     }
 
+    // Resolve per-tenant verified sender (falls back to onboarding@resend.dev)
+    const sender = await resolveEmailSender(supabase, invoice.tenant_id);
+
     console.log('About to send email to:', customerEmail.substring(0, 3) + '***');
     console.log('Email details:', {
-      from: `${businessName} <onboarding@resend.dev>`,
-      to: customerEmail,
+      from: sender.fromAddress,
+      isCustomDomain: sender.isCustomDomain,
+      to: customerEmail.substring(0, 3) + '***',
       subject: `Invoice ${invoice.invoice_number} - ${businessName}`,
       htmlLength: emailHtml.length
     });
 
-    // Send email using verified domain (same as quotes)
+    // Send email using tenant's verified sender
     const emailResponse = await resend.emails.send({
-      from: `${businessName} <onboarding@resend.dev>`,
+      from: sender.from,
+      reply_to: sender.replyTo,
       to: [customerEmail],
       subject: `Invoice ${invoice.invoice_number} - ${businessName}`,
       html: emailHtml,
