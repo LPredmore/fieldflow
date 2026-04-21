@@ -74,6 +74,7 @@ export type Database = {
           name: string
           notes: string | null
           phone: string
+          phone_e164: string | null
           tenant_id: string
           total_jobs_count: number | null
           total_revenue_billed: number | null
@@ -96,6 +97,7 @@ export type Database = {
           name: string
           notes?: string | null
           phone: string
+          phone_e164?: string | null
           tenant_id: string
           total_jobs_count?: number | null
           total_revenue_billed?: number | null
@@ -118,6 +120,7 @@ export type Database = {
           name?: string
           notes?: string | null
           phone?: string
+          phone_e164?: string | null
           tenant_id?: string
           total_jobs_count?: number | null
           total_revenue_billed?: number | null
@@ -1174,6 +1177,141 @@ export type Database = {
         }
         Relationships: []
       }
+      sms_messages: {
+        Row: {
+          body: string
+          created_at: string
+          direction: string
+          error_code: string | null
+          from_number_e164: string | null
+          id: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          status: string
+          tenant_id: string
+          to_number_e164: string
+          triggered_by: string | null
+          triggered_by_user_id: string | null
+          twilio_sid: string | null
+        }
+        Insert: {
+          body: string
+          created_at?: string
+          direction: string
+          error_code?: string | null
+          from_number_e164?: string | null
+          id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          status?: string
+          tenant_id: string
+          to_number_e164: string
+          triggered_by?: string | null
+          triggered_by_user_id?: string | null
+          twilio_sid?: string | null
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          direction?: string
+          error_code?: string | null
+          from_number_e164?: string | null
+          id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          status?: string
+          tenant_id?: string
+          to_number_e164?: string
+          triggered_by?: string | null
+          triggered_by_user_id?: string | null
+          twilio_sid?: string | null
+        }
+        Relationships: []
+      }
+      sms_opt_outs: {
+        Row: {
+          id: string
+          opted_out_at: string
+          phone_e164: string
+          reason: string
+          tenant_id: string
+        }
+        Insert: {
+          id?: string
+          opted_out_at?: string
+          phone_e164: string
+          reason?: string
+          tenant_id: string
+        }
+        Update: {
+          id?: string
+          opted_out_at?: string
+          phone_e164?: string
+          reason?: string
+          tenant_id?: string
+        }
+        Relationships: []
+      }
+      sms_settings: {
+        Row: {
+          business_website: string | null
+          campaign_rejection_reason: string | null
+          campaign_status: string
+          campaign_status_checked_at: string | null
+          campaign_use_case: string | null
+          created_at: string
+          daily_send_cap: number
+          ein: string | null
+          enabled: boolean
+          from_number_e164: string | null
+          id: string
+          messaging_service_sid: string | null
+          notification_events: Json
+          tenant_id: string
+          test_message_sent_at: string | null
+          twilio_connection_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          business_website?: string | null
+          campaign_rejection_reason?: string | null
+          campaign_status?: string
+          campaign_status_checked_at?: string | null
+          campaign_use_case?: string | null
+          created_at?: string
+          daily_send_cap?: number
+          ein?: string | null
+          enabled?: boolean
+          from_number_e164?: string | null
+          id?: string
+          messaging_service_sid?: string | null
+          notification_events?: Json
+          tenant_id: string
+          test_message_sent_at?: string | null
+          twilio_connection_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          business_website?: string | null
+          campaign_rejection_reason?: string | null
+          campaign_status?: string
+          campaign_status_checked_at?: string | null
+          campaign_use_case?: string | null
+          created_at?: string
+          daily_send_cap?: number
+          ein?: string | null
+          enabled?: boolean
+          from_number_e164?: string | null
+          id?: string
+          messaging_service_sid?: string | null
+          notification_events?: Json
+          tenant_id?: string
+          test_message_sent_at?: string | null
+          twilio_connection_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       stripe_connected_accounts: {
         Row: {
           account_email: string | null
@@ -1548,11 +1686,16 @@ export type Database = {
         Args: { _customer_id: string }
         Returns: boolean
       }
+      is_phone_opted_out: {
+        Args: { _phone_e164: string; _tenant_id: string }
+        Returns: boolean
+      }
       is_stripe_enabled_for_customer: {
         Args: { _customer_id: string }
         Returns: boolean
       }
       normalize_address_jsonb: { Args: { _addr: Json }; Returns: string }
+      normalize_phone_e164: { Args: { _phone: string }; Returns: string }
       validate_quote_response_input: {
         Args: {
           _customer_comments?: string
