@@ -25,6 +25,7 @@ export default function ClientInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
+  const [stripeEnabled, setStripeEnabled] = useState<boolean | null>(null);
 
   const handlePayNow = async (invoice: Invoice) => {
     if (!invoice.share_token) {
