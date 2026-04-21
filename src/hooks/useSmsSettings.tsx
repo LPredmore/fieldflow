@@ -93,8 +93,8 @@ export function useSmsSettings() {
       });
       return null;
     }
-    setSettings(data as SmsSettings);
-    return data as SmsSettings;
+    setSettings(data as unknown as SmsSettings);
+    return data as unknown as SmsSettings;
   }, [settings, user]);
 
   const update = useCallback(
@@ -103,7 +103,7 @@ export function useSmsSettings() {
       if (!current) return null;
       const { data, error } = await supabase
         .from("sms_settings")
-        .update(patch)
+        .update(patch as never)
         .eq("id", current.id)
         .select("*")
         .single();
@@ -115,8 +115,8 @@ export function useSmsSettings() {
         });
         return null;
       }
-      setSettings(data as SmsSettings);
-      return data as SmsSettings;
+      setSettings(data as unknown as SmsSettings);
+      return data as unknown as SmsSettings;
     },
     [ensureExists],
   );
