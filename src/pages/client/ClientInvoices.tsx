@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useClientCustomer } from '@/hooks/useClientCustomer';
+import { useStripeAvailability } from '@/hooks/useStripeAvailability';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Skeleton } from '@/components/ui/skeleton';
-import { Receipt, ExternalLink, Calendar, DollarSign, CreditCard, Loader2 } from 'lucide-react';
+import { Receipt, ExternalLink, Calendar, DollarSign, CreditCard, Loader2, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import { useToast } from '@/hooks/use-toast';
 
@@ -25,7 +26,7 @@ export default function ClientInvoices() {
   const [invoices, setInvoices] = useState<Invoice[]>([]);
   const [loading, setLoading] = useState(true);
   const [payingInvoiceId, setPayingInvoiceId] = useState<string | null>(null);
-  const [stripeEnabled, setStripeEnabled] = useState<boolean | null>(null);
+  const { status: stripeStatus, refresh: refreshStripe, lastCheckedAt } = useStripeAvailability(customer?.id);
 
   const handlePayNow = async (invoice: Invoice) => {
     if (!invoice.share_token) {
@@ -69,18 +70,14 @@ export default function ClientInvoices() {
       }
 
       try {
-        const [{ data, error }, { data: stripeData }] = await Promise.all([
-          supabase
-            .from('invoices')
-            .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
-            .eq('customer_id', customer.id)
-            .order('issue_date', { ascending: false }),
-          supabase.rpc('is_stripe_enabled_for_customer', { _customer_id: customer.id }),
-        ]);
+        const { data, error } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, status, total_amount, due_date, issue_date, share_token')
+          .eq('customer_id', customer.id)
+          .order('issue_date', { ascending: false });
 
         if (error) throw error;
         setInvoices(data || []);
-        setStripeEnabled(Boolean(stripeData));
       } catch (err) {
         console.error('Error fetching invoices:', err);
       } finally {
@@ -126,11 +123,29 @@ export default function ClientInvoices() {
   return (
     <div className="p-6 lg:p-8">
       {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-foreground mb-2">My Invoices</h1>
-        <p className="text-muted-foreground">
-          View your invoices and payment history.
-        </p>
+      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-foreground mb-2">My Invoices</h1>
+          <p className="text-muted-foreground">
+            View your invoices and payment history.
+          </p>
+        </div>
+        <div className="flex flex-col items-start sm:items-end gap-1">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={refreshStripe}
+            disabled={stripeStatus === 'loading' || !customer?.id}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${stripeStatus === 'loading' ? 'animate-spin' : ''}`} />
+            Refresh payment availability
+          </Button>
+          {lastCheckedAt && (
+            <p className="text-xs text-muted-foreground">
+              Checked {format(lastCheckedAt, 'p')}
+            </p>
+          )}
+        </div>
       </div>
 
       {invoices.length === 0 ? (
@@ -145,80 +160,90 @@ export default function ClientInvoices() {
         </Card>
       ) : (
         <div className="space-y-4">
-          {invoices.map((invoice) => (
-            <Card key={invoice.id} className="shadow-material-md hover:shadow-material-lg transition-shadow">
-              <CardHeader className="pb-3">
-                <div className="flex items-start justify-between">
-                  <div>
-                    <CardTitle className="text-lg">Invoice #{invoice.invoice_number}</CardTitle>
-                    <CardDescription>
-                      Issued {format(new Date(invoice.issue_date), 'MMM d, yyyy')}
-                    </CardDescription>
+          {invoices.map((invoice) => {
+            const isUnpaid = invoice.status !== 'paid' && invoice.status !== 'cancelled';
+            const isPaying = payingInvoiceId === invoice.id;
+            return (
+              <Card key={invoice.id} className="shadow-material-md hover:shadow-material-lg transition-shadow">
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between">
+                    <div>
+                      <CardTitle className="text-lg">Invoice #{invoice.invoice_number}</CardTitle>
+                      <CardDescription>
+                        Issued {format(new Date(invoice.issue_date), 'MMM d, yyyy')}
+                      </CardDescription>
+                    </div>
+                    <Badge className={getStatusColor(invoice.status)}>
+                      {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
+                    </Badge>
                   </div>
-                  <Badge className={getStatusColor(invoice.status)}>
-                    {invoice.status.charAt(0).toUpperCase() + invoice.status.slice(1)}
-                  </Badge>
-                </div>
-              </CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
-                  <div className="flex items-center gap-1">
-                    <DollarSign className="h-4 w-4" />
-                    <span className="font-medium text-foreground">
-                      ${invoice.total_amount.toLocaleString()}
-                    </span>
+                </CardHeader>
+                <CardContent>
+                  <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground mb-4">
+                    <div className="flex items-center gap-1">
+                      <DollarSign className="h-4 w-4" />
+                      <span className="font-medium text-foreground">
+                        ${invoice.total_amount.toLocaleString()}
+                      </span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <Calendar className="h-4 w-4" />
+                      <span>Due {format(new Date(invoice.due_date), 'MMM d, yyyy')}</span>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-1">
-                    <Calendar className="h-4 w-4" />
-                    <span>Due {format(new Date(invoice.due_date), 'MMM d, yyyy')}</span>
-                  </div>
-                </div>
-                
-                {invoice.status !== 'paid' && invoice.status !== 'cancelled' && (
-                  <div className="space-y-2">
-                    <div className="flex flex-wrap gap-2">
-                      {invoice.share_token && stripeEnabled && (
-                        <Button
-                          size="sm"
-                          onClick={() => handlePayNow(invoice)}
-                          disabled={payingInvoiceId === invoice.id}
-                        >
-                          {payingInvoiceId === invoice.id ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Starting payment…
-                            </>
-                          ) : (
-                            <>
-                              <CreditCard className="h-4 w-4 mr-2" />
-                              Pay Now
-                            </>
-                          )}
-                        </Button>
-                      )}
-                      {invoice.share_token && (
-                        <Button asChild variant="outline" size="sm">
-                          <a
-                            href={`/public-invoice/${invoice.share_token}`}
-                            target="_blank"
-                            rel="noopener noreferrer"
+
+                  {isUnpaid && (
+                    <div className="space-y-2">
+                      <div className="flex flex-wrap gap-2">
+                        {invoice.share_token && stripeStatus === 'loading' && (
+                          <Button size="sm" disabled>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Checking payment availability…
+                          </Button>
+                        )}
+                        {invoice.share_token && stripeStatus === 'enabled' && (
+                          <Button
+                            size="sm"
+                            onClick={() => handlePayNow(invoice)}
+                            disabled={isPaying}
                           >
-                            <ExternalLink className="h-4 w-4 mr-2" />
-                            View Invoice
-                          </a>
-                        </Button>
+                            {isPaying ? (
+                              <>
+                                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                                Starting payment…
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard className="h-4 w-4 mr-2" />
+                                Pay Now
+                              </>
+                            )}
+                          </Button>
+                        )}
+                        {invoice.share_token && (
+                          <Button asChild variant="outline" size="sm">
+                            <a
+                              href={`/public-invoice/${invoice.share_token}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View Invoice
+                            </a>
+                          </Button>
+                        )}
+                      </div>
+                      {invoice.share_token && stripeStatus === 'disabled' && (
+                        <p className="text-xs text-muted-foreground">
+                          Online card payments are not available for this invoice. Please contact your service provider for payment instructions.
+                        </p>
                       )}
                     </div>
-                    {invoice.share_token && stripeEnabled === false && (
-                      <p className="text-xs text-muted-foreground">
-                        Online card payments are not available for this invoice. Please contact your service provider for payment instructions.
-                      </p>
-                    )}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          ))}
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
         </div>
       )}
     </div>
