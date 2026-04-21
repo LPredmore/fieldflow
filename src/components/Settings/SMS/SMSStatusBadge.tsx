@@ -9,7 +9,7 @@ interface StepStatusProps {
 export function SMSStatusBadge({ status, label }: StepStatusProps) {
   if (status === "complete") {
     return (
-      <Badge variant="default" className="bg-green-600 hover:bg-green-600 gap-1">
+      <Badge variant="default" className="gap-1">
         <CheckCircle2 className="h-3 w-3" />
         {label ?? "Complete"}
       </Badge>
