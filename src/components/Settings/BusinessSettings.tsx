@@ -46,7 +46,11 @@ const US_STATES = [
 export default function BusinessSettings() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isTestingEmail, setIsTestingEmail] = useState(false);
+  const [testResult, setTestResult] = useState<{ ok: boolean; message: string; isCustomDomain?: boolean } | null>(null);
   const { settings, loading, updateSettings, createSettings } = useSettings();
+  const { user } = useAuth();
+  const { toast } = useToast();
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
@@ -58,6 +62,8 @@ export default function BusinessSettings() {
       logo_url: "",
       brand_color: "#3B82F6",
       text_color: "#FFFFFF",
+      email_from_address: "",
+      email_from_name: "",
       business_address: {
         street: "",
         city: "",
@@ -119,6 +125,8 @@ export default function BusinessSettings() {
         logo_url: settings.logo_url || "",
         brand_color: settings.brand_color || "#3B82F6",
         text_color: settings.text_color || "#FFFFFF",
+        email_from_address: settings.email_from_address || "",
+        email_from_name: settings.email_from_name || "",
         business_address: settings.business_address || {
           street: "",
           city: "",
@@ -129,6 +137,66 @@ export default function BusinessSettings() {
       });
     }
   }, [settings, form]);
+
+  const handleSendTestEmail = async () => {
+    const emailAddress = user?.email || form.getValues("business_email");
+    if (!emailAddress) {
+      toast({
+        variant: "destructive",
+        title: "No email address",
+        description: "Add a business email or sign in to receive the test message.",
+      });
+      return;
+    }
+
+    setIsTestingEmail(true);
+    setTestResult(null);
+    try {
+      // Save current sender fields first so the test uses the latest values
+      const fromAddress = form.getValues("email_from_address");
+      const fromName = form.getValues("email_from_name");
+      if (settings && (fromAddress !== (settings.email_from_address || "") || fromName !== (settings.email_from_name || ""))) {
+        await updateSettings({
+          email_from_address: fromAddress || null,
+          email_from_name: fromName || null,
+        });
+      }
+
+      const { data, error } = await supabase.functions.invoke("send-notification-email", {
+        body: {
+          to: emailAddress,
+          subject: "Test email from your sender configuration",
+          html: `<p>This is a test message confirming your sender configuration works.</p><p>If you received this, your "From" address is correctly verified with Resend.</p>`,
+          triggered_by: "sender_test",
+        },
+      });
+
+      if (error || !data?.ok) {
+        const message = data?.message || data?.error_code || error?.message || "Send failed";
+        setTestResult({ ok: false, message, isCustomDomain: data?.is_custom_domain });
+        toast({
+          variant: "destructive",
+          title: "Test email failed",
+          description: message,
+        });
+      } else {
+        setTestResult({ ok: true, message: `Sent from ${data.from_address}`, isCustomDomain: data.is_custom_domain });
+        toast({
+          title: "Test email sent",
+          description: `Check ${emailAddress}.`,
+        });
+      }
+    } catch (err: any) {
+      setTestResult({ ok: false, message: err?.message || "Unexpected error" });
+      toast({
+        variant: "destructive",
+        title: "Test email failed",
+        description: err?.message || "Unexpected error",
+      });
+    } finally {
+      setIsTestingEmail(false);
+    }
+  };
 
   const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
