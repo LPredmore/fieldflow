@@ -442,13 +442,6 @@ export const useQuotes = () => {
         throw new Error('Customer email not found. Please update customer information first.');
       }
 
-      // Get quote number for the SMS body
-      const { data: quoteRow } = await supabase
-        .from('quotes')
-        .select('quote_number')
-        .eq('id', quoteId)
-        .maybeSingle();
-
       // Send the email
       sendQuoteEmailMutation.mutate({
         quoteId,
@@ -456,8 +449,9 @@ export const useQuotes = () => {
         customerName,
       });
 
-      // Fire-and-forget SMS notification (respects sms_settings)
-      void dispatchQuoteSms(quoteId, customerId, customerName, quoteRow?.quote_number);
+      // Fire-and-forget SMS notification (server-side dispatcher honors
+      // tenant settings, opt-outs, daily caps, and per-channel idempotency)
+      void dispatchQuoteSms(quoteId);
     } catch (error: any) {
       toast({
         title: "Error",
