@@ -382,14 +382,25 @@ export const useQuotes = () => {
 
   // Send quote email mutation (improved)
   const sendQuoteEmailMutation = useMutation({
-    mutationFn: async ({ quoteId, customerEmail, customerName }: { quoteId: string; customerEmail: string; customerName: string }) => {
+    mutationFn: async ({
+      quoteId,
+      customerEmail,
+      customerName,
+      forceResend,
+    }: {
+      quoteId: string;
+      customerEmail: string;
+      customerName: string;
+      forceResend?: boolean;
+    }) => {
       if (!tenantId) throw new Error("Authentication required");
-      
+
       const response = await supabase.functions.invoke("send-quote-email", {
         body: {
           quoteId,
           customerEmail,
           customerName,
+          forceResend: forceResend ?? false,
         },
       });
 
@@ -401,10 +412,19 @@ export const useQuotes = () => {
     },
     onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["quotes"] });
-      toast({
-        title: "Quote sent successfully!",
-        description: `Email sent to customer with quote link.`,
-      });
+      // Distinguish dispatcher-skipped from successful send so the user
+      // knows whether the message actually went out.
+      if (result?.email?.status === "skipped" && result.email.reason === "already_dispatched") {
+        toast({
+          title: "Already sent",
+          description: "This quote was already emailed. Use Resend to send it again.",
+        });
+      } else {
+        toast({
+          title: "Quote sent successfully!",
+          description: `Email sent to customer with quote link.`,
+        });
+      }
     },
     onError: (error: Error) => {
       toast({
@@ -429,7 +449,12 @@ export const useQuotes = () => {
   };
 
   // Enhanced send quote email function that fetches customer email
-  const sendQuoteWithCustomerEmail = async (quoteId: string, customerName: string, customerId: string) => {
+  const sendQuoteWithCustomerEmail = async (
+    quoteId: string,
+    customerName: string,
+    customerId: string,
+    options?: { forceResend?: boolean }
+  ) => {
     try {
       // Fetch customer email from database
       const { data: customer, error: customerError } = await supabase
@@ -442,15 +467,17 @@ export const useQuotes = () => {
         throw new Error('Customer email not found. Please update customer information first.');
       }
 
-      // Send the email
+      // Send the email (dispatcher enforces idempotency unless forceResend)
       sendQuoteEmailMutation.mutate({
         quoteId,
         customerEmail: customer.email,
         customerName,
+        forceResend: options?.forceResend,
       });
 
       // Fire-and-forget SMS notification (server-side dispatcher honors
-      // tenant settings, opt-outs, daily caps, and per-channel idempotency)
+      // tenant settings, opt-outs, daily caps, and per-channel idempotency).
+      // SMS dispatcher uses its own ledger; not affected by email forceResend.
       void dispatchQuoteSms(quoteId);
     } catch (error: any) {
       toast({
