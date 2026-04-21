@@ -8,11 +8,13 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useInvoices, Invoice, InvoiceFormData } from "@/hooks/useInvoices";
 import { InvoiceStatsCards } from "@/components/Invoices/InvoiceStatsCards";
 import { InvoiceCard } from "@/components/Invoices/InvoiceCard";
 import { InvoiceForm } from "@/components/Invoices/InvoiceForm";
 import { InvoicePreview } from "@/components/Invoices/InvoicePreview";
+import { RecurringInvoicesList } from "@/components/Invoices/RecurringInvoicesList";
 import { useToast } from "@/hooks/use-toast";
 
 export default function Invoices() {
@@ -135,101 +137,114 @@ export default function Invoices() {
           {/* Statistics Cards */}
           <InvoiceStatsCards stats={stats} />
 
-          {/* Search and Filter */}
-          <Card className="mb-6 shadow-material-md">
-            <CardContent className="p-4">
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="relative flex-1">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                  <Input
-                    placeholder="Search invoices by number or customer..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-                <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
-                  <SelectTrigger className="w-full sm:w-[200px]">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all">All Status</SelectItem>
-                    <SelectItem value="draft">Draft</SelectItem>
-                    <SelectItem value="sent">Sent</SelectItem>
-                    <SelectItem value="paid">Paid</SelectItem>
-                    <SelectItem value="overdue">Overdue</SelectItem>
-                    <SelectItem value="cancelled">Cancelled</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </CardContent>
-          </Card>
+          <Tabs defaultValue="invoices" className="mt-2">
+            <TabsList>
+              <TabsTrigger value="invoices">Invoices</TabsTrigger>
+              <TabsTrigger value="recurring">Recurring</TabsTrigger>
+            </TabsList>
 
-          {/* Loading State */}
-          {loading && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {[...Array(6)].map((_, i) => (
-                <Card key={i} className="shadow-material-md">
-                  <CardContent className="p-6">
-                    <div className="space-y-4">
-                      <Skeleton className="h-6 w-3/4" />
-                      <Skeleton className="h-4 w-1/2" />
-                      <div className="grid grid-cols-2 gap-4">
-                        <Skeleton className="h-4 w-full" />
-                        <Skeleton className="h-4 w-full" />
-                      </div>
-                      <Skeleton className="h-8 w-full" />
+            <TabsContent value="invoices" className="mt-4">
+              {/* Search and Filter */}
+              <Card className="mb-6 shadow-material-md">
+                <CardContent className="p-4">
+                  <div className="flex flex-col sm:flex-row gap-4">
+                    <div className="relative flex-1">
+                      <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search invoices by number or customer..."
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                        className="pl-10"
+                      />
                     </div>
+                    <Select value={statusFilter} onValueChange={(value: any) => setStatusFilter(value)}>
+                      <SelectTrigger className="w-full sm:w-[200px]">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Status</SelectItem>
+                        <SelectItem value="draft">Draft</SelectItem>
+                        <SelectItem value="sent">Sent</SelectItem>
+                        <SelectItem value="paid">Paid</SelectItem>
+                        <SelectItem value="overdue">Overdue</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Loading State */}
+              {loading && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {[...Array(6)].map((_, i) => (
+                    <Card key={i} className="shadow-material-md">
+                      <CardContent className="p-6">
+                        <div className="space-y-4">
+                          <Skeleton className="h-6 w-3/4" />
+                          <Skeleton className="h-4 w-1/2" />
+                          <div className="grid grid-cols-2 gap-4">
+                            <Skeleton className="h-4 w-full" />
+                            <Skeleton className="h-4 w-full" />
+                          </div>
+                          <Skeleton className="h-8 w-full" />
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+
+              {/* Empty State */}
+              {!loading && filteredInvoices.length === 0 && (
+                <Card className="shadow-material-md">
+                  <CardContent className="p-12 text-center">
+                    <div className="mb-4">
+                      <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+                    </div>
+                    <h3 className="text-lg font-semibold mb-2">
+                      {searchTerm || statusFilter !== 'all' ? 'No invoices found' : 'No invoices yet'}
+                    </h3>
+                    <p className="text-muted-foreground mb-4">
+                      {searchTerm || statusFilter !== 'all' 
+                        ? 'Try adjusting your search or filters to find what you\'re looking for.'
+                        : 'Get started by creating your first invoice for a customer.'
+                      }
+                    </p>
+                    {!searchTerm && statusFilter === 'all' && (
+                      <Button onClick={() => setIsFormOpen(true)}>
+                        <Plus className="h-4 w-4 mr-2" />
+                        New Invoice
+                      </Button>
+                    )}
                   </CardContent>
                 </Card>
-              ))}
-            </div>
-          )}
+              )}
 
-          {/* Empty State */}
-          {!loading && filteredInvoices.length === 0 && (
-            <Card className="shadow-material-md">
-              <CardContent className="p-12 text-center">
-                <div className="mb-4">
-                  <FileText className="mx-auto h-12 w-12 text-muted-foreground" />
+              {/* Invoice Grid */}
+              {!loading && filteredInvoices.length > 0 && (
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredInvoices.map((invoice) => (
+                    <InvoiceCard
+                      key={invoice.id}
+                      invoice={invoice}
+                      isOverdue={isOverdue(invoice)}
+                      onEdit={setEditingInvoice}
+                      onDelete={setDeletingInvoice}
+                      onPreview={setPreviewInvoice}
+                      onShare={handleShareInvoice}
+                      onSendEmail={(invoiceId, customerName) => handleSendInvoiceEmail(invoiceId, customerName, invoice.customer_id)}
+                      onMarkAsPaid={handleMarkAsPaid}
+                    />
+                  ))}
                 </div>
-                <h3 className="text-lg font-semibold mb-2">
-                  {searchTerm || statusFilter !== 'all' ? 'No invoices found' : 'No invoices yet'}
-                </h3>
-                <p className="text-muted-foreground mb-4">
-                  {searchTerm || statusFilter !== 'all' 
-                    ? 'Try adjusting your search or filters to find what you\'re looking for.'
-                    : 'Get started by creating your first invoice for a customer.'
-                  }
-                </p>
-                {!searchTerm && statusFilter === 'all' && (
-                  <Button onClick={() => setIsFormOpen(true)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New Invoice
-                  </Button>
-                )}
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </TabsContent>
 
-          {/* Invoice Grid */}
-          {!loading && filteredInvoices.length > 0 && (
-            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
-              {filteredInvoices.map((invoice) => (
-                <InvoiceCard
-                  key={invoice.id}
-                  invoice={invoice}
-                  isOverdue={isOverdue(invoice)}
-                  onEdit={setEditingInvoice}
-                  onDelete={setDeletingInvoice}
-                  onPreview={setPreviewInvoice}
-                  onShare={handleShareInvoice}
-                  onSendEmail={(invoiceId, customerName) => handleSendInvoiceEmail(invoiceId, customerName, invoice.customer_id)}
-                  onMarkAsPaid={handleMarkAsPaid}
-                />
-              ))}
-            </div>
-          )}
+            <TabsContent value="recurring" className="mt-4">
+              <RecurringInvoicesList />
+            </TabsContent>
+          </Tabs>
 
           {/* Create Invoice Form Modal */}
           <InvoiceForm
