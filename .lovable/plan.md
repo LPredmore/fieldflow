@@ -1,140 +1,162 @@
 
 
-## Recurring Invoicing for Maintenance Contracts
+## Route Optimization & Dispatch Board
 
 ### What changes for the user
 
-Business admins can attach a **billing schedule** to any customer (or to an existing recurring job series). On a defined cadence — monthly, quarterly, yearly, or "after every Nth completed job" — the system auto-generates a draft invoice from a saved line-item template and (optionally) auto-sends it to the customer. A new "Recurring" tab on the Invoices page lists all active billing schedules, shows next-issue dates, last-issued dates, pause/resume controls, and the chain of invoices each schedule has produced.
+A new **Dispatch** page (`/dispatch`) for business admins, designed for "morning planning" of one day at a time:
 
-Lawn care, pool, and HVAC scenarios all collapse to one of two patterns this covers:
+- **Left rail**: a day picker, contractor list (one swimlane per contractor + an "Unassigned" lane), and an "Optimize day" button per lane.
+- **Center**: a day timeline with each contractor's jobs as draggable cards. Drag a card vertically to change its time, drag horizontally between lanes to **reassign to a different contractor**. Each card shows ETA from previous stop and a small drive-time pill.
+- **Right**: a **map** of all of today's jobs, color-coded by contractor, with numbered pins matching the timeline order. Selecting a card highlights its pin (and vice versa).
+- **Per-lane "Optimize"**: re-sequences that contractor's day by nearest-neighbor from their start location, recomputes start times honoring duration + drive-time + a configurable buffer, and lets the admin **Preview → Apply** before any DB write.
+- Customers and contractors get **geocoded once** when their address changes; a banner shows how many addresses still need geocoding and offers a "Geocode all" action.
+- ETAs are computed from a real routing service (driving distance, not straight line) and cached so we don't re-bill the API on every render.
 
-1. **Flat-fee maintenance contract** — "$120 the 1st of every month, regardless of visits."
-2. **Per-visit billing rollup** — "Every month, invoice for the visits we completed that month" (uses the existing unbilled labor/expenses engine in `get_job_invoiceable_summary`).
+The existing `/calendar` page remains untouched — Dispatch is the day-planning tool, Calendar is the week/month overview.
 
 ### Definitive technical decision
 
-**Build a new `invoice_schedules` table with an RRULE-driven cron worker that generates native rows in the existing `invoices` table — do NOT use Stripe Subscriptions, and do NOT extend `job_series` to also represent billing.**
+**Build a tenant-installable Mapbox-backed dispatch board: store lat/lng on `customers` and `profiles`, use Mapbox Geocoding + Mapbox Directions Matrix for ETAs, render with `react-map-gl` + `mapbox-gl`, and run the optimizer client-side as nearest-neighbor with 2-opt polish. No new edge function for the optimizer; one new edge function for geocoding/matrix proxying so the Mapbox token never ships to the browser.**
 
 Why this and not the alternatives:
 
-1. **Native invoices over Stripe Subscriptions.** The app already has a complete invoice lifecycle (draft → sent → paid → overdue), public share tokens, PDF preview, email delivery via Resend, in-app payment via Stripe Connect Checkout, an admin Invoices page, a client portal Invoices page, profitability reports, RLS, audit logs, and tax handling. Stripe Subscriptions would force a second, parallel billing system: subscription objects living only in Stripe, products/prices that have to be mirrored, customer.subscription.* webhooks the app currently doesn't handle, no concept of "draft for review before send", no way to roll up the per-visit unbilled labor pattern (Stripe can't see `time_entries`), and no support for tenants who haven't connected Stripe at all (the app already works invoice-only with Venmo/PayPal/manual). Treating recurrence as **invoice generation** keeps one source of truth and reuses everything that already works, including the just-built Pay Now flow.
+1. **Mapbox over Google Maps / OpenStreetMap+OSRM.**
+   - Google Maps: best data, but its Terms of Service forbid persisting geocoded results, which makes the "geocode once, cache forever" pattern non-compliant. It also requires a billing account up front and a much heavier JS bundle.
+   - OSRM/Nominatim (free OSM): no per-call cost, but Nominatim's usage policy caps at ~1 req/sec and forbids bulk geocoding without a self-hosted instance — a non-starter for a dispatch board where an admin may geocode 200 customers in one go. OSRM also has no first-class React bindings.
+   - **Mapbox**: explicitly permits caching geocoding results indefinitely for paying customers, has a generous free tier (100k geocodes/mo, 100k matrix elements/mo), an official `react-map-gl` binding, a single Matrix API call returns an N×N drive-time grid (perfect for nearest-neighbor), and a single token model that's easy to gate behind an edge function. It is the right fit.
 
-2. **Separate `invoice_schedules` table over extending `job_series`.** They have different lifecycles. A job series can run for years with no billing (e.g., warranty visits), and one billing schedule can roll up *multiple* job series for the same customer (a customer with both a lawn series and a pool series who gets one monthly invoice). Cramming billing fields into `job_series` would also break the existing recurring-job UI and the cost summary RPC. A dedicated table mirrors the clean `job_series` / `job_occurrences` split: `invoice_schedules` (the rule) + `invoices` (the materialized output).
+2. **Persist `lat`/`lng` on `customers` (and `profiles` for contractors), don't geocode on the fly.** Geocoding is rate-limited and metered. Storing the coordinates means the dispatch board, optimizer, map markers, and ETA matrix all read from the database with zero external calls in the steady state. We re-geocode only when the address text actually changes (detected in a trigger).
 
-3. **RRULE + pg_cron worker over per-tenant schedulers.** The codebase already uses `rrule@2.8.1` and Luxon in `generate-job-occurrences-enhanced` and a daily horizon-extension worker in `extend-horizon`. Using the same pattern for invoices means one mental model, identical timezone handling, and a worker an admin already understands. Using pg_cron + `net.http_post` to invoke the worker is the canonical Lovable Cloud pattern (already documented in this project's knowledge).
+3. **Edge function proxy for Mapbox, not a public token in the browser.** A public `pk.*` Mapbox token can be domain-restricted but still leaks tenant-level usage to anyone who views source. A short-lived proxy through `mapbox-proxy` edge function lets us (a) keep one secret server-side, (b) per-tenant rate-limit using the existing `enhanced_rate_limit_check` function, (c) log usage, and (d) swap providers later without touching the client. The map *tiles* still need a token in the browser — we'll mint a temporary, scoped public token via the proxy on session start so it's never hard-coded.
 
-4. **Generate as `draft` by default, with opt-in `auto_send`.** Maintenance contracts often have last-minute adjustments (extra trip charges, materials). Auto-generating to draft preserves human review; tenants who want zero-touch billing flip `auto_send = true` per schedule. This matches how `job_occurrences` are pre-generated but never auto-completed.
+4. **Client-side optimizer (nearest-neighbor + 2-opt) over a server-side TSP solver.** A typical contractor's day is 4–12 stops. NN+2-opt on ≤15 nodes runs in microseconds in the browser, lets the admin see "what if I reassign job X to Bob?" instantly, and avoids a network round-trip per drag. The Mapbox Matrix call (one per lane, on demand) provides the drive-time distances; the optimizer is pure TypeScript. A real OR-tools server-side solver would be overkill at this scale and would block the snappy drag UX.
 
-5. **Per-visit rollup uses the existing unbilled-items engine.** `get_job_invoiceable_summary` already returns `labor_items + expense_items` for a job series with `billed_to_invoice_id IS NULL`. The worker for `billing_mode = 'per_visit_rollup'` simply calls this RPC for each linked series within the period window and stamps `billed_to_invoice_id` on the consumed time entries and expenses — the exact bookkeeping the manual flow already does.
+5. **Single new "Dispatch" page, NOT a new view inside FullCalendar.** FullCalendar resource-timeline (the swimlane view) is a paid Premium plugin (~$480/yr per dev) and FullCalendar has no concept of a side-by-side map. Building a purpose-made grid (CSS grid + `@dnd-kit/core`) is cheaper, fully owned, and matches the bespoke dispatch UIs in ServiceTitan / Jobber that the user is implicitly modeling against.
+
+6. **`@dnd-kit/core` over `react-beautiful-dnd` or HTML5 native DnD.** `react-beautiful-dnd` is unmaintained (Atlassian archived it Apr 2024) and conflicts with React 18 strict mode. HTML5 native DnD has terrible mobile support and no keyboard accessibility. `@dnd-kit` is actively maintained, accessible, mobile-friendly, ~10kb, and is what the rest of the modern React ecosystem is converging on.
+
+7. **Reassignment writes through existing `job_occurrences.assigned_to_user_id`.** The RLS policy already allows admins to update any tenant occurrence ("Allow authenticated users to update within their tenant" + role check via profiles join). No schema change needed for the reassignment path itself — drag-and-drop calls the same `useCalendarJobs.updateJob` already used elsewhere, plus a time shift via `start_at` / `end_at`.
 
 ### Data model
 
-New table `invoice_schedules`:
-
 ```text
-id                     uuid pk
-tenant_id              uuid       (RLS by get_user_tenant_id)
-created_by_user_id     uuid
-customer_id            uuid       (the bill-to customer)
-customer_name          text       (snapshot, mirrors invoices)
+customers:
+  + lat                 numeric  null
+  + lng                 numeric  null
+  + geocoded_at         timestamptz null
+  + geocoding_status    text     null   ('ok' | 'failed' | 'manual' | null)
+  + address_hash        text     null   (md5 of normalized address; trigger sets this)
 
-name                   text       e.g. "Lawn maintenance — Smiths"
-billing_mode           enum('flat_fee','per_visit_rollup')
-linked_job_series_ids  uuid[]     null for flat_fee; required for per_visit_rollup
+profiles:
+  + home_base_address   jsonb    null   (contractor "start of day" location)
+  + home_base_lat       numeric  null
+  + home_base_lng       numeric  null
+  + geocoded_at         timestamptz null
 
-# Schedule definition (mirrors job_series convention)
-rrule                  text       e.g. FREQ=MONTHLY;BYMONTHDAY=1
-timezone               text       default 'America/New_York'
-start_date             date       first issue date
-until_date             date       null = indefinite
-next_issue_at          timestamptz computed/maintained by worker
-last_issued_at         timestamptz null
-last_issued_invoice_id uuid       null
+job_occurrences:
+  + dispatch_sequence   integer  null   (1-based order within day for the assignee)
+  + drive_minutes_from_prev integer null  (cached ETA for display; recomputed on optimize)
 
-# Invoice template (used for flat_fee, and as overrides for rollup)
-line_items_template    jsonb      same shape as invoices.line_items
-tax_rate               numeric    default 0.0875
-payment_terms          text       default 'Net 30'
-due_days_after_issue   integer    default 30
-notes_template         text
-
-# Behavior
-auto_send              boolean    default false (false = draft for review)
-status                 enum('active','paused','ended')  default 'active'
-
-created_at, updated_at timestamps
+settings.system_settings (jsonb):
+  + dispatch: { default_buffer_minutes: 10, day_start_hour: 8 }
 ```
 
-New columns on `invoices`:
+Triggers:
+- `customers_address_hash_trigger` — on insert/update, normalize street+city+state+zip, hash, and if the hash changed clear `lat/lng/geocoded_at` so the worker re-geocodes.
+- Same for `profiles.home_base_address`.
+
+RPC: `get_unbatched_geocoding_targets(_limit int)` returns rows where `lat is null` for the caller's tenant — used by the geocoding worker so we never ship the customer list to the edge function.
+
+### Edge functions
 
 ```text
-generated_from_schedule_id  uuid    null   (links back to schedule)
-billing_period_start        date    null   (for rollup invoices)
-billing_period_end          date    null   (for rollup invoices)
+mapbox-proxy/index.ts        single function with three actions:
+  - { action: 'mint_tile_token' }     -> short-lived public token for map tiles
+  - { action: 'geocode', addresses }  -> server-side Mapbox Geocoding, writes lat/lng back
+  - { action: 'matrix', coordinates } -> Mapbox Directions Matrix, returns N×N minutes
+
+  All three: JWT-auth, tenant-scoped, rate-limited via enhanced_rate_limit_check,
+  CORS via @supabase/supabase-js/cors, Zod-validated input.
 ```
 
-RLS: same tenant-scoped policies as `invoices` — admins manage, contractors no-access (billing is admin-only). Clients see only the resulting invoices through their existing `is_customer_owned_by_client` invoice policy; they never see `invoice_schedules`.
-
-### Generation worker
-
-New edge function `generate-recurring-invoices` (modeled on `extend-horizon` + `generate-job-occurrences-enhanced`):
-
-```text
-For each invoice_schedules row WHERE status='active' AND next_issue_at <= now():
-  if billing_mode = 'flat_fee':
-      build line_items from line_items_template
-  if billing_mode = 'per_visit_rollup':
-      for each series in linked_job_series_ids:
-          call get_job_invoiceable_summary(series_id)
-          merge labor_items + expense_items into line_items
-          if line_items empty: skip this cycle (log + advance next_issue_at)
-          else: stamp billed_to_invoice_id on consumed records after insert
-
-  insert into invoices (status='draft', generated_from_schedule_id, billing_period_*, share_token, ...)
-  if schedule.auto_send: invoke send-invoice-email with generateTokenOnly=false
-  update schedule: last_issued_at, last_issued_invoice_id, next_issue_at = RRule.after(now)
-  if next_issue_at > until_date: status='ended'
-```
-
-Scheduled via pg_cron hourly (matches the cadence guidance in the project knowledge file). Hourly is fine because the worker idempotently picks up everything `<= now()`; the chosen issue *date* is what the customer sees on the invoice, not the worker tick time.
-
-Idempotency: a unique partial index on `(generated_from_schedule_id, billing_period_start)` prevents double-issuing if the worker runs twice in the same window.
+No cron is needed: geocoding is invoked from the UI (Dispatch banner "Geocode 12 customers") or implicitly from the customer form when an admin saves a new address. Matrix is invoked on demand when the user clicks Optimize or first opens the dispatch board for a day.
 
 ### UI surface
 
-- **Invoices page** — add a `Tabs` row: "Invoices" (existing) | "Recurring". The Recurring tab is a list of `invoice_schedules` with columns: Name, Customer, Cadence (humanized from RRULE), Next issue, Last issued, Auto-send, Status. Row actions: Edit, Pause/Resume, "Generate now" (manual trigger), View generated invoices.
-- **New `RecurringInvoiceScheduleForm`** — reuses `CustomerSelector`, `RRuleBuilder` (already exists for jobs), the line-item editor pattern from `InvoiceForm`, plus a billing-mode radio and a multi-select of the customer's job series (only shown when `per_visit_rollup`).
-- **Invoice card / preview** — when an invoice has `generated_from_schedule_id`, show a small "Recurring · {schedule name}" badge so admins know not to manually duplicate it.
-- **Client portal** — no new screens. Generated invoices already flow through `ClientInvoices.tsx` via the existing client RLS policy and Pay Now button.
+```text
+src/pages/Dispatch.tsx                     new page, admin-only
+src/components/Dispatch/
+  DispatchBoard.tsx                        layout shell
+  ContractorLane.tsx                       one row per contractor + Unassigned
+  JobCard.tsx                              draggable job, shows time + drive ETA
+  DispatchMap.tsx                          react-map-gl wrapper
+  GeocodingBanner.tsx                      "12 customers need geocoding"
+  OptimizeButton.tsx                       per-lane "Optimize" with preview dialog
+src/hooks/
+  useDispatchDay.tsx                       loads jobs + contractors + lat/lng for a date
+  useMapboxProxy.tsx                       wraps the edge function (mint, geocode, matrix)
+  useRouteOptimizer.tsx                    pure TS NN + 2-opt; takes Matrix output
+src/lib/
+  geocoding.ts                             address normalization + hash helpers
+  routeOptimizer.ts                        nearest-neighbor + 2-opt, fully unit-testable
+```
+
+Navigation: add **Dispatch** item between Jobs and Calendar in `Navigation.tsx`, gated by `canAccessSettings(userRole)` (admin-only — contractors don't dispatch other contractors).
+
+### "Other route-optimization improvements" found in the review
+
+These come out of reading the existing system and are folded into the same feature so we don't make a half-step:
+
+1. **Customer form: capture lat/lng at entry.** Add a "Verify address on map" mini-map to `CustomerForm.tsx` that calls the geocoder and shows a draggable pin. Stops bad addresses from polluting the dispatch board later.
+2. **Job creation: show drive distance from previously-scheduled job for the same contractor on the same day.** Tiny line in `JobForm.tsx`: "Adds ~14 min drive from prior job."
+3. **Calendar (existing): color jobs by contractor**, not by status. Status is already conveyed by an icon; contractor color is the dispatch signal an admin needs at a glance. Behind a toggle so today's behavior is preserved.
+4. **`time_entries.clock_in_lat/lng` is already collected — surface "last known location" of each contractor on the dispatch map** as a faded marker, so an admin can see where each crew currently is. Free reuse of existing data, no new ingestion.
+5. **Customer search by proximity.** With lat/lng populated, the Customers page gains a "near address X" filter (uses Haversine in SQL via a simple RPC; no Mapbox call). Useful when scheduling a new request near an existing route.
+6. **Per-tenant Mapbox usage cap in `settings`.** Surface a small counter ("8.4k of 100k geocodes used this month") on the Dispatch page so a busy tenant isn't surprised by an overage; the proxy enforces the cap.
 
 ### Edge cases handled
 
-- **Tenant has no Stripe connected.** Generated invoices behave exactly like manually created ones: client sees the helper text from the recently built `useStripeAvailability`, can pay via Venmo/PayPal/manual per existing settings.
-- **Per-visit rollup with zero completed visits in the window.** Worker logs and advances `next_issue_at` without inserting an empty invoice (configurable later; defaulting to "skip" is the right call so customers aren't billed $0).
-- **Schedule edited mid-cycle.** Edits affect future issues only; already-issued invoices are immutable bills, matching how the existing manual invoice edit flow works.
-- **Schedule deleted while invoices exist.** Soft-end via `status='ended'`. Hard delete is allowed (cascade safe — `generated_from_schedule_id` is `ON DELETE SET NULL`) so the historical invoices survive.
-- **Worker downtime.** On next run it issues every overdue cycle in order, each with the correct `billing_period_*` for that cycle, then advances. `RRule.between(last_issued_at, now())` produces the missed dates.
-- **Customer has multiple linked series, one is paused.** Rollup naturally returns no items for the paused series; remaining series still bill.
-- **Tax rate change on the schedule.** Applied to the next generated invoice; past invoices keep their snapshot — same semantics as manual invoices.
+- **No Mapbox key configured for the project.** Dispatch page renders, but map area shows "Add a Mapbox token in Settings → System to enable map view and ETAs." The drag-and-drop reassignment swimlane still works (it doesn't need the map). This keeps the feature functional for tenants who haven't onboarded the integration yet.
+- **Customer with no address.** Pin omitted from map; card shows "📍 No address — won't be optimized" and is excluded from the matrix call. Admin can still drag it.
+- **Geocoding fails for an address.** `geocoding_status='failed'` is stored; banner offers manual pin-drop on the verify-address mini-map.
+- **Contractor with no `home_base_*`.** Optimizer falls back to "start at the first scheduled job's location"; admin sees a one-time tooltip suggesting they set a home base in their profile for better ETAs.
+- **>15 stops in one lane.** Optimizer caps NN+2-opt at 15 nodes; for larger days it greedy-batches by region (k-means on coords with k = ceil(n/12)) then optimizes within each batch. This is rare and the cap message tells the admin.
+- **Reassignment crosses tenants/roles.** Impossible by RLS — the swimlanes only render contractors in `get_user_tenant_id()`, and the update goes through the existing tenant-scoped policy.
+- **Time-zone correctness.** All scheduling math uses Luxon with `job_series.timezone`, identical to `useCalendarJobs`. Optimizer outputs `start_at` in UTC.
+- **Concurrent edits.** The Optimize "Preview → Apply" dialog re-fetches the day right before applying; if anything changed (other admin moved a job) we abort and show a diff. Cheap, prevents lost updates.
+- **Mapbox quota exhausted.** Proxy returns 429; UI degrades to "ETAs unavailable, drag to manually re-time" and disables Optimize for the rest of the billing cycle. Reassignment still works.
 
 ### Files to create / change
 
 ```text
-supabase/migrations/<ts>_recurring_invoices.sql       (new table, columns, RLS, indexes, pg_cron)
-supabase/functions/generate-recurring-invoices/       (new edge function)
-src/hooks/useInvoiceSchedules.tsx                     (new — mirrors useJobSeries pattern)
-src/components/Invoices/RecurringInvoiceScheduleForm.tsx   (new)
-src/components/Invoices/RecurringInvoicesList.tsx     (new — table view)
-src/pages/Invoices.tsx                                (add Tabs: Invoices | Recurring)
-src/components/Invoices/InvoiceCard.tsx               (add "Recurring" badge when generated_from_schedule_id set)
-src/components/Invoices/InvoicePreview.tsx            (show billing period if present)
+supabase/migrations/<ts>_dispatch_geocoding.sql        new (columns, triggers, RPC, RLS unchanged)
+supabase/functions/mapbox-proxy/index.ts               new (geocode + matrix + tile token)
+
+src/pages/Dispatch.tsx                                 new
+src/components/Dispatch/*.tsx                          new (6 files listed above)
+src/hooks/useDispatchDay.tsx                           new
+src/hooks/useMapboxProxy.tsx                           new
+src/lib/routeOptimizer.ts                              new
+src/lib/geocoding.ts                                   new
+
+src/App.tsx                                            add /dispatch route, lazy-loaded, admin-gated
+src/components/Layout/Navigation.tsx                   add Dispatch nav item (admin-only)
+src/components/Customers/CustomerForm.tsx              add mini-map address verifier
+src/components/Jobs/JobForm.tsx                        add "drive from prior job" hint
+src/components/Calendar/EnhancedCalendar.tsx           optional "color by contractor" toggle
+src/components/Settings/SystemSettings.tsx             add Mapbox token field + dispatch defaults
+package.json                                           add mapbox-gl, react-map-gl, @dnd-kit/core, @dnd-kit/sortable
 ```
 
-No changes to existing edge functions, the Stripe webhook, the client portal pages, RLS on `invoices`, or `useInvoices` (the hook continues to list everything; the schedule is metadata on top).
+### Required user action before this works
 
-### What this explicitly does NOT include (and why)
+The user will need to provide a **`MAPBOX_ACCESS_TOKEN`** secret (a server-side `sk.*` token with Geocoding, Directions Matrix, and Tilesets:Read scopes). I'll request it via the secrets tool as the first step of implementation, before deploying `mapbox-proxy`. No other external accounts are needed — Stripe, Resend, OpenAI, etc. remain untouched.
 
-- **Stripe auto-charge / saved cards.** Out of scope for this round — would require Setup Intents, saved payment methods on customers, off-session charging, SCA handling, and a customer.subscription-style webhook. The Pay Now flow already covers "click to pay each invoice", which is the dominant SMB-trade pattern. Add later as `auto_charge` boolean on the schedule when a customer-payment-method table exists.
-- **Proration / mid-cycle plan changes.** Maintenance contracts are flat or visit-based, not seat-based; proration is a SaaS pattern that adds complexity without a clear use case here.
-- **Multi-currency.** The existing invoice system is single-currency; recurring inherits that. No regression.
+### Explicitly NOT included (and why)
+
+- **Live GPS tracking of contractors mid-route.** Requires a mobile app or background-geolocation web flow (battery, permissions, privacy review). The "last clock-in location" surfacing gives 80% of the value for 0% of the new infrastructure.
+- **Customer-facing "your tech is N minutes away" notifications.** Requires the live tracking above, plus SMS/Resend integration design. Belongs in a follow-up.
+- **Multi-day route planning / week-view optimization.** Out of scope; the dispatch board is explicitly a one-day morning-planning tool, which is the dominant SMB-trade workflow.
+- **Skill-based assignment constraints** (e.g., "only HVAC-certified contractors can take HVAC jobs). The data model doesn't yet have skills/certifications; tackle when that's introduced.
 
