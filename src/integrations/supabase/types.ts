@@ -150,6 +150,60 @@ export type Database = {
           },
         ]
       }
+      email_messages: {
+        Row: {
+          body_html: string | null
+          body_text: string | null
+          created_at: string
+          error_code: string | null
+          from_email: string | null
+          id: string
+          related_entity_id: string | null
+          related_entity_type: string | null
+          resend_id: string | null
+          status: string
+          subject: string
+          tenant_id: string
+          to_email: string
+          triggered_by: string | null
+          triggered_by_user_id: string | null
+        }
+        Insert: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          error_code?: string | null
+          from_email?: string | null
+          id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resend_id?: string | null
+          status?: string
+          subject: string
+          tenant_id: string
+          to_email: string
+          triggered_by?: string | null
+          triggered_by_user_id?: string | null
+        }
+        Update: {
+          body_html?: string | null
+          body_text?: string | null
+          created_at?: string
+          error_code?: string | null
+          from_email?: string | null
+          id?: string
+          related_entity_id?: string | null
+          related_entity_type?: string | null
+          resend_id?: string | null
+          status?: string
+          subject?: string
+          tenant_id?: string
+          to_email?: string
+          triggered_by?: string | null
+          triggered_by_user_id?: string | null
+        }
+        Relationships: []
+      }
       ignore: {
         Row: {
           created_at: string
@@ -745,6 +799,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      notification_dispatches: {
+        Row: {
+          channel: string
+          dispatched_at: string
+          email_message_id: string | null
+          event_key: string
+          id: string
+          sms_message_id: string | null
+          tenant_id: string
+        }
+        Insert: {
+          channel: string
+          dispatched_at?: string
+          email_message_id?: string | null
+          event_key: string
+          id?: string
+          sms_message_id?: string | null
+          tenant_id: string
+        }
+        Update: {
+          channel?: string
+          dispatched_at?: string
+          email_message_id?: string | null
+          event_key?: string
+          id?: string
+          sms_message_id?: string | null
+          tenant_id?: string
+        }
+        Relationships: []
       }
       profiles: {
         Row: {
