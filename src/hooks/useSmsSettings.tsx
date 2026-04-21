@@ -58,7 +58,7 @@ export function useSmsSettings() {
     if (error && error.code !== "PGRST116") {
       console.error("Error loading sms_settings:", error);
     }
-    setSettings((data as SmsSettings | null) ?? null);
+    setSettings((data as unknown as SmsSettings | null) ?? null);
     setLoading(false);
   }, [user]);
 
