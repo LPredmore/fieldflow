@@ -3,21 +3,27 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage, FormDescription } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { Loader2, Upload } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Loader2, Upload, Mail, CheckCircle2, AlertCircle, Send } from "lucide-react";
 import { hexToHsl } from "@/lib/colorUtils";
 import { useSettings } from "@/hooks/useSettings";
+import { useAuth } from "@/hooks/useAuth";
+import { supabase } from "@/integrations/supabase/client";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   business_name: z.string().min(1, "Business name is required"),
   business_phone: z.string().optional(),
-  business_email: z.string().email("Invalid email address").optional(),
+  business_email: z.string().email("Invalid email address").optional().or(z.literal("")),
   business_website: z.string().optional(),
   logo_url: z.string().optional(),
   brand_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
   text_color: z.string().regex(/^#[0-9A-Fa-f]{6}$/, "Invalid hex color").optional().or(z.literal("")),
+  email_from_address: z.string().email("Invalid email address").optional().or(z.literal("")),
+  email_from_name: z.string().max(100).optional().or(z.literal("")),
   business_address: z.object({
     street: z.string().optional(),
     city: z.string().optional(),
