@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.invoice-overdue-worker]
 verify_jwt = false
+
+[functions.sms-job-reminders]
+verify_jwt = false
