@@ -341,12 +341,27 @@ export default function JobView({ job, onUpdate }: JobViewProps) {
             </Badge>
           </div>
         </div>
-        {onUpdate && (
-          <Button onClick={handleEdit} variant="outline" className="ml-4">
-            <Edit className="h-4 w-4 mr-2" />
-            Edit Job
+        <div className="flex gap-2 ml-4">
+          <Button
+            onClick={handleNotifyOnTheWay}
+            variant="outline"
+            disabled={sendingSms}
+            title="Send an SMS letting the customer know you're on the way"
+          >
+            {sendingSms ? (
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <MessageSquare className="h-4 w-4 mr-2" />
+            )}
+            Notify on the way
           </Button>
-        )}
+          {onUpdate && (
+            <Button onClick={handleEdit} variant="outline">
+              <Edit className="h-4 w-4 mr-2" />
+              Edit Job
+            </Button>
+          )}
+        </div>
       </div>
 
       <Tabs defaultValue="details" className="w-full">
