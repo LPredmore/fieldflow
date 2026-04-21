@@ -100,6 +100,13 @@ export function InvoicePreview({ open, onOpenChange, invoice }: InvoicePreviewPr
                 <p><strong>Invoice #:</strong> {invoice.invoice_number}</p>
                 <p><strong>Issue Date:</strong> {format(new Date(invoice.issue_date), 'MMM dd, yyyy')}</p>
                 <p><strong>Due Date:</strong> {format(new Date(invoice.due_date), 'MMM dd, yyyy')}</p>
+                {(invoice as any).billing_period_start && (invoice as any).billing_period_end && (
+                  <p className="text-sm text-muted-foreground">
+                    <strong>Billing period:</strong>{' '}
+                    {format(new Date((invoice as any).billing_period_start), 'MMM d')} –{' '}
+                    {format(new Date((invoice as any).billing_period_end), 'MMM d, yyyy')}
+                  </p>
+                )}
               </div>
             </div>
           </div>
