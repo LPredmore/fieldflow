@@ -12,6 +12,7 @@ import {
 import RoleIndicator from "@/components/Layout/RoleIndicator";
 import MetricCard from "@/components/Dashboard/MetricCard";
 import RecentJobs from "@/components/Dashboard/RecentJobs";
+import { SetupBanner } from "@/components/Dashboard/SetupBanner";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useCustomers } from "@/hooks/useCustomers";
@@ -90,6 +91,9 @@ const Index = () => {
   return (
     <>
       <div className="p-6 lg:p-8">
+          {/* Setup banner — only renders for admins missing config */}
+          <SetupBanner />
+
           {/* Header */}
           <div className="mb-8">
             <div className="flex items-center gap-4">

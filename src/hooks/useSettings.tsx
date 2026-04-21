@@ -18,6 +18,7 @@ export interface Settings {
   text_color: string | null;
   email_from_address: string | null;
   email_from_name: string | null;
+  public_portal_base_url: string | null;
   tax_settings: any | null;
   payment_settings: any | null;
   invoice_settings: any | null;
