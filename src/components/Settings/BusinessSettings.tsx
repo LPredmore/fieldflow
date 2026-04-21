@@ -417,7 +417,94 @@ export default function BusinessSettings() {
               </div>
             </div>
 
-            {/* Address */}
+            {/* Email Sender */}
+            <div className="space-y-4">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div>
+                  <h3 className="text-lg font-medium flex items-center gap-2">
+                    <Mail className="h-5 w-5" />
+                    Email Sender
+                  </h3>
+                  <p className="text-sm text-muted-foreground">
+                    Branded "From" address for outgoing customer emails (quotes, invoices, notifications).
+                  </p>
+                </div>
+                {settings?.email_from_address ? (
+                  <Badge variant="secondary" className="gap-1">
+                    <CheckCircle2 className="h-3 w-3" />
+                    Custom domain configured
+                  </Badge>
+                ) : (
+                  <Badge variant="outline" className="gap-1 text-muted-foreground">
+                    <AlertCircle className="h-3 w-3" />
+                    Using default sender
+                  </Badge>
+                )}
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <FormField
+                  control={form.control}
+                  name="email_from_address"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>From Email Address</FormLabel>
+                      <FormControl>
+                        <Input type="email" placeholder="info@yourdomain.com" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Must be verified in your Resend dashboard. Leave blank to use the default sender.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="email_from_name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Display Name</FormLabel>
+                      <FormControl>
+                        <Input placeholder={form.watch("business_name") || "Your Business"} {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        Friendly name shown in the recipient's inbox. Defaults to your business name.
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </div>
+
+              <div className="flex flex-col sm:flex-row gap-3 sm:items-center">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={handleSendTestEmail}
+                  disabled={isTestingEmail}
+                >
+                  {isTestingEmail ? (
+                    <><Loader2 className="mr-2 h-4 w-4 animate-spin" /> Sending test...</>
+                  ) : (
+                    <><Send className="mr-2 h-4 w-4" /> Send test email</>
+                  )}
+                </Button>
+                {testResult && (
+                  <div className={`text-sm flex items-center gap-2 ${testResult.ok ? 'text-green-600 dark:text-green-400' : 'text-destructive'}`}>
+                    {testResult.ok ? (
+                      <CheckCircle2 className="h-4 w-4" />
+                    ) : (
+                      <AlertCircle className="h-4 w-4" />
+                    )}
+                    <span>{testResult.message}</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+
             <div className="space-y-4">
               <h3 className="text-lg font-medium">Business Address</h3>
               
